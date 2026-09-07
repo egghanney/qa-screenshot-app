@@ -257,38 +257,95 @@ export function ContextPackModal({
                 </div>
 
                 {/* 3. Journeys & Flow */}
-                <div className="p-4 rounded-2xl bg-white border border-clinical-border shadow-xs space-y-2 md:col-span-2">
+                <div className="p-4 rounded-2xl bg-white border border-clinical-border shadow-xs space-y-3 md:col-span-2">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                     <h4 className="font-bold text-dark-chassis flex items-center gap-2 text-xs">
                       <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-mono font-bold">3</span>
                       Journeys &amp; Screen Flow
                     </h4>
-                    <span className="text-[10px] text-indigo-600 font-mono font-medium">Sequential Transition Flow</span>
+                    <span className="text-[10px] text-indigo-600 font-mono font-medium">Topological DAG Paths (Canvas Synced)</span>
                   </div>
                   
-                  {contextPack.blueprint_dimensions.journeys.map((j, i) => {
-                    const steps = j.includes(' → ') 
-                      ? j.split(' → ').map(s => s.trim()).filter(Boolean)
-                      : [j];
+                  <div className="space-y-2.5">
+                    {contextPack.blueprint_dimensions.journeys.map((j, i) => {
+                      const match = j.match(/^(\[[^\]]+\])\s*(.*)$/);
+                      const tag = match ? match[1] : null;
+                      const rawPath = match ? match[2] : j;
+                      const steps = rawPath.includes(' → ') 
+                        ? rawPath.split(' → ').map(s => s.trim()).filter(Boolean)
+                        : [rawPath];
 
-                    return (
-                      <div key={i} className="flex flex-wrap items-center gap-1.5 pt-1">
-                        {steps.map((step, sIdx) => (
-                          <React.Fragment key={sIdx}>
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-900 border border-indigo-200/80 text-[11px] font-medium shadow-xs">
-                              <span className="w-4 h-4 rounded-full bg-indigo-200/80 text-indigo-800 text-[9px] font-mono font-bold flex items-center justify-center shrink-0">
-                                {sIdx + 1}
+                      const isGolden = tag?.includes('Golden');
+                      const isFailure = tag?.includes('Failure');
+                      const isRecovery = tag?.includes('Recovery');
+
+                      return (
+                        <div key={i} className={`p-3 rounded-xl border space-y-2 ${
+                          isGolden 
+                            ? 'bg-emerald-50/40 border-emerald-200/70' 
+                            : isFailure 
+                            ? 'bg-rose-50/40 border-rose-200/70' 
+                            : isRecovery
+                            ? 'bg-amber-50/40 border-amber-200/70'
+                            : 'bg-slate-50/70 border-slate-200/80'
+                        }`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              {tag ? (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                  isGolden 
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                    : isFailure 
+                                    ? 'bg-rose-100 text-rose-800 border-rose-300' 
+                                    : isRecovery
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                                }`}>
+                                  {tag.replace(/[\[\]]/g, '')}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                  FLOW PATH #{i + 1}
+                                </span>
+                              )}
+                              <span className="text-[11px] font-semibold text-slate-700">
+                                {isGolden ? 'Primary Success Path' : isFailure ? 'Exception & Failure State' : isRecovery ? 'Recovery & Retry Loop' : `Alternative Flow ${i + 1}`}
                               </span>
-                              {step}
-                            </span>
-                            {sIdx < steps.length - 1 && (
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    );
-                  })}
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-mono font-medium">{steps.length} steps</span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {steps.map((step, sIdx) => (
+                              <React.Fragment key={sIdx}>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border shadow-2xs ${
+                                  isGolden 
+                                    ? 'bg-white text-emerald-950 border-emerald-200/90' 
+                                    : isFailure 
+                                    ? 'bg-white text-rose-950 border-rose-200/90' 
+                                    : 'bg-white text-indigo-950 border-indigo-200/80'
+                                }`}>
+                                  <span className={`w-4 h-4 rounded-full text-[9px] font-mono font-bold flex items-center justify-center shrink-0 ${
+                                    isGolden 
+                                      ? 'bg-emerald-100 text-emerald-800' 
+                                      : isFailure 
+                                      ? 'bg-rose-100 text-rose-800' 
+                                      : 'bg-indigo-100 text-indigo-800'
+                                  }`}>
+                                    {sIdx + 1}
+                                  </span>
+                                  {step}
+                                </span>
+                                {sIdx < steps.length - 1 && (
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* 4. Interactions & Controls */}
