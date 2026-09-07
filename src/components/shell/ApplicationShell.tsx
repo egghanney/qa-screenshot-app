@@ -73,7 +73,7 @@ export function ApplicationShell({
   ];
 
   return (
-    <div className="min-h-screen h-screen max-h-screen p-2 sm:p-4 bg-clinical-bg flex flex-col justify-between overflow-hidden">
+    <div className="min-h-screen h-screen max-h-screen p-2 sm:p-4 bg-clinical-bg flex flex-col overflow-hidden">
       {/* Outer Charcoal Framing with Rounded 32px */}
       <div className="w-full bg-dark-chassis rounded-[32px] p-2 sm:p-3 shadow-2xl flex flex-col flex-1 border border-dark-secondary/60 min-h-0 overflow-hidden">
         
@@ -213,20 +213,6 @@ export function ApplicationShell({
           {children}
         </main>
       </div>
-
-      {/* Micro Status Bar */}
-      <footer className="mt-2 px-4 flex items-center justify-between text-[11px] text-txt-muted">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-status-positive animate-pulse" />
-          <span>Evidence-grounded QA Engine active</span>
-          <span className="text-clinical-border">•</span>
-          <span>Supabase PostgreSQL connected</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span>Design: Futuristic Clinical OS</span>
-          <span>Anti-Hallucination: Strictly Enforced</span>
-        </div>
-      </footer>
     </div>
   );
 }
