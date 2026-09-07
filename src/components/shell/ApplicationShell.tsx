@@ -17,7 +17,8 @@ import {
   Settings, 
   Smartphone,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  ClipboardList
 } from 'lucide-react';
 import { Project, Feature } from '@/lib/types';
 
@@ -43,6 +44,7 @@ interface ApplicationShellProps {
     knowledge: number;
     questions: number;
     checkpoints: number;
+    charters?: number;
     observations: number;
   };
 }
@@ -63,7 +65,7 @@ export function ApplicationShell({
   isChatOpen,
   onSearchQuery,
   children,
-  counts = { screens: 0, nodes: 0, knowledge: 0, questions: 0, checkpoints: 0, observations: 0 }
+  counts = { screens: 0, nodes: 0, knowledge: 0, questions: 0, checkpoints: 0, charters: 0, observations: 0 }
 }: ApplicationShellProps) {
   const [searchVal, setSearchVal] = useState('');
 
@@ -73,6 +75,7 @@ export function ApplicationShell({
     { id: 'journey', label: 'Journey Map', icon: GitCommit, badge: counts.nodes },
     { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen, badge: counts.knowledge },
     { id: 'questions', label: 'AI Questions', icon: HelpCircle, badge: counts.questions, highlight: counts.questions > 0 },
+    { id: 'charters', label: 'Test Charters', icon: ClipboardList, badge: counts.charters, highlight: (counts.charters || 0) > 0 },
     { id: 'checkpoints', label: 'QA Matrix', icon: CheckSquare, badge: counts.checkpoints },
     { id: 'defects', label: 'Defects & Gaps', icon: AlertCircle, badge: counts.observations },
     { id: 'compare', label: 'Screen Diff', icon: GitCompare },

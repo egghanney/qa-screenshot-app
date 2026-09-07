@@ -254,3 +254,42 @@ export interface ScreenComparison {
   };
   created_at: string;
 }
+
+export type CharterStatus = 'Draft' | 'In Progress' | 'Completed';
+export type ScenarioStatus = 'Pass' | 'Fail' | 'Blocked' | 'Untested';
+
+export interface CharterScenario {
+  id: string;
+  charter_id: string;
+  prompt_id: string;
+  prompt_text: string;
+  status: ScenarioStatus;
+  observations: string;
+  media_url: string;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface QACharter {
+  id: string;
+  feature_id?: string | null;
+  project_id: string;
+  charter_code: string;
+  title: string;
+  mission: string;
+  user_persona: string;
+  starting_condition: string;
+  expected_outcome: string;
+  scope: 'feature' | 'product';
+  status: CharterStatus;
+  scenarios?: CharterScenario[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type GeneratedCharter = Omit<QACharter, 'id' | 'scenarios' | 'created_at' | 'updated_at'> & {
+  scenarios: Array<Omit<CharterScenario, 'id' | 'charter_id' | 'created_at' | 'updated_at'>>;
+};
+
+

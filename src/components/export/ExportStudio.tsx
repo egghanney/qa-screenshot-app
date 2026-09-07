@@ -9,7 +9,8 @@ import {
   KnowledgeItem, 
   QACheckpoint, 
   QAObservation, 
-  AIQuestion 
+  AIQuestion,
+  QACharter
 } from '@/lib/types';
 import { 
   Download, 
@@ -20,7 +21,8 @@ import {
   Share2, 
   BrainCircuit,
   Layers,
-  Printer
+  Printer,
+  ClipboardList
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import Papa from 'papaparse';
@@ -32,6 +34,7 @@ interface ExportStudioProps {
   edges: JourneyEdgeData[];
   knowledge: KnowledgeItem[];
   checkpoints: QACheckpoint[];
+  charters?: QACharter[];
   observations: QAObservation[];
   questions: AIQuestion[];
 }
@@ -43,6 +46,7 @@ export function ExportStudio({
   edges,
   knowledge,
   checkpoints,
+  charters = [],
   observations,
   questions
 }: ExportStudioProps) {
@@ -84,15 +88,27 @@ ${knowledge.map(k => `### [${k.category}] ${k.title}
 - **Notes**: ${k.notes || '—'}
 `).join('\n')}
 
-## 6. QA Verification Checkpoints Matrix (${checkpoints.length} Tests)
+## 6. Exploratory Testing (ET) Charters (${charters.length} Charters)
+${charters.map(c => `### ${c.charter_code} | ${c.title}
+- **Mission**: ${c.mission}
+- **User Persona**: ${c.user_persona}
+- **Starting Condition**: ${c.starting_condition}
+- **Expected Outcome**: ${c.expected_outcome}
+
+| Prompt ID | Exploration Prompts & Investigative Scenarios | Status | Observations & Notes | Media URL |
+| :--- | :--- | :--- | :--- | :--- |
+${(c.scenarios || []).map(s => `| **${s.prompt_id}** | ${s.prompt_text.replace(/\|/g, '\\|')} | \`${s.status}\` | ${s.observations ? s.observations.replace(/\n/g, ' ') : '—'} | ${s.media_url || '—'} |`).join('\n')}
+`).join('\n\n')}
+
+## 7. QA Verification Checkpoints Matrix (${checkpoints.length} Tests)
 | Category | Checkpoint Title | Test Procedure | Expected Result | Priority | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 ${checkpoints.map(c => `| ${c.category} | ${c.title} | ${c.test_steps.replace(/\n/g, ' ')} | ${c.expected_result} | ${c.priority} | ${c.status} |`).join('\n')}
 
-## 7. Flagged Defect Observations & UX Issues (${observations.length})
+## 8. Flagged Defect Observations & UX Issues (${observations.length})
 ${observations.map(o => `- **[${o.type} - ${o.priority}] ${o.title}**: ${o.description} (Severity: ${o.severity}, Status: ${o.status})`).join('\n')}
 
-## 8. Clarified Unknowns & AI Questions (${questions.length})
+## 9. Clarified Unknowns & AI Questions (${questions.length})
 ${questions.map(q => `- **Q**: ${q.question}\n  - **Resolution**: ${q.answer || 'Pending confirmation'} (\`${q.status}\`)`).join('\n')}
 
 ---
@@ -196,6 +212,37 @@ ${questions.map(q => `- **Q**: ${q.question}\n  - **Resolution**: ${q.answer || 
     document.body.removeChild(link);
   };
 
+  const handleExportChartersCSV = () => {
+    const csvData: any[] = [];
+    charters.forEach(c => {
+      (c.scenarios || []).forEach(s => {
+        csvData.push({
+          'Charter Code': c.charter_code,
+          'Charter Title': c.title,
+          'Mission': c.mission,
+          'User Persona': c.user_persona,
+          'Starting Condition': c.starting_condition,
+          'Expected Outcome': c.expected_outcome,
+          'Prompt ID': s.prompt_id,
+          'Exploration Prompts & Investigative Scenarios': s.prompt_text,
+          'Status': s.status,
+          'Observations & Notes': s.observations || '',
+          'Media URL': s.media_url || ''
+        });
+      });
+    });
+
+    const csv = Papa.unparse(csvData.length > 0 ? csvData : [{ Note: 'No charters generated yet' }]);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${feature.name.replace(/\s+/g, '_')}_Exploratory_Charters.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden p-4 sm:p-6 space-y-6">
       
@@ -222,9 +269,29 @@ ${questions.map(q => `- **Q**: ${q.question}\n  - **Resolution**: ${q.answer || 
         </button>
       </div>
 
-      {/* Export Options Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Export Options Grid (4 Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
+        {/* Exploratory Testing Charters CSV */}
+        <div className="bg-clinical-white rounded-2xl border border-clinical-border p-5 shadow-card flex flex-col justify-between space-y-4">
+          <div className="space-y-2">
+            <div className="w-10 h-10 rounded-full bg-neon text-dark-chassis flex items-center justify-center font-bold">
+              <ClipboardList className="w-5 h-5" />
+            </div>
+            <h4 className="text-sm font-bold text-dark-chassis">Exploratory Charters (CSV)</h4>
+            <p className="text-xs text-txt-secondary leading-relaxed">
+              Full table with Mission, Persona, Prompt IDs, Scenarios, Pass/Fail, and Tester Observations.
+            </p>
+          </div>
+          <button
+            onClick={handleExportChartersCSV}
+            className="w-full py-2 rounded-pill bg-neon text-dark-chassis text-xs font-bold hover:bg-neon-bright flex items-center justify-center gap-2 transition shadow-xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download Charters CSV
+          </button>
+        </div>
+
         {/* Master Package PDF */}
         <div className="bg-clinical-white rounded-2xl border border-clinical-border p-5 shadow-card flex flex-col justify-between space-y-4">
           <div className="space-y-2">

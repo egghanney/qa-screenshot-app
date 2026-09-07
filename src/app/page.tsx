@@ -11,7 +11,8 @@ import {
   KnowledgeItem, 
   QACheckpoint, 
   QAObservation, 
-  AIQuestion 
+  AIQuestion,
+  QACharter
 } from '@/lib/types';
 
 import { ApplicationShell } from '@/components/shell/ApplicationShell';
@@ -21,6 +22,7 @@ import { VisualJourneyCanvas } from '@/components/journey/VisualJourneyCanvas';
 import { KnowledgeBaseView } from '@/components/knowledge/KnowledgeBaseView';
 import { AIQuestionsDeck } from '@/components/knowledge/AIQuestionsDeck';
 import { QACheckpointMatrix } from '@/components/qa/QACheckpointMatrix';
+import { ExploratoryChartersView } from '@/components/charters/ExploratoryChartersView';
 import { ObservationTracker } from '@/components/observations/ObservationTracker';
 import { ScreenComparisonStudio } from '@/components/compare/ScreenComparisonStudio';
 import { ExportStudio } from '@/components/export/ExportStudio';
@@ -41,6 +43,7 @@ export default function Home() {
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [questions, setQuestions] = useState<AIQuestion[]>([]);
   const [checkpoints, setCheckpoints] = useState<QACheckpoint[]>([]);
+  const [charters, setCharters] = useState<QACharter[]>([]);
   const [observations, setObservations] = useState<QAObservation[]>([]);
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -85,6 +88,7 @@ export default function Home() {
         setKnowledge([]);
         setQuestions([]);
         setCheckpoints([]);
+        setCharters([]);
         setObservations([]);
         setIsLoading(false);
         return;
@@ -101,6 +105,7 @@ export default function Home() {
         setKnowledge([]);
         setQuestions([]);
         setCheckpoints([]);
+        setCharters([]);
         setObservations([]);
         setIsLoading(false);
         return;
@@ -185,6 +190,35 @@ export default function Home() {
         .eq('feature_id', targetFeatureId)
         .order('created_at', { ascending: true });
       setObservations(obs || []);
+
+      // 11. Fetch QA Exploratory Charters & Scenarios
+      const { data: chtrs } = await supabase
+        .from('qa_charters')
+        .select('*')
+        .eq('feature_id', targetFeatureId)
+        .order('created_at', { ascending: true });
+
+      if (chtrs && chtrs.length > 0) {
+        const charterIds = chtrs.map(c => c.id);
+        const { data: scns } = await supabase
+          .from('qa_charter_scenarios')
+          .select('*')
+          .in('charter_id', charterIds)
+          .order('sort_order', { ascending: true });
+
+        const scenariosByCharter = (scns || []).reduce((acc: any, s: any) => {
+          if (!acc[s.charter_id]) acc[s.charter_id] = [];
+          acc[s.charter_id].push(s);
+          return acc;
+        }, {});
+
+        setCharters(chtrs.map(c => ({
+          ...c,
+          scenarios: scenariosByCharter[c.id] || []
+        })));
+      } else {
+        setCharters([]);
+      }
 
     } catch (err) {
       console.error('Failed loading feature data:', err);
@@ -378,6 +412,7 @@ export default function Home() {
           knowledge: knowledge.length,
           questions: questions.filter(q => q.status === 'Pending').length,
           checkpoints: checkpoints.length,
+          charters: charters.length,
           observations: observations.length
         }}
       >
@@ -456,6 +491,15 @@ export default function Home() {
               />
             )}
 
+            {activeTab === 'charters' && (
+              <ExploratoryChartersView
+                currentFeature={feature}
+                currentProject={project}
+                charters={charters}
+                onRefreshCharters={() => loadFeatureData(feature.id)}
+              />
+            )}
+
             {activeTab === 'checkpoints' && (
               <QACheckpointMatrix
                 checkpoints={checkpoints}
@@ -489,6 +533,7 @@ export default function Home() {
                 edges={edges}
                 knowledge={knowledge}
                 checkpoints={checkpoints}
+                charters={charters}
                 observations={observations}
                 questions={questions}
               />

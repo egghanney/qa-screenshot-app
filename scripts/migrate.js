@@ -171,6 +171,40 @@ CREATE TABLE IF NOT EXISTS public.qa_screen_comparisons (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.qa_charters (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    feature_id UUID REFERENCES public.qa_features(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES public.qa_projects(id) ON DELETE CASCADE,
+    charter_code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    mission TEXT NOT NULL,
+    user_persona TEXT NOT NULL,
+    starting_condition TEXT NOT NULL,
+    expected_outcome TEXT NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'feature',
+    status TEXT NOT NULL DEFAULT 'Draft',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.qa_charter_scenarios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    charter_id UUID REFERENCES public.qa_charters(id) ON DELETE CASCADE,
+    prompt_id TEXT NOT NULL,
+    prompt_text TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Untested',
+    observations TEXT DEFAULT '',
+    media_url TEXT DEFAULT '',
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS qa_charters_feature_id_idx ON public.qa_charters(feature_id);
+CREATE INDEX IF NOT EXISTS qa_charters_project_id_idx ON public.qa_charters(project_id);
+CREATE INDEX IF NOT EXISTS qa_charter_scenarios_charter_id_idx ON public.qa_charter_scenarios(charter_id);
+
+
 -- 2. Enable RLS and Permissive Policies
 ALTER TABLE public.qa_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.qa_features ENABLE ROW LEVEL SECURITY;

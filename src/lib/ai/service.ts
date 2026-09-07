@@ -7,7 +7,10 @@ import {
   KnowledgeItem, 
   AIQuestion, 
   QACheckpoint, 
-  ScreenComparison 
+  ScreenComparison,
+  QACharter,
+  CharterScenario,
+  GeneratedCharter
 } from '@/lib/types';
 
 // Helper to call Gemini API if key is available
@@ -1023,3 +1026,255 @@ All knowledge items and checkpoints are strictly anti-hallucination grounded to 
 ---
 *ℹ️ Synthesized directly from database records. To enable real-time conversational reasoning, enter your GEMINI_API_KEY in Settings.*`;
 }
+
+// 7. Exploratory Testing (ET) Charters Generation Engine
+export async function generateExploratoryCharters(
+  feature: Feature,
+  screens: ScreenItem[],
+  nodes: JourneyNodeData[],
+  edges: JourneyEdgeData[],
+  knowledge: KnowledgeItem[],
+  apiKey?: string
+): Promise<GeneratedCharter[]> {
+  // Generate prefix code from feature/project name
+  const words = (feature.name || 'QA').split(/\s+/).filter(Boolean);
+  const codeSuffix = words.map(w => w[0]?.toUpperCase()).join('').slice(0, 3) || 'ET';
+  const prefix = `GH-${codeSuffix}`;
+
+  const confirmedRules = knowledge.filter(k => k.confidence === 'CONFIRMED');
+  const unknownGaps = knowledge.filter(k => k.confidence === 'UNKNOWN' || k.confidence === 'INFERRED');
+
+  const prompt = `You are a Principal QA Architect and Exploratory Testing Specialist.
+Generate 3 to 4 comprehensive Exploratory Testing (ET) Charters for the following mobile/web feature:
+Application / Feature: "${feature.name}" (${feature.platform || 'Mobile'})
+Primary Purpose: "${feature.purpose || feature.description || 'Core feature workflow'}"
+Target User Personas: ${feature.user_types?.join(', ') || 'Customer'}
+Starting Entry Point: "${feature.entry_point || 'App Home'}"
+Expected Outcome: "${feature.expected_outcome || 'Success'}"
+
+Documented Screens & Elements:
+${screens.map(s => `- Screen #${s.screen_number}: "${s.name}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'General controls'}`).join('\n')}
+
+Confirmed Business Rules:
+${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard validation rules apply.'}
+
+Unknown Gaps & Assumptions requiring investigative confirmation:
+${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Test boundaries and exception handling.'}
+
+Format each Charter strictly following this professional Exploratory Testing Charter structure:
+- charter_code: e.g. "${prefix}-01", "${prefix}-02", "${prefix}-03"
+- title: Concise descriptive title (e.g. "Natural Conversation & Response Quality", "Recipient Boundary Limits & Fee Accuracy")
+- mission: "Explore whether [feature component] behaves [attribute] when [situation/context]."
+- user_persona: Specific realistic user mindset/role (e.g. "${feature.user_types?.[0] || 'Customer'} who has missed or not received a food delivery")
+- starting_condition: Starting state and screen (e.g. "${feature.entry_point || 'App Home'}")
+- expected_outcome: Qualitative and functional standard of acceptable behavior without robotic loops, errors, or data loss
+- scenarios: Array of 3-4 investigative exploration prompts:
+  - prompt_id: e.g. "01-P01", "01-P02", "01-P03"
+  - prompt_text: Detailed Exploration Prompts & Investigative Scenarios describing exact test heuristic, informal inputs, edge cases, semantic variations, or multi-turn follow-ups to observe
+  - status: "Untested"
+  - observations: ""
+  - media_url: ""
+
+Respond in STRICT JSON format:
+[
+  {
+    "charter_code": "${prefix}-01",
+    "title": "Title here",
+    "mission": "Mission here",
+    "user_persona": "Persona here",
+    "starting_condition": "Condition here",
+    "expected_outcome": "Expected outcome here",
+    "scenarios": [
+      {
+        "prompt_id": "01-P01",
+        "prompt_text": "Investigative scenario here",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      }
+    ]
+  }
+]`;
+
+  const geminiResult = await callGeminiAPI(prompt, undefined, apiKey);
+  if (geminiResult) {
+    try {
+      const parsed = JSON.parse(geminiResult);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((c: any, cIdx: number) => ({
+          project_id: feature.project_id,
+          feature_id: feature.id,
+          charter_code: c.charter_code || `${prefix}-0${cIdx + 1}`,
+          title: c.title || `Charter 0${cIdx + 1}`,
+          mission: c.mission || `Explore behavior of ${feature.name}`,
+          user_persona: c.user_persona || (feature.user_types?.[0] || 'Customer'),
+          starting_condition: c.starting_condition || feature.entry_point || 'App Home',
+          expected_outcome: c.expected_outcome || feature.expected_outcome || 'Success',
+          scope: 'feature' as const,
+          status: 'Draft' as const,
+          scenarios: Array.isArray(c.scenarios)
+            ? c.scenarios.map((s: any, sIdx: number) => ({
+                prompt_id: s.prompt_id || `0${cIdx + 1}-P0${sIdx + 1}`,
+                prompt_text: s.prompt_text || 'Test scenario',
+                status: (s.status as any) || 'Untested',
+                observations: s.observations || '',
+                media_url: s.media_url || '',
+                sort_order: sIdx
+              }))
+            : []
+        }));
+      }
+    } catch (e) {
+      console.warn('Failed parsing Gemini Exploratory Charters JSON', e);
+    }
+  }
+
+  // Deterministic High-Fidelity Exploratory Testing Charters Fallback
+  const firstScreenName = screens[0]?.name || 'Initial Screen';
+  const lastScreenName = screens[screens.length - 1]?.name || 'Confirmation Screen';
+  const primaryPersona = feature.user_types?.[0] || 'Customer';
+
+  const defaultCharters = [
+    {
+      project_id: feature.project_id,
+      feature_id: feature.id,
+      charter_code: `${prefix}-01`,
+      title: `${feature.name} | Core Journey & Interaction Fidelity`,
+      mission: `Explore whether ${feature.name} delivers a fluid, friction-free interaction experience from ${firstScreenName} to ${lastScreenName} without loops, validation deadlocks, or misleading feedback.`,
+      user_persona: `${primaryPersona} performing standard interaction for ${feature.purpose || feature.name}.`,
+      starting_condition: `${feature.entry_point || 'Launched from main application dashboard with active session.'}`,
+      expected_outcome: `${feature.expected_outcome || 'Transaction completes promptly with clear confirmation and consistent state persistence.'}`,
+      scope: 'feature' as const,
+      status: 'Draft' as const,
+      scenarios: [
+        {
+          prompt_id: '01-P01',
+          prompt_text: `Test baseline happy path from "${firstScreenName}" entering typical valid data. Observe transition smoothness, responsive button state changes, and clarity of system prompts.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 0
+        },
+        {
+          prompt_id: '01-P02',
+          prompt_text: `Input semantic variations and informal descriptions or edge-length inputs. Observe whether validation messages are contextual, empathetic, and guide the user forward without technical jargon.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 1
+        },
+        {
+          prompt_id: '01-P03',
+          prompt_text: `Execute multi-turn step progression through each screen, then navigate back one step and resume. Verify that previously populated fields retain their state without requiring re-entry.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 2
+        }
+      ]
+    },
+    {
+      project_id: feature.project_id,
+      feature_id: feature.id,
+      charter_code: `${prefix}-02`,
+      title: `${feature.name} | Boundary Limits & Input Validation Resilience`,
+      mission: `Explore system boundaries, zero/negative limits, whitespace handling, and rapid consecutive taps across all interactive elements.`,
+      user_persona: `${primaryPersona} testing fast typing, boundary inputs, or unfamiliar device keyboard configurations.`,
+      starting_condition: `User on primary input form screen (${screens[1]?.name || firstScreenName}).`,
+      expected_outcome: `All input fields enforce strict validation, reject invalid payloads with helpful cues, and disable primary action buttons until requirements are satisfied.`,
+      scope: 'feature' as const,
+      status: 'Draft' as const,
+      scenarios: [
+        {
+          prompt_id: '02-P01',
+          prompt_text: `Attempt form progression with empty mandatory fields, whitespace strings, and special characters. Look for disabled CTA states and immediate inline validation cues.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 0
+        },
+        {
+          prompt_id: '02-P02',
+          prompt_text: `Test extreme boundary numbers (e.g. 0.00, 0.01, maximum daily limits, 999999999). Observe if limits are clearly stated or if silent failures occur.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 1
+        },
+        {
+          prompt_id: '02-P03',
+          prompt_text: `Perform double-tap or rapid repeated clicks on the primary submission action button. Verify duplicate submission prevention and loading lockouts.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 2
+        }
+      ]
+    },
+    {
+      project_id: feature.project_id,
+      feature_id: feature.id,
+      charter_code: `${prefix}-03`,
+      title: `${feature.name} | Business Rules & Information Gaps Investigation`,
+      mission: `Investigate unconfirmed business rules, unknown transaction caps, fee surcharges, and notification dispatches to replace assumptions with verified facts.`,
+      user_persona: `QA Lead investigating edge cases and unconfirmed behavior gaps in ${feature.name}.`,
+      starting_condition: `Pre-execution state with access to transaction logs, SMS receipts, or multi-wallet balances.`,
+      expected_outcome: `Ambiguous fee breakdowns, daily limit ceilings, and receipt dispatches are clearly verified and documented.`,
+      scope: 'feature' as const,
+      status: 'Draft' as const,
+      scenarios: (unknownGaps.length > 0 ? unknownGaps.slice(0, 3) : [
+        { title: 'Fee Structure & Surcharges', content: 'Observe whether exact fees and percentage surcharges are displayed before final confirmation.' },
+        { title: 'Transaction Limits & Caps', content: 'Verify behavior when single-transaction or daily cumulative cap is approached or breached.' },
+        { title: 'External Notification Delivery', content: 'Observe whether push notifications, SMS receipts, or email confirmations are dispatched reliably.' }
+      ]).map((gap, gIdx) => ({
+        prompt_id: `03-P0${gIdx + 1}`,
+        prompt_text: `Probe rule: "${gap.title}". ${gap.content}. Verify whether the actual app behavior matches expectations or produces an undocumented error state.`,
+        status: 'Untested' as const,
+        observations: '',
+        media_url: '',
+        sort_order: gIdx
+      }))
+    },
+    {
+      project_id: feature.project_id,
+      feature_id: feature.id,
+      charter_code: `${prefix}-04`,
+      title: `${feature.name} | Session Interruption, Network Drops & Recovery`,
+      mission: `Explore resilience of ${feature.name} when interrupted by network drops, background app-switching, device lock, or system timeout.`,
+      user_persona: `${primaryPersona} with unstable 3G/4G connectivity or interrupted by an incoming phone call.`,
+      starting_condition: `Mid-transaction state on "${screens[Math.floor(screens.length / 2)]?.name || firstScreenName}".`,
+      expected_outcome: `Application handles dropped connectivity gracefully, provides retry/recovery actions, and never leaves transactions in an orphaned indeterminate state.`,
+      scope: 'feature' as const,
+      status: 'Draft' as const,
+      scenarios: [
+        {
+          prompt_id: '04-P01',
+          prompt_text: `Enable Airplane mode immediately after tapping the confirmation action. Observe whether a clear "Network unavailable" error with a Retry option is displayed.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 0
+        },
+        {
+          prompt_id: '04-P02',
+          prompt_text: `Send the application to background for 60 seconds while awaiting receipt confirmation, then restore. Verify state recovery without application crash or white-screen freeze.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 1
+        },
+        {
+          prompt_id: '04-P03',
+          prompt_text: `Simulate session expiry or authentication token revocation mid-journey. Observe if user is redirected to sign-in cleanly and preserved their progress.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 2
+        }
+      ]
+    }
+  ];
+
+  return defaultCharters;
+}
+
