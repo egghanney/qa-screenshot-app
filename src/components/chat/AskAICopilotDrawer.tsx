@@ -69,12 +69,14 @@ export function AskAICopilotDrawer({ isOpen, onClose, feature }: AskAICopilotDra
     setIsSending(true);
 
     try {
+      const apiKey = typeof window !== 'undefined' ? localStorage.getItem('AETHER_GEMINI_API_KEY') || undefined : undefined;
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           feature_id: feature.id,
-          message: textToSend
+          message: textToSend,
+          api_key: apiKey
         })
       });
 

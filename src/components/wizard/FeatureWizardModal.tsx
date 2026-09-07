@@ -16,7 +16,9 @@ import {
   ShieldAlert, 
   Plus, 
   Sliders,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ChevronDown,
+  Folder
 } from 'lucide-react';
 import { PlatformType, UserRole, AdvancedFeatureContext } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
@@ -36,9 +38,22 @@ interface UploadedScreen {
   expectedBehavior: string;
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+  platform: PlatformType;
+  description?: string;
+}
+
 export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: FeatureWizardModalProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Existing Products in Database
+  const [existingProjects, setExistingProjects] = useState<ProjectOption[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [isCreatingNewProduct, setIsCreatingNewProduct] = useState(false);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
 
   // Step 1: Feature Context
   const [featureName, setFeatureName] = useState('');
@@ -69,6 +84,43 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
   // Step 5: Execution Status
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
+
+  // Load existing products on modal open
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchExistingProjects = async () => {
+      setIsLoadingProjects(true);
+      try {
+        const { data, error } = await supabase
+          .from('qa_projects')
+          .select('id, name, platform, description')
+          .order('name', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          const projects = data as ProjectOption[];
+          setExistingProjects(projects);
+          // Auto-select existing product
+          if (!selectedProjectId || selectedProjectId === 'new' || !projects.some(p => p.id === selectedProjectId)) {
+            setSelectedProjectId(projects[0].id);
+            setApplication(projects[0].name);
+            if (projects[0].platform) {
+              setPlatform(projects[0].platform as PlatformType);
+            }
+            setIsCreatingNewProduct(false);
+          }
+        } else {
+          setExistingProjects([]);
+          setSelectedProjectId('new');
+          setIsCreatingNewProduct(true);
+        }
+      } catch (err) {
+        console.error('Failed to load projects in wizard:', err);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+    fetchExistingProjects();
+  }, [isOpen]);
 
   // Handle clipboard paste (Ctrl+V / Cmd+V) for screenshots when on Step 3
   useEffect(() => {
@@ -160,22 +212,26 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
 
       // 1. Get or create project
       let projectId = '';
-      const { data: existingProjects } = await supabase
-        .from('qa_projects')
-        .select('id')
-        .eq('name', application)
-        .limit(1);
-
-      if (existingProjects && existingProjects.length > 0) {
-        projectId = existingProjects[0].id;
+      if (!isCreatingNewProduct && selectedProjectId && selectedProjectId !== 'new') {
+        projectId = selectedProjectId;
       } else {
-        const { data: newProj, error: pErr } = await supabase
+        const { data: existingProjectsList } = await supabase
           .from('qa_projects')
-          .insert({ name: application, platform, description: `${application} Product Workspace` })
           .select('id')
-          .single();
-        if (pErr) throw pErr;
-        projectId = newProj.id;
+          .ilike('name', application.trim())
+          .limit(1);
+
+        if (existingProjectsList && existingProjectsList.length > 0) {
+          projectId = existingProjectsList[0].id;
+        } else {
+          const { data: newProj, error: pErr } = await supabase
+            .from('qa_projects')
+            .insert({ name: application.trim(), platform, description: `${application.trim()} Product Workspace` })
+            .select('id')
+            .single();
+          if (pErr) throw pErr;
+          projectId = newProj.id;
+        }
       }
 
       // 2. Create feature
@@ -359,16 +415,77 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-dark-chassis mb-1">
-                    Application <span className="text-status-critical">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={application}
-                    onChange={(e) => setApplication(e.target.value)}
-                    placeholder="e.g. Hubtel"
-                    className="w-full px-3 py-2 bg-clinical-white border border-clinical-border rounded-xl text-sm focus:outline-none focus:border-dark-chassis"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-dark-chassis">
+                      Product / Application <span className="text-status-critical">*</span>
+                    </label>
+                    {existingProjects.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isCreatingNewProduct) {
+                            setIsCreatingNewProduct(false);
+                            const proj = existingProjects.find(p => p.id === selectedProjectId) || existingProjects[0];
+                            setSelectedProjectId(proj.id);
+                            setApplication(proj.name);
+                            if (proj.platform) setPlatform(proj.platform as PlatformType);
+                          } else {
+                            setIsCreatingNewProduct(true);
+                            setSelectedProjectId('new');
+                            setApplication('');
+                          }
+                        }}
+                        className="text-[11px] font-semibold text-txt-secondary hover:text-dark-chassis transition underline cursor-pointer"
+                      >
+                        {isCreatingNewProduct ? '← Select existing' : '+ Add new'}
+                      </button>
+                    )}
+                  </div>
+
+                  {!isCreatingNewProduct && existingProjects.length > 0 ? (
+                    <div className="relative">
+                      <select
+                        value={selectedProjectId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'new') {
+                            setIsCreatingNewProduct(true);
+                            setSelectedProjectId('new');
+                            setApplication('');
+                          } else {
+                            setSelectedProjectId(val);
+                            const proj = existingProjects.find(p => p.id === val);
+                            if (proj) {
+                              setApplication(proj.name);
+                              if (proj.platform) setPlatform(proj.platform as PlatformType);
+                            }
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-clinical-white border border-clinical-border rounded-xl text-sm font-medium text-dark-chassis focus:outline-none focus:border-dark-chassis appearance-none cursor-pointer pr-8"
+                      >
+                        {existingProjects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.platform || 'General'})
+                          </option>
+                        ))}
+                        <option value="new">+ Add New Product / Application...</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-txt-muted">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="text"
+                        value={application}
+                        onChange={(e) => setApplication(e.target.value)}
+                        placeholder="e.g. Hubtel, Driver App, Merchant Portal"
+                        className="w-full px-3 py-2 bg-clinical-white border border-clinical-border rounded-xl text-sm focus:outline-none focus:border-dark-chassis"
+                        autoFocus={isCreatingNewProduct && existingProjects.length > 0}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

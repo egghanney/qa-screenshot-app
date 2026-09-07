@@ -900,43 +900,126 @@ CRITICAL ANTI-HALLUCINATION RULES:
   const geminiResult = await callGeminiAPI(prompt, undefined, apiKey);
   if (geminiResult) return geminiResult;
 
-  // Grounded Deterministic Copilot Answers for common inquiries
+  // Grounded Deterministic Database-Backed Copilot Answers
   const lower = query.toLowerCase();
-  if (lower.includes('failure') || lower.includes('fail') || lower.includes('error')) {
-    return `### Identified Failure Points & Risk Analysis for ${feature.name}
+  const confirmedRules = knowledge.filter(k => k.confidence === 'CONFIRMED');
+  const unknownGaps = knowledge.filter(k => k.confidence === 'UNKNOWN');
+  const inferredRules = knowledge.filter(k => k.confidence === 'INFERRED');
+  const criticalCheckpoints = checkpoints.filter(c => c.priority === 'Critical' || c.priority === 'High' || c.category === 'Security & Failure' || c.category === 'State & Boundary');
 
-1. **Authorization Failure**: Invalid PIN or biometric mismatch at confirmation. Expected behavior is 3 retry attempts before temporary 15-minute lock.
-2. **Insufficient Balance**: Submitting amount exceeding available funds. Inferred behavior: inline error prompt with deep link to top up.
-3. **Network Interruption**: Disconnection while backend is communicating with payment provider. Checkpoint requires idempotency check to avoid double-charging.
-4. **Session Timeout**: Token expiration while user idles on review screen. Requires seamless re-auth modal.
+  // 1. Business Rules & Unknown Gaps Inquiry
+  if (lower.includes('business rule') || lower.includes('rule') || lower.includes('unknown') || lower.includes('gap') || lower.includes('limit')) {
+    let response = `### Current Business Rules & Information Gaps for ${feature.name}\n\n`;
 
-*Note: Specific timeout duration and exact daily limits remain **UNKNOWN** and require confirmation.*`;
+    response += `**Confirmed Rules (from verified screen evidence):**\n`;
+    if (confirmedRules.length > 0) {
+      response += confirmedRules.map(k => `- **${k.title}**: ${k.content}`).join('\n') + '\n';
+    } else {
+      response += `- User role authenticated: ${feature.user_types?.join(', ') || 'Customer'}.\n`;
+      response += `- Flow initiates at "${feature.entry_point || 'Start'}" and completes at "${feature.expected_outcome || 'Outcome'}".\n`;
+      if (feature.description) response += `- ${feature.description}\n`;
+    }
+
+    response += `\n**Unknown Gaps (Require Confirmation):**\n`;
+    if (unknownGaps.length > 0) {
+      response += unknownGaps.map(k => `- **${k.title}**: ${k.content}`).join('\n') + '\n';
+    } else {
+      response += `- No active unknown gaps recorded in current evidence. New edge cases uploaded will be audited here.\n`;
+    }
+
+    if (inferredRules.length > 0) {
+      response += `\n**Inferred Behaviors (Plausible from UI, awaiting PM sign-off):**\n`;
+      response += inferredRules.map(k => `- **${k.title}**: ${k.content}`).join('\n') + '\n';
+    }
+
+    response += `\n---\n*ℹ️ Synthesized directly from database knowledge records (${knowledge.length} items across ${screens.length} screens). To enable real-time generative reasoning, configure your GEMINI_API_KEY in Settings.*`;
+    return response;
   }
 
-  if (lower.includes('business rule') || lower.includes('unknown') || lower.includes('limit')) {
-    return `### Current Business Rules & Information Gaps
+  // 2. Failure Points & Risk Analysis Inquiry
+  if (lower.includes('failure') || lower.includes('fail') || lower.includes('error') || lower.includes('risk')) {
+    let response = `### Identified Failure Points & Risk Analysis for ${feature.name}\n\n`;
 
-**Confirmed Rules:**
-- Mandatory fields must be populated before Continue button activates.
-- User must be authenticated as: ${feature.user_types.join(', ')}.
+    if (criticalCheckpoints.length > 0) {
+      response += criticalCheckpoints.slice(0, 5).map((c, i) => `${i + 1}. **${c.title}** (${c.priority} Priority — ${c.category})\n   - Test Focus: ${c.test_steps}\n   - Expected Defense: ${c.expected_result}`).join('\n\n');
+    } else {
+      response += `1. **Input Validation & Sanitization**: Reject empty, malformed, or boundary-exceeding field inputs.\n`;
+      response += `2. **Authentication / Session Invalidation**: Handle token expiry gracefully without losing entered state.\n`;
+      response += `3. **Network Interruption & Idempotency**: Guard against double-submissions during network dropouts.\n`;
+    }
 
-**Unknown Gaps (Require Confirmation):**
-- Minimum allowed transaction value (Not specified in screens).
-- Maximum daily and single-transaction limit.
-- Exact fee percentage or fixed surcharge structure.
-- SMS dispatch confirmation behavior.`;
+    if (unknownGaps.length > 0) {
+      response += `\n\n*Correlated Unknown Gaps:* ${unknownGaps.map(u => u.title).join(', ')}`;
+    }
+
+    response += `\n\n---\n*ℹ️ Synthesized from active QA checkpoints. Enter your GEMINI_API_KEY in Settings for real-time generative analysis.*`;
+    return response;
   }
 
-  if (lower.includes('test') || lower.includes('checkpoint')) {
-    return `### Recommended Test Focus Areas for ${feature.name}
+  // 3. Testing & QA Matrix Inquiry
+  if (lower.includes('test') || lower.includes('checkpoint') || lower.includes('matrix')) {
+    let response = `### Recommended Test Checkpoints for ${feature.name}\n\n`;
 
-1. **Boundary Values**: Test with 0.00, below minimum, maximum integer, and negative inputs.
-2. **Sanitization**: Inject special characters and emoji sequences into reference text fields.
-3. **Rapid Taps**: Double-tap payment submit to ensure idempotency.
-4. **Navigation Traversal**: Confirm that pressing Back preserves previously typed form inputs.`;
+    if (checkpoints.length > 0) {
+      response += checkpoints.slice(0, 5).map((c, i) => `${i + 1}. **[${c.category}] ${c.title}** (${c.priority} Priority)\n   - Steps: ${c.test_steps}\n   - Expected: ${c.expected_result}`).join('\n\n');
+    } else {
+      response += `1. **Boundary Values**: Test zero, negative, maximum integer, and oversized text inputs.\n`;
+      response += `2. **Happy Path Flow**: Step-by-step traversal from "${feature.entry_point || 'Start'}" to "${feature.expected_outcome || 'Outcome'}".\n`;
+      response += `3. **Rapid Taps / Race Conditions**: Double-tap submission buttons to verify idempotency.\n`;
+    }
+
+    response += `\n\n---\n*ℹ️ Synthesized from active QA checkpoints. Enter your GEMINI_API_KEY in Settings for real-time generative analysis.*`;
+    return response;
   }
 
-  return `Based on the documented evidence for **${feature.name}**, the flow consists of ${screens.length} screens transitioning from **${feature.entry_point}** to **${feature.expected_outcome}**. 
+  // 4. Specific Screen Inquiry (e.g. "Screen 2", "Screen #3")
+  const screenMatch = lower.match(/screen\s*#?(\d+)/);
+  if (screenMatch) {
+    const screenNum = parseInt(screenMatch[1], 10);
+    const targetScreen = screens.find(s => s.screen_number === screenNum);
+    if (targetScreen) {
+      return `### Screen #${targetScreen.screen_number}: "${targetScreen.name}" QA Analysis
 
-All ${knowledge.length} knowledge items and ${checkpoints.length} QA checkpoints are mapped to empirical screen evidence. For items not explicitly visible in screenshots, confidence has been tagged as **INFERRED** or **UNKNOWN** to prevent hallucinations.`;
+- **Visual State**: ${targetScreen.state}
+- **Recorded User Action**: ${targetScreen.user_action || 'Interact with screen controls'}
+- **Expected System Behavior**: ${targetScreen.expected_behavior || 'Screen updates and advances user flow'}
+
+**Targeted QA Checks:**
+1. Verify UI components, labels, and responsiveness match specifications.
+2. Verify that "${targetScreen.user_action || 'User Action'}" triggers the expected state without delays.
+3. Test edge case inputs, field validations, and network error handling on this step.
+
+---
+*ℹ️ Grounded to empirical Screen #${screenNum} data in Supabase.*`;
+    }
+  }
+
+  // 5. Technical Dependencies Inquiry
+  if (lower.includes('dependenc') || lower.includes('api') || lower.includes('integration') || lower.includes('backend')) {
+    const techKnowledge = knowledge.filter(k => 
+      k.category === 'Communications & Dependencies'
+    );
+    let response = `### Technical Dependencies & Integrations for ${feature.name}\n\n`;
+    if (techKnowledge.length > 0) {
+      response += techKnowledge.map(k => `- **[${k.category}] ${k.title}** (${k.confidence}): ${k.content}`).join('\n');
+    } else if (feature.advanced_context?.known_dependencies || feature.advanced_context?.known_apis) {
+      response += `- **Dependencies**: ${feature.advanced_context.known_dependencies || 'None documented'}\n`;
+      response += `- **APIs**: ${feature.advanced_context.known_apis || 'None documented'}\n`;
+    } else {
+      response += `No external dependencies or backend APIs currently documented for this feature.`;
+    }
+    response += `\n\n---\n*ℹ️ Synthesized from feature context. Configure GEMINI_API_KEY in Settings for AI-powered multi-modal analysis.*`;
+    return response;
+  }
+
+  return `Based on the documented evidence for **${feature.name}**, the flow consists of ${screens.length} screens transitioning from **${feature.entry_point || 'Start'}** to **${feature.expected_outcome || 'Outcome'}**. 
+
+- **Confirmed Knowledge Items**: ${confirmedRules.length} verified rules
+- **Information Gaps (Unknowns)**: ${unknownGaps.length} items requiring confirmation
+- **Total QA Checkpoints**: ${checkpoints.length} test scenarios mapped
+
+All knowledge items and checkpoints are strictly anti-hallucination grounded to empirical screen evidence in Supabase.
+
+---
+*ℹ️ Synthesized directly from database records. To enable real-time conversational reasoning, enter your GEMINI_API_KEY in Settings.*`;
 }
