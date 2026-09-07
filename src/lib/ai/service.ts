@@ -90,18 +90,30 @@ async function callGeminiAPI(
 
     const contents = [{ parts }];
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+    const payload = {
+      contents,
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json"
+      }
+    };
+
+    // Use modern gemini-3.6-flash, fallback to gemini-flash-latest if needed
+    let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json"
-        }
-      })
+      body: JSON.stringify(payload)
     });
+
+    if (!response.ok && (response.status === 404 || response.status === 400)) {
+      console.warn(`Gemini 3.6-flash returned ${response.status}, trying gemini-flash-latest...`);
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');
@@ -1289,12 +1301,29 @@ Respond in STRICT JSON format:
   }
 ]`;
 
-  const geminiResult = await callGeminiAPI(prompt, screenImages.length > 0 ? screenImages : undefined, apiKey);
+  let geminiResult = await callGeminiAPI(prompt, screenImages.length > 0 ? screenImages : undefined, apiKey);
+  // If multimodal call failed (e.g. payload too large or image fetch error), retry with rich text prompt
+  if (!geminiResult && screenImages.length > 0) {
+    console.warn('Multimodal charter call failed, retrying with structured text prompt...');
+    geminiResult = await callGeminiAPI(prompt, undefined, apiKey);
+  }
+
   if (geminiResult) {
     try {
-      const parsed = JSON.parse(geminiResult);
-      if (Array.isArray(parsed) && parsed.length >= 3) {
-        const mapped = parsed.map((c: any, cIdx: number) => ({
+      let cleanText = geminiResult.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
+      } else if (cleanText.startsWith('```')) {
+        cleanText = cleanText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
+      const parsed = JSON.parse(cleanText);
+      const chartersList = Array.isArray(parsed)
+        ? parsed
+        : (parsed.charters || parsed.data || parsed.results || []);
+
+      if (Array.isArray(chartersList) && chartersList.length >= 2) {
+        const mapped = chartersList.map((c: any, cIdx: number) => ({
           project_id: feature.project_id,
           feature_id: feature.id,
           charter_code: c.charter_code || `${prefix}-0${cIdx + 1}`,

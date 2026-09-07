@@ -60,7 +60,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             className="w-full px-3 py-2 bg-clinical-white border border-clinical-border rounded-xl text-xs font-mono focus:outline-none focus:border-dark-chassis"
           />
           <p className="text-[11px] text-txt-secondary leading-relaxed">
-            Leave blank to use the built-in deterministic evidence simulation engine, or enter your Gemini key to run live multimodal Gemini 2.0 Flash analysis.
+            Leave blank to use the built-in deterministic evidence simulation engine, or enter your Gemini key to run live multimodal Gemini Flash analysis.
           </p>
         </div>
 

@@ -247,9 +247,9 @@ export function ExploratoryChartersView({
                 {localCharters.length} {localCharters.length === 1 ? 'Charter' : 'Charters'} ({totalScenarios} Scenarios)
               </span>
               {engineUsed === 'gemini' ? (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/30 flex items-center gap-1 shadow-2xs" title="Generated using Google Gemini 2.0 Flash Multimodal Vision">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/30 flex items-center gap-1 shadow-2xs" title="Generated using Google Gemini Flash Multimodal Vision">
                   <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
-                  Gemini 2.0 Flash AI
+                  Gemini Flash AI
                 </span>
               ) : engineUsed === 'deterministic' ? (
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-dark-tertiary/10 text-dark-secondary border border-dark-tertiary/20 flex items-center gap-1" title="Generated using Offline Domain Engine">
