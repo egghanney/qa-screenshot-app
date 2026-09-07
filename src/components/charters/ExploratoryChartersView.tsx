@@ -8,6 +8,7 @@ import {
   CharterScenario, 
   ScenarioStatus 
 } from '@/lib/types';
+import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
   BrainCircuit, 
   Plus, 
@@ -68,17 +69,7 @@ export function ExploratoryChartersView({
     if (!currentFeature) return;
     setIsGenerating(true);
     try {
-      // retrieve api key if saved in localStorage
-      let apiKey = '';
-      try {
-        const savedSettings = localStorage.getItem('aether_qa_settings');
-        if (savedSettings) {
-          const parsed = JSON.parse(savedSettings);
-          apiKey = parsed.geminiApiKey || '';
-        }
-      } catch (e) {
-        // ignore
-      }
+      const apiKey = getStoredGeminiApiKey();
 
       const res = await fetch('/api/charters/generate', {
         method: 'POST',

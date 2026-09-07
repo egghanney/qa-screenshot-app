@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { PlatformType, UserRole, AdvancedFeatureContext } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
+import { getStoredGeminiApiKey } from '@/lib/settings';
 
 interface FeatureWizardModalProps {
   isOpen: boolean;
@@ -318,15 +319,7 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
       }
 
       // Read API Key if configured in Settings
-      let apiKey = '';
-      try {
-        const savedSettings = localStorage.getItem('aether_qa_settings');
-        if (savedSettings) {
-          apiKey = JSON.parse(savedSettings).geminiApiKey || '';
-        }
-      } catch (e) {
-        // ignore
-      }
+      const apiKey = getStoredGeminiApiKey();
 
       // 4. Trigger AI Auto-Naming for Screenshots
       setProcessingStage('2/6 AI Analyzing Screenshots & Generating Semantic Titles...');

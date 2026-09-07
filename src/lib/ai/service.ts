@@ -13,31 +13,82 @@ import {
   GeneratedCharter
 } from '@/lib/types';
 
-// Helper to call Gemini API if key is available
-async function callGeminiAPI(prompt: string, imageBase64?: string, apiKeyOverride?: string): Promise<string | null> {
+// Helper to resolve an image (URL or Base64) into Gemini inlineData format
+async function resolveImagePart(imageInput: string): Promise<{ mimeType: string; data: string } | null> {
+  try {
+    if (!imageInput || typeof imageInput !== 'string') return null;
+
+    if (imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
+      const res = await fetch(imageInput);
+      if (!res.ok) {
+        console.warn(`Failed to fetch image from URL (${res.status}):`, imageInput);
+        return null;
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      let data = '';
+      if (typeof Buffer !== 'undefined') {
+        data = Buffer.from(arrayBuffer).toString('base64');
+      } else {
+        let binary = '';
+        const bytes = new Uint8Array(arrayBuffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        data = btoa(binary);
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      let mimeType = 'image/jpeg';
+      if (contentType.includes('image/png') || imageInput.toLowerCase().includes('.png')) {
+        mimeType = 'image/png';
+      } else if (contentType.includes('image/webp') || imageInput.toLowerCase().includes('.webp')) {
+        mimeType = 'image/webp';
+      }
+
+      return { mimeType, data };
+    }
+
+    // Direct base64 string
+    const cleanBase64 = imageInput.includes('base64,') 
+      ? imageInput.split('base64,')[1] 
+      : imageInput;
+    const mimeType = imageInput.includes('image/png') ? 'image/png' : 'image/jpeg';
+    return { mimeType, data: cleanBase64 };
+  } catch (err) {
+    console.warn('Error resolving image for Gemini API:', err);
+    return null;
+  }
+}
+
+// Helper to call Gemini API with multimodal vision and multi-image support
+async function callGeminiAPI(
+  prompt: string, 
+  images?: string | string[], 
+  apiKeyOverride?: string
+): Promise<string | null> {
   const key = apiKeyOverride || process.env.GEMINI_API_KEY;
   if (!key) return null;
 
   try {
-    const contents: any[] = [];
     const parts: any[] = [{ text: prompt }];
 
-    if (imageBase64) {
-      // strip data:image/...;base64, prefix if present
-      const cleanBase64 = imageBase64.includes('base64,') 
-        ? imageBase64.split('base64,')[1] 
-        : imageBase64;
-      
-      const mimeType = imageBase64.includes('image/png') ? 'image/png' : 'image/jpeg';
-      parts.push({
-        inlineData: {
-          mimeType,
-          data: cleanBase64,
+    if (images) {
+      const imageList = Array.isArray(images) ? images : [images];
+      for (const img of imageList) {
+        const resolved = await resolveImagePart(img);
+        if (resolved) {
+          parts.push({
+            inlineData: {
+              mimeType: resolved.mimeType,
+              data: resolved.data,
+            }
+          });
         }
-      });
+      }
     }
 
-    contents.push({ parts });
+    const contents = [{ parts }];
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
       method: 'POST',
@@ -52,7 +103,8 @@ async function callGeminiAPI(prompt: string, imageBase64?: string, apiKeyOverrid
     });
 
     if (!response.ok) {
-      console.warn('Gemini API call failed with status:', response.status);
+      const errText = await response.text().catch(() => '');
+      console.warn('Gemini API call failed with status:', response.status, errText);
       return null;
     }
 
@@ -1092,7 +1144,7 @@ All knowledge items and checkpoints are strictly anti-hallucination grounded to 
 *ℹ️ Synthesized directly from database records. To enable real-time conversational reasoning, enter your GEMINI_API_KEY in Settings.*`;
 }
 
-// 7. Exploratory Testing (ET) Charters Generation Engine
+// 7. Exploratory Testing (ET) Charters Generation Engine (Zero-Blindspot 6-Angle Framework)
 export async function generateExploratoryCharters(
   feature: Feature,
   screens: ScreenItem[],
@@ -1120,50 +1172,69 @@ export async function generateExploratoryCharters(
     return s.name;
   };
 
-  const prompt = `You are a Principal QA Architect and Exploratory Testing Specialist.
-Generate 3 to 4 comprehensive Exploratory Testing (ET) Charters for the following mobile/web feature:
+  const firstScreenName = getSemanticName(screens[0], feature.entry_point || 'Initial Screen');
+  const secondScreenName = getSemanticName(screens[1], 'Primary Form Entry');
+  const midScreenName = getSemanticName(screens[Math.floor(screens.length / 2)], 'Active Transaction Flow');
+  const lastScreenName = getSemanticName(screens[screens.length - 1], feature.expected_outcome || 'Confirmation Receipt');
+  const primaryPersona = feature.user_types?.[0] || 'Customer';
+
+  // Gather screen image URLs for Gemini Multimodal Vision analysis
+  const screenImages = screens
+    .map(s => s.image_url)
+    .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    .slice(0, 8);
+
+  const prompt = `You are an expert Principal QA Lead and Exploratory Testing Specialist.
+Generate a comprehensive suite of 6 Exploratory Testing (ET) Charters designed to leave ZERO BLIND SPOTS for this mobile/web feature.
+
+APPLICATION & FEATURE CONTEXT:
 Application / Feature: "${feature.name}" (${feature.platform || 'Mobile'})
 Primary Purpose: "${feature.purpose || feature.description || 'Core feature workflow'}"
 Target User Personas: ${feature.user_types?.join(', ') || 'Customer'}
 Starting Entry Point: "${feature.entry_point || 'App Home'}"
 Expected Outcome: "${feature.expected_outcome || 'Success'}"
 
-Documented Screens & Elements:
-${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'General controls'}`).join('\n')}
+DOCUMENTED SCREENS & UI CONTROLS:
+${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Interactive Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'Inputs & buttons'}`).join('\n')}
 
-Confirmed Business Rules:
-${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard validation rules apply.'}
+BUSINESS RULES & VERIFIED FACTS:
+${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard transaction validation rules apply.'}
 
-Unknown Gaps & Assumptions requiring investigative confirmation:
-${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Test boundaries and exception handling.'}
+UNKNOWN GAPS & RISKS REQUIRING TESTING:
+${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Test boundary conditions, offline states, and exception handling.'}
 
-Format each Charter strictly following this professional Exploratory Testing Charter structure:
-- charter_code: e.g. "${prefix}-01", "${prefix}-02", "${prefix}-03"
-- title: Concise descriptive title (e.g. "Natural Conversation & Response Quality", "Recipient Boundary Limits & Fee Accuracy")
-- mission: "Explore whether [feature component] behaves [attribute] when [situation/context]." (IMPORTANT: Never include raw filenames or screenshot timestamps in the mission)
-- user_persona: Specific realistic user mindset/role (e.g. "${feature.user_types?.[0] || 'Customer'} who has missed or not received a food delivery")
-- starting_condition: Starting state and screen (e.g. "${feature.entry_point || 'App Home'}")
-- expected_outcome: Qualitative and functional standard of acceptable behavior without robotic loops, errors, or data loss
-- scenarios: Array of 3-4 investigative exploration prompts:
-  - prompt_id: e.g. "01-P01", "01-P02", "01-P03"
-  - prompt_text: Detailed Exploration Prompts & Investigative Scenarios describing exact test heuristic, informal inputs, edge cases, semantic variations, or multi-turn follow-ups to observe
-  - status: "Untested"
-  - observations: ""
-  - media_url: ""
+=== CRITICAL LANGUAGE & READABILITY GUIDELINES ===
+1. Write in PLAIN, DIRECT, CONVERSATIONAL ENGLISH that any tester can understand and execute immediately (Grade 6 to 8 reading level).
+2. STRICTLY FORBIDDEN JARGON: Do NOT use academic or complex QA jargon such as "semantic variations", "validation deadlocks", "heuristic attack", "payload rejection", "multi-turn progression", or "friction-free interaction experience".
+3. CONCRETE INSTRUCTIONS: Write clear, human actions like:
+   - "Try typing an 8-digit phone number and verify a friendly error tells you digits are missing."
+   - "Try typing 0 or an amount higher than your account balance to make sure the app clearly stops the transaction."
+   - "Tap the Confirm button 3 times fast to make sure you are not charged twice."
+   - "While the payment spinner is loading, turn on Airplane mode and verify you get a Try Again button."
+   - "Check if the phone's on-screen keyboard covers the Continue or Pay button."
+
+=== MANDATORY 6-ANGLE ZERO-BLINDSPOT COVERAGE ===
+You MUST generate exactly 6 charters, one for each of these critical test angles:
+1. ${prefix}-01: Core Flow & Happy Path (Standard, ideal journey with valid data from start to finish)
+2. ${prefix}-02: Bad Inputs & Boundary Limits (Short inputs, empty fields, 0 amount, over-balance amounts, symbols)
+3. ${prefix}-03: Real-World Interruptions & Navigation Chaos (Back button, switching apps, answering a phone call, minimize/resume)
+4. ${prefix}-04: Network Drops & Disconnection Safety (Airplane mode during spinner, retry behavior, balance deduction safety)
+5. ${prefix}-05: Visual Layout & Keyboard Usability (Keyboard covering buttons, small screens, text cut-offs)
+6. ${prefix}-06: Rapid Double-Tap & Financial Duplication Safety (Double-tapping Pay button, wrong PIN attempts, duplicate charge checks)
 
 Respond in STRICT JSON format:
 [
   {
     "charter_code": "${prefix}-01",
-    "title": "Title here",
-    "mission": "Mission here",
-    "user_persona": "Persona here",
-    "starting_condition": "Condition here",
-    "expected_outcome": "Expected outcome here",
+    "title": "${feature.name} | Core Journey & Happy Path",
+    "mission": "Check if a customer can smoothly complete ${feature.name} from ${firstScreenName} to ${lastScreenName} without confusion, freezes, or missing confirmations.",
+    "user_persona": "${primaryPersona} carrying out a standard transaction.",
+    "starting_condition": "${feature.entry_point || 'App Home'}",
+    "expected_outcome": "The transaction completes promptly with clear confirmation and consistent state persistence.",
     "scenarios": [
       {
         "prompt_id": "01-P01",
-        "prompt_text": "Investigative scenario here",
+        "prompt_text": "Plain English investigative prompt describing exact action and what to observe",
         "status": "Untested",
         "observations": "",
         "media_url": ""
@@ -1172,18 +1243,18 @@ Respond in STRICT JSON format:
   }
 ]`;
 
-  const geminiResult = await callGeminiAPI(prompt, undefined, apiKey);
+  const geminiResult = await callGeminiAPI(prompt, screenImages.length > 0 ? screenImages : undefined, apiKey);
   if (geminiResult) {
     try {
       const parsed = JSON.parse(geminiResult);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed) && parsed.length >= 4) {
         return parsed.map((c: any, cIdx: number) => ({
           project_id: feature.project_id,
           feature_id: feature.id,
           charter_code: c.charter_code || `${prefix}-0${cIdx + 1}`,
           title: c.title || `Charter 0${cIdx + 1}`,
           mission: c.mission || `Explore behavior of ${feature.name}`,
-          user_persona: c.user_persona || (feature.user_types?.[0] || 'Customer'),
+          user_persona: c.user_persona || primaryPersona,
           starting_condition: c.starting_condition || feature.entry_point || 'App Home',
           expected_outcome: c.expected_outcome || feature.expected_outcome || 'Success',
           scope: 'feature' as const,
@@ -1205,29 +1276,23 @@ Respond in STRICT JSON format:
     }
   }
 
-  // Deterministic High-Fidelity Exploratory Testing Charters Fallback
-  const firstScreenName = getSemanticName(screens[0], feature.entry_point || 'Initial Screen');
-  const secondScreenName = getSemanticName(screens[1], 'Primary Form Entry');
-  const midScreenName = getSemanticName(screens[Math.floor(screens.length / 2)], 'Active Transaction Flow');
-  const lastScreenName = getSemanticName(screens[screens.length - 1], feature.expected_outcome || 'Confirmation Receipt');
-  const primaryPersona = feature.user_types?.[0] || 'Customer';
-
-  const defaultCharters = [
+  // Deterministic High-Fidelity Exploratory Testing Charters Fallback (Zero-Blindspot 6-Angle Suite)
+  const defaultCharters: GeneratedCharter[] = [
     {
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-01`,
-      title: `${feature.name} | Core Journey & Interaction Fidelity`,
-      mission: `Explore whether ${feature.name} delivers a fluid, friction-free interaction experience from ${firstScreenName} to ${lastScreenName} without loops, validation deadlocks, or misleading feedback.`,
-      user_persona: `${primaryPersona} performing standard interaction for ${feature.purpose || feature.name}.`,
-      starting_condition: `${feature.entry_point || 'Launched from main application dashboard with active session.'}`,
-      expected_outcome: `${feature.expected_outcome || 'Transaction completes promptly with clear confirmation and consistent state persistence.'}`,
+      title: `${feature.name} | Core Journey & Happy Path`,
+      mission: `Check if a customer can smoothly complete ${feature.name} from "${firstScreenName}" to "${lastScreenName}" without confusion, freezes, or missing confirmations.`,
+      user_persona: `${primaryPersona} carrying out a standard, successful ${feature.name} transaction.`,
+      starting_condition: `${feature.entry_point || 'Opened from app home screen with an active account.'}`,
+      expected_outcome: `Flow completes smoothly from start to finish with clear feedback and a success confirmation receipt.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
       scenarios: [
         {
           prompt_id: '01-P01',
-          prompt_text: `Test baseline happy path from "${firstScreenName}" entering typical valid data. Observe transition smoothness, responsive button state changes, and clarity of system prompts.`,
+          prompt_text: `Walk through the primary happy path from "${firstScreenName}" entering valid, normal details. Verify that buttons respond instantly and screen transitions are smooth.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1235,7 +1300,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '01-P02',
-          prompt_text: `Input semantic variations and informal descriptions or edge-length inputs. Observe whether validation messages are contextual, empathetic, and guide the user forward without technical jargon.`,
+          prompt_text: `Check every label, input hint, and instruction on "${secondScreenName}". Make sure the text is clear, easy to read, and free of confusing technical terms.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1243,7 +1308,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '01-P03',
-          prompt_text: `Execute multi-turn step progression through each screen, then navigate back one step and resume. Verify that previously populated fields retain their state without requiring re-entry.`,
+          prompt_text: `Complete the transaction and verify that the final confirmation screen or receipt clearly displays the transaction amount, recipient, and reference number.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1255,17 +1320,17 @@ Respond in STRICT JSON format:
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-02`,
-      title: `${feature.name} | Boundary Limits & Input Validation Resilience`,
-      mission: `Explore system boundaries, zero/negative limits, whitespace handling, and rapid consecutive taps across all interactive elements.`,
-      user_persona: `${primaryPersona} testing fast typing, boundary inputs, or unfamiliar device keyboard configurations.`,
-      starting_condition: `User on primary input form screen (${secondScreenName}).`,
-      expected_outcome: `All input fields enforce strict validation, reject invalid payloads with helpful cues, and disable primary action buttons until requirements are satisfied.`,
+      title: `${feature.name} | Bad Inputs & Boundary Limits`,
+      mission: `Check how ${feature.name} reacts when the user makes mistakes, enters invalid data, leaves fields blank, or tries extreme numbers.`,
+      user_persona: `${primaryPersona} who makes accidental typos, enters incomplete numbers, or tests extreme limits.`,
+      starting_condition: `On the main entry screen (${secondScreenName || firstScreenName}).`,
+      expected_outcome: `The app prevents invalid submissions, shows friendly inline warnings explaining what is wrong, and keeps the submit button disabled until valid.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
       scenarios: [
         {
           prompt_id: '02-P01',
-          prompt_text: `Attempt form progression with empty mandatory fields, whitespace strings, and special characters. Look for disabled CTA states and immediate inline validation cues.`,
+          prompt_text: `Try tapping the continue or submit button with mandatory fields left empty. Verify that the button is either disabled or shows a clear message pointing out what is missing.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1273,7 +1338,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '02-P02',
-          prompt_text: `Test extreme boundary numbers (e.g. 0.00, 0.01, maximum daily limits, 999999999). Observe if limits are clearly stated or if silent failures occur.`,
+          prompt_text: `Enter an incomplete or wrong number (e.g., 5 or 8 digits instead of 10). Verify that the app gives an immediate, friendly error message instead of letting you proceed.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1281,7 +1346,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '02-P03',
-          prompt_text: `Perform double-tap or rapid repeated clicks on the primary submission action button. Verify duplicate submission prevention and loading lockouts.`,
+          prompt_text: `Try entering 0, negative values, or an amount greater than the allowed maximum or account balance. Check if the app clearly shows the minimum and maximum allowed limits.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1293,41 +1358,55 @@ Respond in STRICT JSON format:
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-03`,
-      title: `${feature.name} | Business Rules & Information Gaps Investigation`,
-      mission: `Investigate unconfirmed business rules, unknown transaction caps, fee surcharges, and notification dispatches to replace assumptions with verified facts.`,
-      user_persona: `QA Lead investigating edge cases and unconfirmed behavior gaps in ${feature.name}.`,
-      starting_condition: `Pre-execution state with access to transaction logs, SMS receipts, or multi-wallet balances.`,
-      expected_outcome: `Ambiguous fee breakdowns, daily limit ceilings, and receipt dispatches are clearly verified and documented.`,
+      title: `${feature.name} | Interruptions & Navigation Chaos`,
+      mission: `Check if ${feature.name} stays stable when interrupted by phone calls, switching apps, locking the screen, or pressing the back button.`,
+      user_persona: `A busy user on the go who gets interrupted or changes their mind halfway through.`,
+      starting_condition: `In the middle of the flow on "${midScreenName}".`,
+      expected_outcome: `The app does not crash or lose previously typed information when interrupted or when navigating backwards.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
-      scenarios: (unknownGaps.length > 0 ? unknownGaps.slice(0, 3) : [
-        { title: 'Fee Structure & Surcharges', content: 'Observe whether exact fees and percentage surcharges are displayed before final confirmation.' },
-        { title: 'Transaction Limits & Caps', content: 'Verify behavior when single-transaction or daily cumulative cap is approached or breached.' },
-        { title: 'External Notification Delivery', content: 'Observe whether push notifications, SMS receipts, or email confirmations are dispatched reliably.' }
-      ]).map((gap, gIdx) => ({
-        prompt_id: `03-P0${gIdx + 1}`,
-        prompt_text: `Probe rule: "${gap.title}". ${gap.content}. Verify whether the actual app behavior matches expectations or produces an undocumented error state.`,
-        status: 'Untested' as const,
-        observations: '',
-        media_url: '',
-        sort_order: gIdx
-      }))
+      scenarios: [
+        {
+          prompt_id: '03-P01',
+          prompt_text: `Fill in details on "${secondScreenName}", then tap the device or in-app Back button. Return to the screen and check if your entered information is still there.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 0
+        },
+        {
+          prompt_id: '03-P02',
+          prompt_text: `While on "${midScreenName}", minimize the app (go to home screen), open another app, and return after 30 seconds. Verify that the app reopens without crashing or freezing.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 1
+        },
+        {
+          prompt_id: '03-P03',
+          prompt_text: `Simulate an incoming phone call or lock and unlock the phone screen right before the final confirmation step. Check if the screen recovers smoothly.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 2
+        }
+      ]
     },
     {
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-04`,
-      title: `${feature.name} | Session Interruption, Network Drops & Recovery`,
-      mission: `Explore resilience of ${feature.name} when interrupted by network drops, background app-switching, device lock, or system timeout.`,
-      user_persona: `${primaryPersona} with unstable 3G/4G connectivity or interrupted by an incoming phone call.`,
-      starting_condition: `Mid-transaction state on "${screens[Math.floor(screens.length / 2)]?.name || firstScreenName}".`,
-      expected_outcome: `Application handles dropped connectivity gracefully, provides retry/recovery actions, and never leaves transactions in an orphaned indeterminate state.`,
+      title: `${feature.name} | Network Drops & Disconnection Safety`,
+      mission: `Check how ${feature.name} handles sudden internet loss, slow 3G connections, and timeout errors without losing money or freezing.`,
+      user_persona: `A customer in a poor reception area, elevator, or with spotty internet connection.`,
+      starting_condition: `Ready to submit the transaction on "${midScreenName}".`,
+      expected_outcome: `The app shows a clear "No Internet Connection" or retry prompt with a Try Again button, and never deducts money or creates duplicate transactions upon reconnecting.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
       scenarios: [
         {
           prompt_id: '04-P01',
-          prompt_text: `Enable Airplane mode immediately after tapping the confirmation action. Observe whether a clear "Network unavailable" error with a Retry option is displayed.`,
+          prompt_text: `Immediately after tapping the pay or submit button while the loading spinner is active, turn on Airplane mode. Verify the app shows a helpful retry message rather than spinning indefinitely.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1335,7 +1414,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '04-P02',
-          prompt_text: `Send the application to background for 60 seconds while awaiting receipt confirmation, then restore. Verify state recovery without application crash or white-screen freeze.`,
+          prompt_text: `Reconnect to the internet after a failed network attempt and tap Try Again. Verify the transaction finishes properly without asking you to restart from scratch.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1343,7 +1422,83 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '04-P03',
-          prompt_text: `Simulate session expiry or authentication token revocation mid-journey. Observe if user is redirected to sign-in cleanly and preserved their progress.`,
+          prompt_text: `If a transaction fails due to network disconnection, check account balances and history to verify that money was NOT deducted.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 2
+        }
+      ]
+    },
+    {
+      project_id: feature.project_id,
+      feature_id: feature.id,
+      charter_code: `${prefix}-05`,
+      title: `${feature.name} | Visual Layout & Keyboard Usability`,
+      mission: `Check if on-screen keyboards cover important buttons, text is clipped on smaller screens, or buttons are hard to tap.`,
+      user_persona: `A customer using a smaller screen phone, larger system font size, or fast one-handed typing.`,
+      starting_condition: `Viewing all screens in the ${feature.name} flow.`,
+      expected_outcome: `All buttons, input fields, and fee summaries remain fully visible and easy to tap, even when the phone keyboard is open.`,
+      scope: 'feature' as const,
+      status: 'Draft' as const,
+      scenarios: [
+        {
+          prompt_id: '05-P01',
+          prompt_text: `Tap into each text field to bring up the numeric or text keyboard. Check if the keyboard covers the "Continue", "Next", or "Submit" button, and verify you can easily scroll down to see it.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 0
+        },
+        {
+          prompt_id: '05-P02',
+          prompt_text: `Check buttons and interactive cards to ensure tap targets are large enough to tap easily with one hand without accidentally tapping an adjacent button.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 1
+        },
+        {
+          prompt_id: '05-P03',
+          prompt_text: `Review the screens for any cut-off text, overlapping words, or unreadable contrast between text and background colors.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 2
+        }
+      ]
+    },
+    {
+      project_id: feature.project_id,
+      feature_id: feature.id,
+      charter_code: `${prefix}-06`,
+      title: `${feature.name} | Double-Tap & Financial Duplication Safety`,
+      mission: `Check if impatient rapid taps, wrong security credentials, or session timeouts could cause duplicate charges or security loopholes.`,
+      user_persona: `An impatient or security-conscious user testing button lockouts and authentication safety.`,
+      starting_condition: `On the final authentication or payment confirmation step.`,
+      expected_outcome: `Action buttons immediately lock during processing to prevent double-charging, and security PINs or passwords are strictly validated.`,
+      scope: 'feature' as const,
+      status: 'Draft' as const,
+      scenarios: [
+        {
+          prompt_id: '06-P01',
+          prompt_text: `Rapidly tap the primary submit or confirm button 2 to 3 times very fast. Verify that the button disables immediately on the first tap to prevent charging twice.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 0
+        },
+        {
+          prompt_id: '06-P02',
+          prompt_text: `Enter the wrong PIN or security password twice, then enter the correct one on the third attempt. Check if the app handles the failed attempts securely with a clear warning.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 1
+        },
+        {
+          prompt_id: '06-P03',
+          prompt_text: `Leave the confirmation screen idle for several minutes to let the session expire. Verify that the app prompts to re-authenticate rather than submitting an expired, unsafe transaction.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',

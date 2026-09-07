@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Key, Database, Check, BrainCircuit, Shield } from 'lucide-react';
+import { getStoredGeminiApiKey, setStoredGeminiApiKey } from '@/lib/settings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -13,23 +14,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('AETHER_GEMINI_API_KEY') || '';
-      setApiKey(stored);
+    if (isOpen) {
+      setApiKey(getStoredGeminiApiKey());
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('AETHER_GEMINI_API_KEY', apiKey.trim());
-      setSaved(true);
-      setTimeout(() => {
-        setSaved(false);
-        onClose();
-      }, 1200);
-    }
+    setStoredGeminiApiKey(apiKey);
+    setSaved(true);
+    setTimeout(() => {
+      setSaved(false);
+      onClose();
+    }, 1200);
   };
 
   return (

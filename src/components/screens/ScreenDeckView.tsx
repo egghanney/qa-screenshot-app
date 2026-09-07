@@ -6,6 +6,7 @@ import {
   ScreenStateType, 
   AIScreenAnalysis 
 } from '@/lib/types';
+import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
   BrainCircuit, 
   Shield, 
@@ -49,15 +50,7 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
   const handleAutoNameAll = async () => {
     setIsAutoNaming(true);
     try {
-      let apiKey = '';
-      try {
-        const savedSettings = localStorage.getItem('aether_qa_settings');
-        if (savedSettings) {
-          apiKey = JSON.parse(savedSettings).geminiApiKey || '';
-        }
-      } catch (e) {
-        // ignore
-      }
+      const apiKey = getStoredGeminiApiKey();
 
       const res = await fetch('/api/screens/auto-name', {
         method: 'POST',
