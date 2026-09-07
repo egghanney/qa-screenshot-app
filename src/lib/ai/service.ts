@@ -208,9 +208,14 @@ Format as JSON:
     try {
       const parsed = JSON.parse(geminiResult);
       if (Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
-        // Map layout coordinates
+        const idMap = new Map<string, string>();
+        parsed.nodes.forEach((n: any) => {
+          const originalId = n.id || String(Math.random());
+          idMap.set(originalId, crypto.randomUUID());
+        });
+
         const layoutNodes = parsed.nodes.map((n: any, idx: number) => ({
-          id: n.id || `node-${idx + 1}`,
+          id: idMap.get(n.id) || crypto.randomUUID(),
           feature_id: feature.id,
           screen_id: n.screen_id || (screens[idx] ? screens[idx].id : null),
           type: n.type || 'screen',
@@ -220,11 +225,11 @@ Format as JSON:
           metadata: n.metadata || {}
         }));
 
-        const layoutEdges = parsed.edges.map((e: any, idx: number) => ({
-          id: `edge-${idx + 1}`,
+        const layoutEdges = parsed.edges.map((e: any) => ({
+          id: crypto.randomUUID(),
           feature_id: feature.id,
-          source_node_id: e.source_node_id,
-          target_node_id: e.target_node_id,
+          source_node_id: idMap.get(e.source_node_id) || e.source_node_id,
+          target_node_id: idMap.get(e.target_node_id) || e.target_node_id,
           action: e.action || 'Proceed',
           condition: e.condition || null,
           system_response: e.system_response || 'Processes request',
@@ -238,12 +243,12 @@ Format as JSON:
     }
   }
 
-  // Deterministic DAG generation with explicit Screen -> Action -> System Response -> Screen & Decision Branching
+  // Deterministic DAG generation with valid UUIDs for PostgreSQL schema
   const nodes: JourneyNodeData[] = [];
   const edges: JourneyEdgeData[] = [];
 
   // Entry Node
-  const entryId = `node-entry`;
+  const entryId = crypto.randomUUID();
   nodes.push({
     id: entryId,
     feature_id: feature.id,
@@ -261,7 +266,7 @@ Format as JSON:
   let previousNodeId = entryId;
 
   screens.forEach((screen, index) => {
-    const nodeId = `node-screen-${screen.id || index + 1}`;
+    const nodeId = crypto.randomUUID();
     const x = 360 * (index + 1);
     const y = 200;
 
@@ -286,7 +291,7 @@ Format as JSON:
     });
 
     edges.push({
-      id: `edge-${previousNodeId}-${nodeId}`,
+      id: crypto.randomUUID(),
       feature_id: feature.id,
       source_node_id: previousNodeId,
       target_node_id: nodeId,
@@ -297,8 +302,8 @@ Format as JSON:
 
     // Add decision node before the final screen (e.g. verification/payment authorization)
     if (index === screens.length - 2 && screens.length >= 3) {
-      const decisionId = `node-decision-${index}`;
-      const errorId = `node-error-${index}`;
+      const decisionId = crypto.randomUUID();
+      const errorId = crypto.randomUUID();
 
       nodes.push({
         id: decisionId,
@@ -329,7 +334,7 @@ Format as JSON:
       });
 
       edges.push({
-        id: `edge-${nodeId}-${decisionId}`,
+        id: crypto.randomUUID(),
         feature_id: feature.id,
         source_node_id: nodeId,
         target_node_id: decisionId,
@@ -339,7 +344,7 @@ Format as JSON:
       });
 
       edges.push({
-        id: `edge-${decisionId}-${errorId}`,
+        id: crypto.randomUUID(),
         feature_id: feature.id,
         source_node_id: decisionId,
         target_node_id: errorId,
@@ -349,7 +354,7 @@ Format as JSON:
       });
 
       edges.push({
-        id: `edge-${errorId}-${nodeId}`,
+        id: crypto.randomUUID(),
         feature_id: feature.id,
         source_node_id: errorId,
         target_node_id: nodeId,
@@ -363,7 +368,7 @@ Format as JSON:
   });
 
   // Exit / Completion Node
-  const exitId = `node-exit`;
+  const exitId = crypto.randomUUID();
   nodes.push({
     id: exitId,
     feature_id: feature.id,
@@ -378,7 +383,7 @@ Format as JSON:
   });
 
   edges.push({
-    id: `edge-${previousNodeId}-${exitId}`,
+    id: crypto.randomUUID(),
     feature_id: feature.id,
     source_node_id: previousNodeId,
     target_node_id: exitId,

@@ -15,7 +15,8 @@ export async function POST(req: Request) {
       .single();
 
     if (featErr || !featureData) {
-      return NextResponse.json({ error: 'Feature not found' }, { status: 404 });
+      console.error('Feature fetch error in journey generate:', featErr);
+      return NextResponse.json({ error: featErr?.message || 'Feature not found' }, { status: 404 });
     }
 
     const { data: screensData, error: scrErr } = await supabase
@@ -25,7 +26,8 @@ export async function POST(req: Request) {
       .order('screen_number', { ascending: true });
 
     if (scrErr) {
-      return NextResponse.json({ error: 'Failed to fetch screens' }, { status: 500 });
+      console.error('Screens fetch error in journey generate:', scrErr);
+      return NextResponse.json({ error: scrErr.message || 'Failed to fetch screens' }, { status: 500 });
     }
 
     const feature = featureData as Feature;
@@ -40,13 +42,19 @@ export async function POST(req: Request) {
     // Insert nodes
     if (nodes.length > 0) {
       const { error: nodeErr } = await supabase.from('qa_journey_nodes').insert(nodes);
-      if (nodeErr) console.error('Error inserting journey nodes:', nodeErr);
+      if (nodeErr) {
+        console.error('Error inserting journey nodes:', nodeErr);
+        return NextResponse.json({ error: `Failed to insert nodes: ${nodeErr.message}` }, { status: 500 });
+      }
     }
 
     // Insert edges
     if (edges.length > 0) {
       const { error: edgeErr } = await supabase.from('qa_journey_edges').insert(edges);
-      if (edgeErr) console.error('Error inserting journey edges:', edgeErr);
+      if (edgeErr) {
+        console.error('Error inserting journey edges:', edgeErr);
+        return NextResponse.json({ error: `Failed to insert edges: ${edgeErr.message}` }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true, nodes, edges });

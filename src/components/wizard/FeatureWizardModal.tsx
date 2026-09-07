@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   ArrowRight, 
@@ -64,10 +64,37 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
 
   // Step 3 & 4: Uploaded Screens (Clean user-uploaded screens only)
   const [screens, setScreens] = useState<UploadedScreen[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Step 5: Execution Status
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
+
+  // Handle clipboard paste (Ctrl+V / Cmd+V) for screenshots when on Step 3
+  useEffect(() => {
+    if (!isOpen || step !== 3) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
+      const items = Array.from(e.clipboardData.items);
+      const imageFiles: File[] = [];
+      items.forEach((item) => {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '');
+            const renamed = new File([file], `Pasted-Screen-${timeStr}.png`, { type: file.type });
+            imageFiles.push(renamed);
+          }
+        }
+      });
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        handleFileUpload(imageFiles);
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isOpen, step, screens.length]);
 
   if (!isOpen) return null;
 
@@ -82,21 +109,24 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
     }
   };
 
-  const handleFileUpload = (files: FileList | null) => {
+  const handleFileUpload = (files: FileList | File[] | null) => {
     if (!files) return;
+    const fileArray = Array.from(files);
+    const validImages = fileArray.filter(f => f.type.startsWith('image/'));
+    if (validImages.length === 0) return;
     const newItems: UploadedScreen[] = [];
-    Array.from(files).forEach((file, idx) => {
+    validImages.forEach((file, idx) => {
       const url = URL.createObjectURL(file);
       newItems.push({
-        id: `upload-${Date.now()}-${idx}`,
+        id: `upload-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
         file,
         previewUrl: url,
-        name: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
+        name: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') || `Screen ${screens.length + idx + 1}`,
         userAction: `User interacts with Screen ${screens.length + idx + 1}`,
         expectedBehavior: 'System validates input and advances'
       });
     });
-    setScreens([...screens, ...newItems]);
+    setScreens(prev => [...prev, ...newItems]);
   };
 
   const moveScreen = (index: number, direction: 'up' | 'down') => {
@@ -533,16 +563,40 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
               {/* Upload Dropzone */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-clinical-border hover:border-dark-chassis rounded-[20px] p-8 text-center bg-clinical-white/60 hover:bg-clinical-white transition cursor-pointer flex flex-col items-center justify-center gap-2"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFileUpload(e.dataTransfer.files);
+                  }
+                }}
+                className={`border-2 border-dashed rounded-[20px] p-8 text-center transition cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                  isDragging
+                    ? 'border-dark-chassis bg-clinical-warm ring-2 ring-neon scale-[1.01]'
+                    : 'border-clinical-border hover:border-dark-chassis bg-clinical-white/60 hover:bg-clinical-white'
+                }`}
               >
-                <div className="w-12 h-12 rounded-full bg-clinical-warm flex items-center justify-center text-dark-chassis">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition ${
+                  isDragging ? 'bg-neon text-dark-chassis animate-bounce' : 'bg-clinical-warm text-dark-chassis'
+                }`}>
                   <Upload className="w-6 h-6" />
                 </div>
                 <div className="font-medium text-sm text-dark-chassis">
-                  Click to select screenshots or drag and drop here
+                  {isDragging ? 'Drop screenshots here now' : 'Click to select screenshots or drag and drop here'}
                 </div>
                 <p className="text-xs text-txt-muted">
-                  Supports PNG, JPG, JPEG, WEBP • Multiple selection supported
+                  Supports PNG, JPG, JPEG, WEBP • Multiple selection & Clipboard paste (Cmd+V / Ctrl+V) supported
                 </p>
                 <input
                   type="file"
