@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --page-bg: #EDEDEB;
+  --warm-bg: #F4F3EE;
+  --surface: #F8F8F5;
+  --surface-white: #FFFFFF;
+  --dark-chassis: #1D1E1C;
+  --neon-accent: #F2F52A;
+  --border-color: #DCDDD6;
+}
+
+body {
+  background-color: var(--page-bg);
+  color: #171816;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* Custom clinical scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5D6CF;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A8AAA3;
+}
+
+/* React Flow custom clinical node overrides */
+.react-flow__attribution {
+  display: none !important;
+}
+
+.react-flow__handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: #1D1E1C !important;
+  border: 2px solid #F2F52A !important;
+}
