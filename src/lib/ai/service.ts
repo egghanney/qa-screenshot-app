@@ -1162,202 +1162,18 @@ export interface GenerateChartersResult {
   engine: 'gemini' | 'deterministic';
 }
 
-// 7. Exploratory Testing (ET) Charters Generation Engine (Mission-Conforming Innovative Suite)
-export async function generateExploratoryCharters(
+// Pure Helper to synthesize baseline domain exploratory testing charters
+export function buildDeterministicCharters(
   feature: Feature,
   screens: ScreenItem[],
-  nodes: JourneyNodeData[],
-  edges: JourneyEdgeData[],
-  knowledge: KnowledgeItem[],
-  apiKey?: string
-): Promise<GenerateChartersResult> {
-  // Generate prefix code from feature/project name
-  const words = (feature.name || 'QA').split(/\s+/).filter(Boolean);
-  const codeSuffix = words.map(w => w[0]?.toUpperCase()).join('').slice(0, 3) || 'ET';
-  const prefix = `GH-${codeSuffix}`;
-
-  const confirmedRules = knowledge.filter(k => k.confidence === 'CONFIRMED');
-  const unknownGaps = knowledge.filter(k => k.confidence === 'UNKNOWN' || k.confidence === 'INFERRED');
-
-  // Helper to ensure raw device filenames never leak into charters
-  const getSemanticName = (s?: ScreenItem, fallback = 'Initial Screen') => {
-    if (!s) return fallback;
-    if (isRawDeviceFilename(s.name)) {
-      return s.screen_number === 1 ? (feature.entry_point || 'Entry Screen')
-        : s.screen_number === screens.length ? (feature.expected_outcome || 'Success Receipt')
-        : `Step ${s.screen_number} View`;
-    }
-    return s.name;
-  };
-
-  const firstScreenName = getSemanticName(screens[0], feature.entry_point || 'Initial Screen');
-  const secondScreenName = getSemanticName(screens[1], 'Primary Form Entry');
-  const midScreenName = getSemanticName(screens[Math.floor(screens.length / 2)], 'Active Transaction Flow');
-  const lastScreenName = getSemanticName(screens[screens.length - 1], feature.expected_outcome || 'Confirmation Receipt');
-  const primaryPersona = feature.user_types?.[0] || 'Customer';
-
-  // Gather screen image URLs for Gemini Multimodal Vision analysis
-  const screenImages = screens
-    .map(s => s.image_url)
-    .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
-    .slice(0, 8);
-
-  const prompt = `You are an elite Principal QA Lead and Exploratory Testing Specialist.
-Your objective: Visually inspect the provided mobile/web application screenshots and formulate 4 to 6 highly targeted, creative Exploratory Testing (ET) Charters that uncover deep, unexpected bugs.
-
-APPLICATION & FEATURE DETAILS:
-Application / Feature: "${feature.name}" (${feature.platform || 'Mobile'})
-Primary Purpose: "${feature.purpose || feature.description || 'Core feature workflow'}"
-Target User Personas: ${feature.user_types?.join(', ') || 'Customer'}
-Starting Entry Point: "${feature.entry_point || 'App Home'}"
-Expected Outcome: "${feature.expected_outcome || 'Success'}"
-
-DOCUMENTED SCREENS & VISUAL CONTROLS:
-${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'Interactive inputs & buttons'}`).join('\n')}
-
-CONFIRMED BUSINESS RULES:
-${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard validation rules apply.'}
-
-UNKNOWN GAPS & RISKS:
-${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Probe boundary limits, network disconnections, and exception handling.'}
-
-=== THREE SACRED RULES FOR CHARTER CREATION ===
-
-RULE 1: STRICT MISSION CONFORMANCE
-Every charter MUST have a clear, specific, high-risk MISSION. 
-Every single prompt/scenario generated under that charter MUST strictly and directly test that specific mission! 
-Do NOT put random or generic scenarios under a charter. For example:
-- If the charter's mission is "Carrier Prefix Compatibility & Number Formats", ALL prompts under it must specifically probe telephone formats, network prefix mismatches, contact imports, or missing leading digits.
-- If the charter's mission is "Amount Chips & Fee Arithmetic Transparency", ALL prompts under it must specifically probe preset quick chips vs manual typing, fee additions vs exact balance ceilings, 0.00/negative values, or decimal cents.
-- If the charter's mission is "Navigation Backtracking & Real-World Interruption", ALL prompts under it must probe Back button data preservation, app switching, incoming phone calls, or screen locking.
-- If the charter's mission is "Network Disconnections & Balance Protection", ALL prompts under it must probe Airplane mode mid-spinner, timeout recovery, and verifying funds are NOT deducted when a network failure occurs.
-
-RULE 2: EXHAUSTIVE, UNRESTRICTED SCENARIO DEPTH (ZERO BLIND SPOTS)
-DO NOT artificially restrict charters to 3 or 4 scenarios.
-Generate an EXHAUSTIVE suite of scenarios (typically 5 to 8+ deep, rigorous scenarios per charter).
-Thoroughly exhaust every conceivable edge case, failure mode, user mistake, boundary limit, network glitch, and data corruption trap relevant to the mission.
-Testers must be provided with complete, zero-blindspot coverage.
-
-RULE 3: CREATIVE, SKEPTICAL "QA HACKER" SCENARIOS
-Do not write obvious or boring happy-path steps. Act like a smart, inquisitive tester looking for real bugs developers forgot to test:
-- Carrier Mismatches: E.g., selecting MTN but typing a Telecel (020) prefix.
-- Preset vs Manual Input Conflict: E.g., tapping a 10 GHS chip then typing 25 in the custom box.
-- Balance & Fee Traps: E.g., having 50 GHS balance and entering 50 GHS when a fee or e-levy applies.
-- Contact Book Parsing: E.g., contacts with international prefixes +233, spaces, or emojis.
-- Decimal Cent Handling: E.g., entering 1.55 or 0.99 for transactions that only accept whole numbers.
-- Rapid Double-Tapping: E.g., clicking Confirm 3 times fast to check duplicate charge lockouts.
-
-=== LANGUAGE STYLE GUIDELINES ===
-- Use simple, direct, conversational plain English (Grade 6 to 8 reading level) so any tester can understand and execute immediately on a real phone or computer.
-- FORBIDDEN JARGON: Never use terms like "semantic variations", "validation deadlocks", "heuristic attack", "payload rejection", "multi-turn progression", or "friction-free interaction experience".
-- CONCRETE ACTIONS: Tell the tester exactly what to type, tap, or observe.
-
-Respond in STRICT JSON format:
-[
-  {
-    "charter_code": "${prefix}-01",
-    "title": "Short descriptive title",
-    "mission": "Explore whether [specific component] handles [specific condition/challenge] without [failure mode].",
-    "user_persona": "Realistic user profile and mindset",
-    "starting_condition": "Exact starting screen and initial state",
-    "expected_outcome": "Clear, measurable criteria for acceptable behavior",
-    "scenarios": [
-      {
-        "prompt_id": "01-P01",
-        "prompt_text": "Plain English investigative prompt describing exact action and what to observe",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P02",
-        "prompt_text": "Second distinct probe testing a different edge case under this same mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P03",
-        "prompt_text": "Third distinct probe testing boundary limits or bad data under this mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P04",
-        "prompt_text": "Fourth distinct probe testing user error or formatting quirks under this mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P05",
-        "prompt_text": "Fifth distinct probe testing recovery or system warnings under this mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      }
-    ]
-  }
-]`;
-
-  let geminiResult = await callGeminiAPI(prompt, screenImages.length > 0 ? screenImages : undefined, apiKey);
-  // If multimodal call failed (e.g. payload too large or image fetch error), retry with rich text prompt
-  if (!geminiResult && screenImages.length > 0) {
-    console.warn('Multimodal charter call failed, retrying with structured text prompt...');
-    geminiResult = await callGeminiAPI(prompt, undefined, apiKey);
-  }
-
-  if (geminiResult) {
-    try {
-      let cleanText = geminiResult.trim();
-      if (cleanText.startsWith('```json')) {
-        cleanText = cleanText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
-      } else if (cleanText.startsWith('```')) {
-        cleanText = cleanText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-
-      const parsed = JSON.parse(cleanText);
-      const chartersList = Array.isArray(parsed)
-        ? parsed
-        : (parsed.charters || parsed.data || parsed.results || []);
-
-      if (Array.isArray(chartersList) && chartersList.length >= 2) {
-        const mapped = chartersList.map((c: any, cIdx: number) => ({
-          project_id: feature.project_id,
-          feature_id: feature.id,
-          charter_code: c.charter_code || `${prefix}-0${cIdx + 1}`,
-          title: c.title || `Charter 0${cIdx + 1}`,
-          mission: c.mission || `Explore behavior of ${feature.name}`,
-          user_persona: c.user_persona || primaryPersona,
-          starting_condition: c.starting_condition || feature.entry_point || 'App Home',
-          expected_outcome: c.expected_outcome || feature.expected_outcome || 'Success',
-          scope: 'feature' as const,
-          status: 'Draft' as const,
-          scenarios: Array.isArray(c.scenarios)
-            ? c.scenarios.map((s: any, sIdx: number) => ({
-                prompt_id: s.prompt_id || `0${cIdx + 1}-P0${sIdx + 1}`,
-                prompt_text: s.prompt_text || 'Test scenario',
-                status: (s.status as any) || 'Untested',
-                observations: s.observations || '',
-                media_url: s.media_url || '',
-                sort_order: sIdx
-              }))
-            : []
-        }));
-
-        return {
-          charters: mapped,
-          engine: 'gemini'
-        };
-      }
-    } catch (e) {
-      console.warn('Failed parsing Gemini Exploratory Charters JSON', e);
-    }
-  }
-
-  // Deterministic High-Fidelity Exploratory Testing Charters Fallback (Exhaustive Mission-Conforming Suite)
-  const defaultCharters: GeneratedCharter[] = [
+  firstScreenName: string,
+  secondScreenName: string,
+  midScreenName: string,
+  lastScreenName: string,
+  primaryPersona: string,
+  prefix: string
+): GeneratedCharter[] {
+  return [
     {
       project_id: feature.project_id,
       feature_id: feature.id,
@@ -1699,7 +1515,233 @@ Respond in STRICT JSON format:
       ]
     }
   ];
+}
 
+// 7. Exploratory Testing (ET) Charters Generation Engine (Mission-Conforming Innovative Suite)
+export async function generateExploratoryCharters(
+  feature: Feature,
+  screens: ScreenItem[],
+  nodes: JourneyNodeData[],
+  edges: JourneyEdgeData[],
+  knowledge: KnowledgeItem[],
+  apiKey?: string
+): Promise<GenerateChartersResult> {
+  // Generate prefix code from feature/project name
+  const words = (feature.name || 'QA').split(/\s+/).filter(Boolean);
+  const codeSuffix = words.map(w => w[0]?.toUpperCase()).join('').slice(0, 3) || 'ET';
+  const prefix = `GH-${codeSuffix}`;
+
+  const confirmedRules = knowledge.filter(k => k.confidence === 'CONFIRMED');
+  const unknownGaps = knowledge.filter(k => k.confidence === 'UNKNOWN' || k.confidence === 'INFERRED');
+
+  // Helper to ensure raw device filenames never leak into charters
+  const getSemanticName = (s?: ScreenItem, fallback = 'Initial Screen') => {
+    if (!s) return fallback;
+    if (isRawDeviceFilename(s.name)) {
+      return s.screen_number === 1 ? (feature.entry_point || 'Entry Screen')
+        : s.screen_number === screens.length ? (feature.expected_outcome || 'Success Receipt')
+        : `Step ${s.screen_number} View`;
+    }
+    return s.name;
+  };
+
+  const firstScreenName = getSemanticName(screens[0], feature.entry_point || 'Initial Screen');
+  const secondScreenName = getSemanticName(screens[1], 'Primary Form Entry');
+  const midScreenName = getSemanticName(screens[Math.floor(screens.length / 2)], 'Active Transaction Flow');
+  const lastScreenName = getSemanticName(screens[screens.length - 1], feature.expected_outcome || 'Confirmation Receipt');
+  const primaryPersona = feature.user_types?.[0] || 'Customer';
+
+  // Synthesize deterministic domain baseline to ground & empower Gemini AI
+  const defaultCharters = buildDeterministicCharters(
+    feature,
+    screens,
+    firstScreenName,
+    secondScreenName,
+    midScreenName,
+    lastScreenName,
+    primaryPersona,
+    prefix
+  );
+
+  const baselineHeuristicsSummary = defaultCharters.map((c, idx) => 
+`[Baseline Charter #${idx + 1}: ${c.title}]
+- Mission: ${c.mission}
+- Baseline Core Probes:
+${c.scenarios.map(s => `  * ${s.prompt_text}`).join('\n')}`
+  ).join('\n\n');
+
+  // Gather screen image URLs for Gemini Multimodal Vision analysis
+  const screenImages = screens
+    .map(s => s.image_url)
+    .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    .slice(0, 8);
+
+  const prompt = `You are an elite Principal QA Lead and Exploratory Testing Specialist.
+Your objective: Visually inspect the provided mobile/web application screenshots and formulate 4 to 6 highly targeted, creative Exploratory Testing (ET) Charters that uncover deep, unexpected bugs.
+
+APPLICATION & FEATURE DETAILS:
+Application / Feature: "${feature.name}" (${feature.platform || 'Mobile'})
+Primary Purpose: "${feature.purpose || feature.description || 'Core feature workflow'}"
+Target User Personas: ${feature.user_types?.join(', ') || 'Customer'}
+Starting Entry Point: "${feature.entry_point || 'App Home'}"
+Expected Outcome: "${feature.expected_outcome || 'Success'}"
+
+DOCUMENTED SCREENS & VISUAL CONTROLS:
+${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'Interactive inputs & buttons'}`).join('\n')}
+
+CONFIRMED BUSINESS RULES:
+${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard validation rules apply.'}
+
+UNKNOWN GAPS & RISKS:
+${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Probe boundary limits, network disconnections, and exception handling.'}
+
+=== FOUNDATIONAL DOMAIN HEURISTICS BASELINE (EXPAND & TRANSCEND) ===
+We have already synthesized a comprehensive domain baseline of testing missions and edge cases for "${feature.name}":
+
+${baselineHeuristicsSummary}
+
+CRITICAL DIRECTIVE FOR GEMINI AI GENERATION:
+- Treat the baseline above as your starting foundation and testing floor.
+- Visually inspect the provided application screenshot images. Look for real, specific UI controls: exact button labels (e.g. 'CONFIRM & PAY', 'Send Airtime', 'Add Beneficiary'), input placeholders, carrier chips (MTN, Telecel, AT), balance counters, toggles, back navigation chevrons, and disclaimers.
+- Upgrade, enrich, and anchor each charter mission with concrete UI interactions observed directly in the screenshots.
+- Ensure every single charter contains 5 to 8+ deep, inventive, zero-blindspot investigative scenarios conforming strictly to that charter's mission.
+
+=== THREE SACRED RULES FOR CHARTER CREATION ===
+
+RULE 1: STRICT MISSION CONFORMANCE
+Every charter MUST have a clear, specific, high-risk MISSION. 
+Every single prompt/scenario generated under that charter MUST strictly and directly test that specific mission! 
+Do NOT put random or generic scenarios under a charter. For example:
+- If the charter's mission is "Carrier Prefix Compatibility & Number Formats", ALL prompts under it must specifically probe telephone formats, network prefix mismatches, contact imports, or missing leading digits.
+- If the charter's mission is "Amount Chips & Fee Arithmetic Transparency", ALL prompts under it must specifically probe preset quick chips vs manual typing, fee additions vs exact balance ceilings, 0.00/negative values, or decimal cents.
+- If the charter's mission is "Navigation Backtracking & Real-World Interruption", ALL prompts under it must probe Back button data preservation, app switching, incoming phone calls, or screen locking.
+- If the charter's mission is "Network Disconnections & Balance Protection", ALL prompts under it must probe Airplane mode mid-spinner, timeout recovery, and verifying funds are NOT deducted when a network failure occurs.
+
+RULE 2: EXHAUSTIVE, UNRESTRICTED SCENARIO DEPTH (ZERO BLIND SPOTS)
+DO NOT artificially restrict charters to 3 or 4 scenarios.
+Generate an EXHAUSTIVE suite of scenarios (typically 5 to 8+ deep, rigorous scenarios per charter).
+Thoroughly exhaust every conceivable edge case, failure mode, user mistake, boundary limit, network glitch, and data corruption trap relevant to the mission.
+Testers must be provided with complete, zero-blindspot coverage.
+
+RULE 3: CREATIVE, SKEPTICAL "QA HACKER" SCENARIOS
+Do not write obvious or boring happy-path steps. Act like a smart, inquisitive tester looking for real bugs developers forgot to test:
+- Carrier Mismatches: E.g., selecting MTN but typing a Telecel (020) prefix.
+- Preset vs Manual Input Conflict: E.g., tapping a 10 GHS chip then typing 25 in the custom box.
+- Balance & Fee Traps: E.g., having 50 GHS balance and entering 50 GHS when a fee or e-levy applies.
+- Contact Book Parsing: E.g., contacts with international prefixes +233, spaces, or emojis.
+- Decimal Cent Handling: E.g., entering 1.55 or 0.99 for transactions that only accept whole numbers.
+- Rapid Double-Tapping: E.g., clicking Confirm 3 times fast to check duplicate charge lockouts.
+
+=== LANGUAGE STYLE GUIDELINES ===
+- Use simple, direct, conversational plain English (Grade 6 to 8 reading level) so any tester can understand and execute immediately on a real phone or computer.
+- FORBIDDEN JARGON: Never use terms like "semantic variations", "validation deadlocks", "heuristic attack", "payload rejection", "multi-turn progression", or "friction-free interaction experience".
+- CONCRETE ACTIONS: Tell the tester exactly what to type, tap, or observe.
+
+Respond in STRICT JSON format:
+[
+  {
+    "charter_code": "${prefix}-01",
+    "title": "Short descriptive title",
+    "mission": "Explore whether [specific component] handles [specific condition/challenge] without [failure mode].",
+    "user_persona": "Realistic user profile and mindset",
+    "starting_condition": "Exact starting screen and initial state",
+    "expected_outcome": "Clear, measurable criteria for acceptable behavior",
+    "scenarios": [
+      {
+        "prompt_id": "01-P01",
+        "prompt_text": "Plain English investigative prompt describing exact action and what to observe",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P02",
+        "prompt_text": "Second distinct probe testing a different edge case under this same mission",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P03",
+        "prompt_text": "Third distinct probe testing boundary limits or bad data under this mission",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P04",
+        "prompt_text": "Fourth distinct probe testing user error or formatting quirks under this mission",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P05",
+        "prompt_text": "Fifth distinct probe testing recovery or system warnings under this mission",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      }
+    ]
+  }
+]`;
+
+  let geminiResult = await callGeminiAPI(prompt, screenImages.length > 0 ? screenImages : undefined, apiKey);
+  // If multimodal call failed (e.g. payload too large or image fetch error), retry with rich text prompt
+  if (!geminiResult && screenImages.length > 0) {
+    console.warn('Multimodal charter call failed, retrying with structured text prompt...');
+    geminiResult = await callGeminiAPI(prompt, undefined, apiKey);
+  }
+
+  if (geminiResult) {
+    try {
+      let cleanText = geminiResult.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
+      } else if (cleanText.startsWith('```')) {
+        cleanText = cleanText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
+      const parsed = JSON.parse(cleanText);
+      const chartersList = Array.isArray(parsed)
+        ? parsed
+        : (parsed.charters || parsed.data || parsed.results || []);
+
+      if (Array.isArray(chartersList) && chartersList.length >= 2) {
+        const mapped = chartersList.map((c: any, cIdx: number) => ({
+          project_id: feature.project_id,
+          feature_id: feature.id,
+          charter_code: c.charter_code || `${prefix}-0${cIdx + 1}`,
+          title: c.title || `Charter 0${cIdx + 1}`,
+          mission: c.mission || `Explore behavior of ${feature.name}`,
+          user_persona: c.user_persona || primaryPersona,
+          starting_condition: c.starting_condition || feature.entry_point || 'App Home',
+          expected_outcome: c.expected_outcome || feature.expected_outcome || 'Success',
+          scope: 'feature' as const,
+          status: 'Draft' as const,
+          scenarios: Array.isArray(c.scenarios)
+            ? c.scenarios.map((s: any, sIdx: number) => ({
+                prompt_id: s.prompt_id || `0${cIdx + 1}-P0${sIdx + 1}`,
+                prompt_text: s.prompt_text || 'Test scenario',
+                status: (s.status as any) || 'Untested',
+                observations: s.observations || '',
+                media_url: s.media_url || '',
+                sort_order: sIdx
+              }))
+            : []
+        }));
+
+        return {
+          charters: mapped,
+          engine: 'gemini'
+        };
+      }
+    } catch (e) {
+      console.warn('Failed parsing Gemini Exploratory Charters JSON', e);
+    }
+  }
+
+    // Deterministic Fallback if Gemini generation is offline or unavailable
   return {
     charters: defaultCharters,
     engine: 'deterministic'
