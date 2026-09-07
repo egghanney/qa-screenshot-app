@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const knowledge = (knowledgeRes.data || []) as KnowledgeItem[];
 
     // 3. Generate Charters via AI / Deterministic synthesis
-    const rawCharters = await generateExploratoryCharters(
+    const result = await generateExploratoryCharters(
       feature,
       screens,
       nodes,
@@ -54,6 +54,9 @@ export async function POST(req: Request) {
       knowledge,
       api_key
     );
+
+    const rawCharters = result.charters;
+    const engineUsed = result.engine;
 
     // 4. Persist to Supabase
     // Delete previous charters for this feature to prevent duplicates on regenerate
@@ -116,7 +119,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      charters: savedCharters
+      charters: savedCharters,
+      engine: engineUsed
     });
   } catch (err: any) {
     console.error('Error in /api/charters/generate:', err);

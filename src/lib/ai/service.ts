@@ -1144,7 +1144,12 @@ All knowledge items and checkpoints are strictly anti-hallucination grounded to 
 *ℹ️ Synthesized directly from database records. To enable real-time conversational reasoning, enter your GEMINI_API_KEY in Settings.*`;
 }
 
-// 7. Exploratory Testing (ET) Charters Generation Engine (Zero-Blindspot 6-Angle Framework)
+export interface GenerateChartersResult {
+  charters: GeneratedCharter[];
+  engine: 'gemini' | 'deterministic';
+}
+
+// 7. Exploratory Testing (ET) Charters Generation Engine (Mission-Conforming Innovative Suite)
 export async function generateExploratoryCharters(
   feature: Feature,
   screens: ScreenItem[],
@@ -1152,7 +1157,7 @@ export async function generateExploratoryCharters(
   edges: JourneyEdgeData[],
   knowledge: KnowledgeItem[],
   apiKey?: string
-): Promise<GeneratedCharter[]> {
+): Promise<GenerateChartersResult> {
   // Generate prefix code from feature/project name
   const words = (feature.name || 'QA').split(/\s+/).filter(Boolean);
   const codeSuffix = words.map(w => w[0]?.toUpperCase()).join('').slice(0, 3) || 'ET';
@@ -1184,53 +1189,59 @@ export async function generateExploratoryCharters(
     .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
     .slice(0, 8);
 
-  const prompt = `You are an expert Principal QA Lead and Exploratory Testing Specialist.
-Generate a comprehensive suite of 6 Exploratory Testing (ET) Charters designed to leave ZERO BLIND SPOTS for this mobile/web feature.
+  const prompt = `You are an elite Principal QA Lead and Exploratory Testing Specialist.
+Your objective: Visually inspect the provided mobile/web application screenshots and formulate 4 to 6 highly targeted, creative Exploratory Testing (ET) Charters that uncover deep, unexpected bugs.
 
-APPLICATION & FEATURE CONTEXT:
+APPLICATION & FEATURE DETAILS:
 Application / Feature: "${feature.name}" (${feature.platform || 'Mobile'})
 Primary Purpose: "${feature.purpose || feature.description || 'Core feature workflow'}"
 Target User Personas: ${feature.user_types?.join(', ') || 'Customer'}
 Starting Entry Point: "${feature.entry_point || 'App Home'}"
 Expected Outcome: "${feature.expected_outcome || 'Success'}"
 
-DOCUMENTED SCREENS & UI CONTROLS:
-${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Interactive Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'Inputs & buttons'}`).join('\n')}
+DOCUMENTED SCREENS & VISUAL CONTROLS:
+${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'Interactive inputs & buttons'}`).join('\n')}
 
-BUSINESS RULES & VERIFIED FACTS:
-${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard transaction validation rules apply.'}
+CONFIRMED BUSINESS RULES:
+${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard validation rules apply.'}
 
-UNKNOWN GAPS & RISKS REQUIRING TESTING:
-${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Test boundary conditions, offline states, and exception handling.'}
+UNKNOWN GAPS & RISKS:
+${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Probe boundary limits, network disconnections, and exception handling.'}
 
-=== CRITICAL LANGUAGE & READABILITY GUIDELINES ===
-1. Write in PLAIN, DIRECT, CONVERSATIONAL ENGLISH that any tester can understand and execute immediately (Grade 6 to 8 reading level).
-2. STRICTLY FORBIDDEN JARGON: Do NOT use academic or complex QA jargon such as "semantic variations", "validation deadlocks", "heuristic attack", "payload rejection", "multi-turn progression", or "friction-free interaction experience".
-3. CONCRETE INSTRUCTIONS: Write clear, human actions like:
-   - "Try typing an 8-digit phone number and verify a friendly error tells you digits are missing."
-   - "Try typing 0 or an amount higher than your account balance to make sure the app clearly stops the transaction."
-   - "Tap the Confirm button 3 times fast to make sure you are not charged twice."
-   - "While the payment spinner is loading, turn on Airplane mode and verify you get a Try Again button."
-   - "Check if the phone's on-screen keyboard covers the Continue or Pay button."
+=== TWO SACRED RULES FOR CHARTER CREATION ===
 
-=== MANDATORY 6-ANGLE ZERO-BLINDSPOT COVERAGE ===
-You MUST generate exactly 6 charters, one for each of these critical test angles:
-1. ${prefix}-01: Core Flow & Happy Path (Standard, ideal journey with valid data from start to finish)
-2. ${prefix}-02: Bad Inputs & Boundary Limits (Short inputs, empty fields, 0 amount, over-balance amounts, symbols)
-3. ${prefix}-03: Real-World Interruptions & Navigation Chaos (Back button, switching apps, answering a phone call, minimize/resume)
-4. ${prefix}-04: Network Drops & Disconnection Safety (Airplane mode during spinner, retry behavior, balance deduction safety)
-5. ${prefix}-05: Visual Layout & Keyboard Usability (Keyboard covering buttons, small screens, text cut-offs)
-6. ${prefix}-06: Rapid Double-Tap & Financial Duplication Safety (Double-tapping Pay button, wrong PIN attempts, duplicate charge checks)
+RULE 1: STRICT MISSION CONFORMANCE
+Every charter MUST have a clear, specific, high-risk MISSION. 
+Every single prompt/scenario generated under that charter MUST strictly and directly test that specific mission! 
+Do NOT put random or generic scenarios under a charter. For example:
+- If the charter's mission is "Carrier Prefix Compatibility & Number Formats", ALL prompts under it must specifically probe telephone formats, network prefix mismatches, contact imports, or missing leading digits.
+- If the charter's mission is "Amount Chips & Fee Arithmetic Transparency", ALL prompts under it must specifically probe preset quick chips vs manual typing, fee additions vs exact balance ceilings, 0.00/negative values, or decimal cents.
+- If the charter's mission is "Navigation Backtracking & Real-World Interruption", ALL prompts under it must probe Back button data preservation, app switching, incoming phone calls, or screen locking.
+- If the charter's mission is "Network Disconnections & Balance Protection", ALL prompts under it must probe Airplane mode mid-spinner, timeout recovery, and verifying funds are NOT deducted when a network failure occurs.
+
+RULE 2: CREATIVE, SKEPTICAL "QA HACKER" SCENARIOS
+Do not write obvious or boring happy-path steps. Act like a smart, inquisitive tester looking for real bugs developers forgot to test:
+- Carrier Mismatches: E.g., selecting MTN but typing a Telecel (020) prefix.
+- Preset vs Manual Input Conflict: E.g., tapping a 10 GHS chip then typing 25 in the custom box.
+- Balance & Fee Traps: E.g., having 50 GHS balance and entering 50 GHS when a fee or e-levy applies.
+- Contact Book Parsing: E.g., contacts with international prefixes +233, spaces, or emojis.
+- Decimal Cent Handling: E.g., entering 1.55 or 0.99 for transactions that only accept whole numbers.
+- Rapid Double-Tapping: E.g., clicking Confirm 3 times fast to check duplicate charge lockouts.
+
+=== LANGUAGE STYLE GUIDELINES ===
+- Use simple, direct, conversational plain English (Grade 6 to 8 reading level) so any tester can understand and execute immediately on a real phone or computer.
+- FORBIDDEN JARGON: Never use terms like "semantic variations", "validation deadlocks", "heuristic attack", "payload rejection", "multi-turn progression", or "friction-free interaction experience".
+- CONCRETE ACTIONS: Tell the tester exactly what to type, tap, or observe.
 
 Respond in STRICT JSON format:
 [
   {
     "charter_code": "${prefix}-01",
-    "title": "${feature.name} | Core Journey & Happy Path",
-    "mission": "Check if a customer can smoothly complete ${feature.name} from ${firstScreenName} to ${lastScreenName} without confusion, freezes, or missing confirmations.",
-    "user_persona": "${primaryPersona} carrying out a standard transaction.",
-    "starting_condition": "${feature.entry_point || 'App Home'}",
-    "expected_outcome": "The transaction completes promptly with clear confirmation and consistent state persistence.",
+    "title": "Short descriptive title",
+    "mission": "Explore whether [specific component] handles [specific condition/challenge] without [failure mode].",
+    "user_persona": "Realistic user profile and mindset",
+    "starting_condition": "Exact starting screen and initial state",
+    "expected_outcome": "Clear, measurable criteria for acceptable behavior",
     "scenarios": [
       {
         "prompt_id": "01-P01",
@@ -1247,8 +1258,8 @@ Respond in STRICT JSON format:
   if (geminiResult) {
     try {
       const parsed = JSON.parse(geminiResult);
-      if (Array.isArray(parsed) && parsed.length >= 4) {
-        return parsed.map((c: any, cIdx: number) => ({
+      if (Array.isArray(parsed) && parsed.length >= 3) {
+        const mapped = parsed.map((c: any, cIdx: number) => ({
           project_id: feature.project_id,
           feature_id: feature.id,
           charter_code: c.charter_code || `${prefix}-0${cIdx + 1}`,
@@ -1270,13 +1281,18 @@ Respond in STRICT JSON format:
               }))
             : []
         }));
+
+        return {
+          charters: mapped,
+          engine: 'gemini'
+        };
       }
     } catch (e) {
       console.warn('Failed parsing Gemini Exploratory Charters JSON', e);
     }
   }
 
-  // Deterministic High-Fidelity Exploratory Testing Charters Fallback (Zero-Blindspot 6-Angle Suite)
+  // Deterministic High-Fidelity Exploratory Testing Charters Fallback (Mission-Conforming 6-Angle Suite)
   const defaultCharters: GeneratedCharter[] = [
     {
       project_id: feature.project_id,
@@ -1320,17 +1336,17 @@ Respond in STRICT JSON format:
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-02`,
-      title: `${feature.name} | Bad Inputs & Boundary Limits`,
-      mission: `Check how ${feature.name} reacts when the user makes mistakes, enters invalid data, leaves fields blank, or tries extreme numbers.`,
-      user_persona: `${primaryPersona} who makes accidental typos, enters incomplete numbers, or tests extreme limits.`,
-      starting_condition: `On the main entry screen (${secondScreenName || firstScreenName}).`,
-      expected_outcome: `The app prevents invalid submissions, shows friendly inline warnings explaining what is wrong, and keeps the submit button disabled until valid.`,
+      title: `${feature.name} | Recipient Format & Carrier Selection Boundaries`,
+      mission: `Check how ${feature.name} handles invalid phone numbers, carrier mismatches, and contact book imports to prevent misrouted transactions.`,
+      user_persona: `${primaryPersona} who enters a wrong carrier prefix, selects contacts with international codes, or makes accidental typos.`,
+      starting_condition: `On the primary recipient entry screen (${secondScreenName || firstScreenName}).`,
+      expected_outcome: `The app validates phone formats, warns if carrier prefix does not match selected network, and cleanly strips spaces or international country codes.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
       scenarios: [
         {
           prompt_id: '02-P01',
-          prompt_text: `Try tapping the continue or submit button with mandatory fields left empty. Verify that the button is either disabled or shows a clear message pointing out what is missing.`,
+          prompt_text: `Attempt to proceed with an empty or incomplete phone number (e.g. 7 digits instead of 10). Verify the Continue button stays disabled or highlights the missing digits with a clear warning.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1338,7 +1354,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '02-P02',
-          prompt_text: `Enter an incomplete or wrong number (e.g., 5 or 8 digits instead of 10). Verify that the app gives an immediate, friendly error message instead of letting you proceed.`,
+          prompt_text: `Select a specific network carrier, then enter a phone number with a mismatched carrier prefix (e.g. 020 or 050 Telecel prefix when MTN is selected). Check if the app alerts you or auto-detects the right carrier.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1346,7 +1362,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '02-P03',
-          prompt_text: `Try entering 0, negative values, or an amount greater than the allowed maximum or account balance. Check if the app clearly shows the minimum and maximum allowed limits.`,
+          prompt_text: `Tap the contact book icon and pick a contact saved with international format (e.g. +233 24 123 4567). Check whether the app cleanly parses the number into standard format without crashing.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1358,17 +1374,17 @@ Respond in STRICT JSON format:
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-03`,
-      title: `${feature.name} | Interruptions & Navigation Chaos`,
-      mission: `Check if ${feature.name} stays stable when interrupted by phone calls, switching apps, locking the screen, or pressing the back button.`,
-      user_persona: `A busy user on the go who gets interrupted or changes their mind halfway through.`,
-      starting_condition: `In the middle of the flow on "${midScreenName}".`,
-      expected_outcome: `The app does not crash or lose previously typed information when interrupted or when navigating backwards.`,
+      title: `${feature.name} | Amount Selection, Preset Chips & Fee Arithmetic`,
+      mission: `Explore amount selection, preset quick-chips, and wallet balance deductions to uncover calculation errors, e-levy surprises, or decimal traps.`,
+      user_persona: `${primaryPersona} testing quick-tap amount chips, custom amounts, and transactions close to their balance limit.`,
+      starting_condition: `On the amount selection screen (${secondScreenName}).`,
+      expected_outcome: `Amount fields enforce clear minimum/maximum limits, preset chips update cleanly, and all processing fees are shown before final authorization.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
       scenarios: [
         {
           prompt_id: '03-P01',
-          prompt_text: `Fill in details on "${secondScreenName}", then tap the device or in-app Back button. Return to the screen and check if your entered information is still there.`,
+          prompt_text: `Tap a quick preset chip (e.g. GHS 10), then immediately type a different amount (e.g. 25) into the custom amount box. Confirm which amount appears on the final review screen.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1376,7 +1392,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '03-P02',
-          prompt_text: `While on "${midScreenName}", minimize the app (go to home screen), open another app, and return after 30 seconds. Verify that the app reopens without crashing or freezing.`,
+          prompt_text: `If your account balance is GHS 50.00, enter GHS 50.00 for the transaction. Verify whether processing fees make the total GHS 50.50 and whether the app gives an early insufficient funds warning before asking for a PIN.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1384,7 +1400,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '03-P03',
-          prompt_text: `Simulate an incoming phone call or lock and unlock the phone screen right before the final confirmation step. Check if the screen recovers smoothly.`,
+          prompt_text: `Try entering 0, negative numbers, or decimal fractions (e.g. GHS 1.55 or GHS 0.99). Check if the app clearly informs you of the minimum allowed denomination.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1396,17 +1412,17 @@ Respond in STRICT JSON format:
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-04`,
-      title: `${feature.name} | Network Drops & Disconnection Safety`,
-      mission: `Check how ${feature.name} handles sudden internet loss, slow 3G connections, and timeout errors without losing money or freezing.`,
-      user_persona: `A customer in a poor reception area, elevator, or with spotty internet connection.`,
-      starting_condition: `Ready to submit the transaction on "${midScreenName}".`,
-      expected_outcome: `The app shows a clear "No Internet Connection" or retry prompt with a Try Again button, and never deducts money or creates duplicate transactions upon reconnecting.`,
+      title: `${feature.name} | Navigation State & Interruption Recovery`,
+      mission: `Check if ${feature.name} stays stable when interrupted by phone calls, switching apps, locking the screen, or pressing the back button.`,
+      user_persona: `A busy user on the go who gets interrupted or changes their mind halfway through.`,
+      starting_condition: `In the middle of the flow on "${midScreenName}".`,
+      expected_outcome: `The app does not crash or lose previously typed information when interrupted or when navigating backwards.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
       scenarios: [
         {
           prompt_id: '04-P01',
-          prompt_text: `Immediately after tapping the pay or submit button while the loading spinner is active, turn on Airplane mode. Verify the app shows a helpful retry message rather than spinning indefinitely.`,
+          prompt_text: `Fill in details on "${secondScreenName}", then tap the device or in-app Back button. Return to the screen and check if your entered information is still there without requiring re-entry.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1414,7 +1430,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '04-P02',
-          prompt_text: `Reconnect to the internet after a failed network attempt and tap Try Again. Verify the transaction finishes properly without asking you to restart from scratch.`,
+          prompt_text: `While on "${midScreenName}", minimize the app (go to home screen), open another app, and return after 30 seconds. Verify that the app reopens without crashing or freezing on a white screen.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1422,7 +1438,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '04-P03',
-          prompt_text: `If a transaction fails due to network disconnection, check account balances and history to verify that money was NOT deducted.`,
+          prompt_text: `Simulate an incoming phone call or lock and unlock the phone screen right before the final confirmation step. Check if the screen recovers smoothly.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1434,17 +1450,17 @@ Respond in STRICT JSON format:
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-05`,
-      title: `${feature.name} | Visual Layout & Keyboard Usability`,
-      mission: `Check if on-screen keyboards cover important buttons, text is clipped on smaller screens, or buttons are hard to tap.`,
-      user_persona: `A customer using a smaller screen phone, larger system font size, or fast one-handed typing.`,
-      starting_condition: `Viewing all screens in the ${feature.name} flow.`,
-      expected_outcome: `All buttons, input fields, and fee summaries remain fully visible and easy to tap, even when the phone keyboard is open.`,
+      title: `${feature.name} | Network Drops & Disconnection Safety`,
+      mission: `Check how ${feature.name} handles sudden internet loss, slow 3G connections, and timeout errors without losing money or freezing.`,
+      user_persona: `A customer in a poor reception area, elevator, or with spotty internet connection.`,
+      starting_condition: `Ready to submit the transaction on "${midScreenName}".`,
+      expected_outcome: `The app shows a clear "No Internet Connection" or retry prompt with a Try Again button, and never deducts money or creates duplicate transactions upon reconnecting.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
       scenarios: [
         {
           prompt_id: '05-P01',
-          prompt_text: `Tap into each text field to bring up the numeric or text keyboard. Check if the keyboard covers the "Continue", "Next", or "Submit" button, and verify you can easily scroll down to see it.`,
+          prompt_text: `Immediately after tapping the pay or submit button while the loading spinner is active, turn on Airplane mode. Verify the app shows a helpful retry message rather than spinning indefinitely.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1452,7 +1468,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '05-P02',
-          prompt_text: `Check buttons and interactive cards to ensure tap targets are large enough to tap easily with one hand without accidentally tapping an adjacent button.`,
+          prompt_text: `Reconnect to the internet after a failed network attempt and tap Try Again. Verify the transaction finishes properly without asking you to restart from scratch.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1460,7 +1476,7 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '05-P03',
-          prompt_text: `Review the screens for any cut-off text, overlapping words, or unreadable contrast between text and background colors.`,
+          prompt_text: `If a transaction fails due to network disconnection, check account balances and history to verify that money was NOT deducted.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
@@ -1472,7 +1488,7 @@ Respond in STRICT JSON format:
       project_id: feature.project_id,
       feature_id: feature.id,
       charter_code: `${prefix}-06`,
-      title: `${feature.name} | Double-Tap & Financial Duplication Safety`,
+      title: `${feature.name} | Rapid Double-Tap & Financial Duplication Safety`,
       mission: `Check if impatient rapid taps, wrong security credentials, or session timeouts could cause duplicate charges or security loopholes.`,
       user_persona: `An impatient or security-conscious user testing button lockouts and authentication safety.`,
       starting_condition: `On the final authentication or payment confirmation step.`,
@@ -1508,6 +1524,9 @@ Respond in STRICT JSON format:
     }
   ];
 
-  return defaultCharters;
+  return {
+    charters: defaultCharters,
+    engine: 'deterministic'
+  };
 }
 

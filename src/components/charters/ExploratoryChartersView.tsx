@@ -26,7 +26,9 @@ import {
   FileSpreadsheet,
   Layers,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  Zap,
+  Shield
 } from 'lucide-react';
 
 interface ExploratoryChartersViewProps {
@@ -47,9 +49,22 @@ export function ExploratoryChartersView({
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [copied, setCopied] = useState(false);
   const [savingScenarioId, setSavingScenarioId] = useState<string | null>(null);
+  const [engineUsed, setEngineUsed] = useState<'gemini' | 'deterministic' | null>(null);
+  const [hasApiKey, setHasApiKey] = useState(false);
 
   // Local state for instant editing responsiveness
   const [localCharters, setLocalCharters] = useState<QACharter[]>(charters);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const key = getStoredGeminiApiKey();
+      setHasApiKey(!!key);
+      if (currentFeature) {
+        const cachedEngine = localStorage.getItem(`charters_engine_${currentFeature.id}`) as 'gemini' | 'deterministic' | null;
+        setEngineUsed(cachedEngine);
+      }
+    }
+  }, [currentFeature]);
 
   useEffect(() => {
     setLocalCharters(charters);
@@ -83,6 +98,14 @@ export function ExploratoryChartersView({
 
       if (!res.ok) {
         throw new Error('Failed to generate charters');
+      }
+
+      const resData = await res.json();
+      if (resData.engine) {
+        setEngineUsed(resData.engine);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`charters_engine_${currentFeature.id}`, resData.engine);
+        }
       }
 
       await onRefreshCharters();
@@ -223,6 +246,17 @@ export function ExploratoryChartersView({
               <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-dark-tertiary/10 text-dark-secondary font-mono">
                 {localCharters.length} {localCharters.length === 1 ? 'Charter' : 'Charters'} ({totalScenarios} Scenarios)
               </span>
+              {engineUsed === 'gemini' ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/30 flex items-center gap-1 shadow-2xs" title="Generated using Google Gemini 2.0 Flash Multimodal Vision">
+                  <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+                  Gemini 2.0 Flash AI
+                </span>
+              ) : engineUsed === 'deterministic' ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-dark-tertiary/10 text-dark-secondary border border-dark-tertiary/20 flex items-center gap-1" title="Generated using Offline Domain Engine">
+                  <Shield className="w-3 h-3 text-dark-secondary" />
+                  Offline Domain Engine
+                </span>
+              ) : null}
             </div>
             <p className="text-xs text-txt-muted">
               Investigative test missions, prompts, empirical observations, and evidence tracking.
@@ -232,6 +266,18 @@ export function ExploratoryChartersView({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {hasApiKey ? (
+            <span className="text-[10px] text-emerald-600 font-mono hidden md:flex items-center gap-1 px-2.5 py-1 bg-emerald-50 rounded-full border border-emerald-200" title="Gemini API Key detected from Settings">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Gemini Key Connected
+            </span>
+          ) : (
+            <span className="text-[10px] text-txt-muted font-mono hidden md:flex items-center gap-1 px-2.5 py-1 bg-clinical-warm rounded-full border border-clinical-border" title="No Gemini API Key found in Settings. Click Settings icon to add key for live multimodal vision.">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              Offline Engine Active
+            </span>
+          )}
+
           <button
             onClick={handleCopyFormattedTable}
             disabled={!activeCharter}
