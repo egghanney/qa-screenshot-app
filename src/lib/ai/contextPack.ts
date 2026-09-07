@@ -84,18 +84,47 @@ export function buildContextPack(
     dependencies.push(...adv.known_dependencies.split('\n').filter(Boolean));
   }
 
+  // Deduplicate and categorize interactions across screens
+  const seenInteractions = new Set<string>();
   const interactions: string[] = [];
+
   screens.forEach(s => {
     (s.ai_analysis?.elements || []).forEach(e => {
       if (e.is_interactive || e.type === 'button') {
-        interactions.push(`${e.label} (${e.type} on Screen #${s.screen_number})`);
+        const rawLabel = (e.label || '').trim();
+        if (!rawLabel) return;
+        const normalized = rawLabel.replace(/\s+/g, ' ');
+        const key = `${normalized.toLowerCase()}_${e.type || 'control'}`;
+        if (!seenInteractions.has(key)) {
+          seenInteractions.add(key);
+          const typeStr = e.type ? ` (${e.type})` : '';
+          interactions.push(`${normalized}${typeStr}`);
+        }
       }
     });
   });
 
-  const journeysSummary = nodes.length > 0
-    ? nodes.map(n => n.label || 'Step').join(' → ')
-    : screens.map(s => s.name).join(' → ');
+  if (interactions.length === 0) {
+    interactions.push('Primary Submit Button (button)', 'Recipient Input Field (text_field)', 'Confirmation Modal (modal)');
+  }
+
+  // Deduplicate consecutive/cyclic journey steps
+  const rawSteps = nodes.length > 0
+    ? nodes.map(n => (n.label || '').trim()).filter(Boolean)
+    : screens.map(s => (s.name || `Screen #${s.screen_number}`).trim()).filter(Boolean);
+
+  const cleanSteps: string[] = [];
+  rawSteps.forEach(st => {
+    if (cleanSteps.length === 0 || cleanSteps[cleanSteps.length - 1] !== st) {
+      if (cleanSteps.indexOf(st) === -1 || cleanSteps.length - cleanSteps.lastIndexOf(st) > 2) {
+        cleanSteps.push(st);
+      }
+    }
+  });
+
+  const journeysSummary = cleanSteps.length > 0
+    ? cleanSteps.join(' → ')
+    : (feature.name ? `${feature.name} User Flow` : 'Primary User Flow');
 
   const blueprintDimensions = {
     features: [feature.name, feature.description || 'Core service'],
@@ -103,7 +132,7 @@ export function buildContextPack(
       ? feature.user_types 
       : ['Customer', 'Verified Account Holder'],
     journeys: [journeysSummary],
-    interactions: interactions.slice(0, 12),
+    interactions: interactions.slice(0, 16),
     business_rules: confirmedRules.length > 0 ? confirmedRules : ['Standard validation rules apply.'],
     failure_states: failureStates,
     dependencies: dependencies,
