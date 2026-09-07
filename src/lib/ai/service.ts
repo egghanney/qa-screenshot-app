@@ -97,6 +97,7 @@ async function callGeminiAPI(
         contents,
         generationConfig: {
           temperature: 0.2,
+          maxOutputTokens: 8192,
           responseMimeType: "application/json"
         }
       })
@@ -1208,7 +1209,7 @@ ${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard 
 UNKNOWN GAPS & RISKS:
 ${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Probe boundary limits, network disconnections, and exception handling.'}
 
-=== TWO SACRED RULES FOR CHARTER CREATION ===
+=== THREE SACRED RULES FOR CHARTER CREATION ===
 
 RULE 1: STRICT MISSION CONFORMANCE
 Every charter MUST have a clear, specific, high-risk MISSION. 
@@ -1219,7 +1220,13 @@ Do NOT put random or generic scenarios under a charter. For example:
 - If the charter's mission is "Navigation Backtracking & Real-World Interruption", ALL prompts under it must probe Back button data preservation, app switching, incoming phone calls, or screen locking.
 - If the charter's mission is "Network Disconnections & Balance Protection", ALL prompts under it must probe Airplane mode mid-spinner, timeout recovery, and verifying funds are NOT deducted when a network failure occurs.
 
-RULE 2: CREATIVE, SKEPTICAL "QA HACKER" SCENARIOS
+RULE 2: EXHAUSTIVE, UNRESTRICTED SCENARIO DEPTH (ZERO BLIND SPOTS)
+DO NOT artificially restrict charters to 3 or 4 scenarios.
+Generate an EXHAUSTIVE suite of scenarios (typically 5 to 8+ deep, rigorous scenarios per charter).
+Thoroughly exhaust every conceivable edge case, failure mode, user mistake, boundary limit, network glitch, and data corruption trap relevant to the mission.
+Testers must be provided with complete, zero-blindspot coverage.
+
+RULE 3: CREATIVE, SKEPTICAL "QA HACKER" SCENARIOS
 Do not write obvious or boring happy-path steps. Act like a smart, inquisitive tester looking for real bugs developers forgot to test:
 - Carrier Mismatches: E.g., selecting MTN but typing a Telecel (020) prefix.
 - Preset vs Manual Input Conflict: E.g., tapping a 10 GHS chip then typing 25 in the custom box.
@@ -1246,6 +1253,34 @@ Respond in STRICT JSON format:
       {
         "prompt_id": "01-P01",
         "prompt_text": "Plain English investigative prompt describing exact action and what to observe",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P02",
+        "prompt_text": "Second distinct probe testing a different edge case under this same mission",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P03",
+        "prompt_text": "Third distinct probe testing boundary limits or bad data under this mission",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P04",
+        "prompt_text": "Fourth distinct probe testing user error or formatting quirks under this mission",
+        "status": "Untested",
+        "observations": "",
+        "media_url": ""
+      },
+      {
+        "prompt_id": "01-P05",
+        "prompt_text": "Fifth distinct probe testing recovery or system warnings under this mission",
         "status": "Untested",
         "observations": "",
         "media_url": ""
@@ -1292,7 +1327,7 @@ Respond in STRICT JSON format:
     }
   }
 
-  // Deterministic High-Fidelity Exploratory Testing Charters Fallback (Mission-Conforming 6-Angle Suite)
+  // Deterministic High-Fidelity Exploratory Testing Charters Fallback (Exhaustive Mission-Conforming Suite)
   const defaultCharters: GeneratedCharter[] = [
     {
       project_id: feature.project_id,
@@ -1324,11 +1359,27 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '01-P03',
-          prompt_text: `Complete the transaction and verify that the final confirmation screen or receipt clearly displays the transaction amount, recipient, and reference number.`,
+          prompt_text: `Complete the transaction and verify that the final confirmation screen or receipt clearly displays the transaction amount, recipient, fee breakdown, and reference number.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
           sort_order: 2
+        },
+        {
+          prompt_id: '01-P04',
+          prompt_text: `Verify that an external receipt trigger (such as SMS or push notification) is sent promptly with matching transaction details.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 3
+        },
+        {
+          prompt_id: '01-P05',
+          prompt_text: `Return to the main dashboard after completion and verify that your wallet balance is immediately and accurately deducted.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 4
         }
       ]
     },
@@ -1367,6 +1418,30 @@ Respond in STRICT JSON format:
           observations: '',
           media_url: '',
           sort_order: 2
+        },
+        {
+          prompt_id: '02-P04',
+          prompt_text: `Type a 9-digit phone number omitting the leading zero (e.g. 241234567). Verify if the app automatically inserts the leading zero or shows a helpful suggestion.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 3
+        },
+        {
+          prompt_id: '02-P05',
+          prompt_text: `Try pasting text containing symbols, punctuation, or alphabetic letters into the phone number box. Verify that invalid characters are cleanly rejected or ignored.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 4
+        },
+        {
+          prompt_id: '02-P06',
+          prompt_text: `Select a contact whose name contains emojis or special unicode symbols. Verify that the contact name displays properly on the review screen without layout corruption.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 5
         }
       ]
     },
@@ -1400,11 +1475,35 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '03-P03',
-          prompt_text: `Try entering 0, negative numbers, or decimal fractions (e.g. GHS 1.55 or GHS 0.99). Check if the app clearly informs you of the minimum allowed denomination.`,
+          prompt_text: `Try entering 0, negative numbers, or non-numeric characters. Check if the app clearly informs you of the minimum allowed denomination.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
           sort_order: 2
+        },
+        {
+          prompt_id: '03-P04',
+          prompt_text: `Try entering decimal fractions (e.g. GHS 1.55 or GHS 0.99). Check if fractional cent amounts are supported or if the app requires whole cedi denominations.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 3
+        },
+        {
+          prompt_id: '03-P05',
+          prompt_text: `Try entering an amount exceeding the maximum daily transaction ceiling (e.g. GHS 10,000). Check if the maximum allowable cap is clearly stated in the error message.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 4
+        },
+        {
+          prompt_id: '03-P06',
+          prompt_text: `Check the fee breakdown summary on the confirmation screen to verify that the base amount plus processing fees exactly equals the total deduction.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 5
         }
       ]
     },
@@ -1443,6 +1542,22 @@ Respond in STRICT JSON format:
           observations: '',
           media_url: '',
           sort_order: 2
+        },
+        {
+          prompt_id: '04-P04',
+          prompt_text: `Tap the Cancel or Close button on the confirmation modal. Verify that the app asks for confirmation before discarding entered transaction data.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 3
+        },
+        {
+          prompt_id: '04-P05',
+          prompt_text: `Rotate the phone between portrait and landscape modes while viewing the review screen. Check if all fields, buttons, and summary cards stay within view.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 4
         }
       ]
     },
@@ -1481,6 +1596,22 @@ Respond in STRICT JSON format:
           observations: '',
           media_url: '',
           sort_order: 2
+        },
+        {
+          prompt_id: '05-P04',
+          prompt_text: `Simulate high network latency (slow 3G network). Verify that the loading indicator provides reassurance and does not time out prematurely.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 3
+        },
+        {
+          prompt_id: '05-P05',
+          prompt_text: `Disconnect the network right after entering the security PIN before the receipt loads. Reopen the app and verify if the transaction succeeded or failed without being charged twice.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 4
         }
       ]
     },
@@ -1514,11 +1645,27 @@ Respond in STRICT JSON format:
         },
         {
           prompt_id: '06-P03',
-          prompt_text: `Leave the confirmation screen idle for several minutes to let the session expire. Verify that the app prompts to re-authenticate rather than submitting an expired, unsafe transaction.`,
+          prompt_text: `Enter the wrong PIN consecutively three times. Verify that the account or feature enforces a temporary security lockout with clear instructions.`,
           status: 'Untested' as const,
           observations: '',
           media_url: '',
           sort_order: 2
+        },
+        {
+          prompt_id: '06-P04',
+          prompt_text: `Leave the confirmation screen idle for several minutes to let the session expire. Verify that the app prompts to re-authenticate rather than submitting an expired, unsafe transaction.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 3
+        },
+        {
+          prompt_id: '06-P05',
+          prompt_text: `Verify that the confirmation receipt generates a unique, idempotent transaction reference number that cannot be re-executed or duplicate-charged.`,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: '',
+          sort_order: 4
         }
       ]
     }
