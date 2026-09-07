@@ -97,14 +97,23 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
           .order('name', { ascending: true });
 
         if (!error && data && data.length > 0) {
-          const projects = data as ProjectOption[];
-          setExistingProjects(projects);
+          // Deduplicate projects by case-insensitive trimmed name
+          const uniqueProjects: ProjectOption[] = [];
+          const seenNames = new Set<string>();
+          for (const p of data as ProjectOption[]) {
+            const norm = p.name.trim().toLowerCase();
+            if (!seenNames.has(norm)) {
+              seenNames.add(norm);
+              uniqueProjects.push(p);
+            }
+          }
+          setExistingProjects(uniqueProjects);
           // Auto-select existing product
-          if (!selectedProjectId || selectedProjectId === 'new' || !projects.some(p => p.id === selectedProjectId)) {
-            setSelectedProjectId(projects[0].id);
-            setApplication(projects[0].name);
-            if (projects[0].platform) {
-              setPlatform(projects[0].platform as PlatformType);
+          if (!selectedProjectId || selectedProjectId === 'new' || !uniqueProjects.some(p => p.id === selectedProjectId)) {
+            setSelectedProjectId(uniqueProjects[0].id);
+            setApplication(uniqueProjects[0].name);
+            if (uniqueProjects[0].platform) {
+              setPlatform(uniqueProjects[0].platform as PlatformType);
             }
             setIsCreatingNewProduct(false);
           }

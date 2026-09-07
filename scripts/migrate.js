@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS public.qa_projects (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS qa_projects_unique_name_idx ON public.qa_projects (LOWER(TRIM(name)));
+
 CREATE TABLE IF NOT EXISTS public.qa_features (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID REFERENCES public.qa_projects(id) ON DELETE CASCADE,
