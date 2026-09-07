@@ -16,7 +16,8 @@ import {
   Search, 
   Settings, 
   Smartphone,
-  ChevronRight
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 import { Project, Feature } from '@/lib/types';
 
@@ -25,6 +26,9 @@ interface ApplicationShellProps {
   currentFeature: Feature | null;
   allFeatures?: Feature[];
   onSelectFeature?: (id: string) => void;
+  allProjects?: Project[];
+  selectedProjectId?: string;
+  onSelectProject?: (projectId: string) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenWizard: () => void;
@@ -48,6 +52,9 @@ export function ApplicationShell({
   currentFeature,
   allFeatures = [],
   onSelectFeature,
+  allProjects = [],
+  selectedProjectId = 'all',
+  onSelectProject,
   activeTab,
   setActiveTab,
   onOpenWizard,
@@ -95,24 +102,64 @@ export function ApplicationShell({
 
             {/* Project / Feature Breadcrumbs */}
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="px-2.5 py-1 rounded-pill bg-dark-secondary text-txt-muted hover:text-white transition flex items-center gap-1">
-                <Smartphone className="w-3 h-3" />
-                {currentProject?.name || 'Active Project'}
-              </span>
+              {allProjects && allProjects.length > 0 && onSelectProject ? (
+                <div className="relative flex items-center">
+                  <select
+                    value={selectedProjectId || currentProject?.id || 'all'}
+                    onChange={(e) => onSelectProject(e.target.value)}
+                    className="px-2.5 py-1 rounded-pill bg-dark-secondary text-white font-medium text-xs border border-dark-tertiary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-6 hover:bg-dark-tertiary transition"
+                  >
+                    <option value="all" className="bg-dark-chassis text-white">
+                      🌐 All Apps ({allProjects.length})
+                    </option>
+                    {allProjects.map(p => (
+                      <option key={p.id} value={p.id} className="bg-dark-chassis text-white">
+                        📱 {p.name} ({p.platform || 'General'})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-2 pointer-events-none" />
+                </div>
+              ) : (
+                <span className="px-2.5 py-1 rounded-pill bg-dark-secondary text-txt-muted hover:text-white transition flex items-center gap-1">
+                  <Smartphone className="w-3 h-3" />
+                  {currentProject?.name || 'Active Project'}
+                </span>
+              )}
+
               <ChevronRight className="w-3 h-3 text-txt-muted" />
 
               {allFeatures.length > 1 && onSelectFeature ? (
-                <select
-                  value={currentFeature?.id || ''}
-                  onChange={(e) => onSelectFeature(e.target.value)}
-                  className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium text-xs border border-dark-secondary focus:outline-none focus:border-neon cursor-pointer"
-                >
-                  {allFeatures.map(f => (
-                    <option key={f.id} value={f.id} className="bg-dark-chassis text-white">
-                      {f.name} (v{f.version || '1.0'})
-                    </option>
-                  ))}
-                </select>
+                <div className="relative flex items-center">
+                  <select
+                    value={currentFeature?.id || ''}
+                    onChange={(e) => onSelectFeature(e.target.value)}
+                    className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium text-xs border border-dark-secondary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-6 hover:border-dark-tertiary transition"
+                  >
+                    {selectedProjectId === 'all' && allProjects && allProjects.length > 1 ? (
+                      allProjects.map(proj => {
+                        const feats = allFeatures.filter(f => f.project_id === proj.id);
+                        if (feats.length === 0) return null;
+                        return (
+                          <optgroup key={proj.id} label={`${proj.name} (${proj.platform})`} className="bg-dark-chassis text-txt-muted font-bold">
+                            {feats.map(f => (
+                              <option key={f.id} value={f.id} className="bg-dark-soft_black text-white font-normal">
+                                {f.name} (v{f.version || '1.0'})
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })
+                    ) : (
+                      allFeatures.map(f => (
+                        <option key={f.id} value={f.id} className="bg-dark-chassis text-white">
+                          {f.name} (v{f.version || '1.0'})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-2 pointer-events-none" />
+                </div>
               ) : (
                 <span className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium flex items-center gap-1">
                   {currentFeature?.name || 'No Active Feature'}

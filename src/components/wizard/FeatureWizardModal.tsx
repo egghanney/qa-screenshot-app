@@ -27,6 +27,7 @@ interface FeatureWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onFeatureCreated: (featureId: string) => void;
+  defaultProjectId?: string;
 }
 
 interface UploadedScreen {
@@ -45,7 +46,7 @@ interface ProjectOption {
   description?: string;
 }
 
-export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: FeatureWizardModalProps) {
+export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultProjectId }: FeatureWizardModalProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,12 +109,17 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
             }
           }
           setExistingProjects(uniqueProjects);
-          // Auto-select existing product
-          if (!selectedProjectId || selectedProjectId === 'new' || !uniqueProjects.some(p => p.id === selectedProjectId)) {
-            setSelectedProjectId(uniqueProjects[0].id);
-            setApplication(uniqueProjects[0].name);
-            if (uniqueProjects[0].platform) {
-              setPlatform(uniqueProjects[0].platform as PlatformType);
+
+          // Target project: prioritize defaultProjectId if specified and exists
+          const targetProj = (defaultProjectId && defaultProjectId !== 'all' && uniqueProjects.find(p => p.id === defaultProjectId))
+            || uniqueProjects.find(p => p.id === selectedProjectId)
+            || uniqueProjects[0];
+
+          if (targetProj) {
+            setSelectedProjectId(targetProj.id);
+            setApplication(targetProj.name);
+            if (targetProj.platform) {
+              setPlatform(targetProj.platform as PlatformType);
             }
             setIsCreatingNewProduct(false);
           }
