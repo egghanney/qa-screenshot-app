@@ -27,7 +27,7 @@ import { ExportStudio } from '@/components/export/ExportStudio';
 import { AskAICopilotDrawer } from '@/components/chat/AskAICopilotDrawer';
 import { FeatureWizardModal } from '@/components/wizard/FeatureWizardModal';
 import { SettingsModal } from '@/components/shell/SettingsModal';
-import { Sparkles, Smartphone } from 'lucide-react';
+import { BrainCircuit, Smartphone } from 'lucide-react';
 
 export default function Home() {
   const [project, setProject] = useState<Project | null>(null);
@@ -334,7 +334,7 @@ export default function Home() {
       <div className="min-h-screen bg-clinical-bg flex items-center justify-center p-4">
         <div className="bg-clinical-white p-8 rounded-[28px] border border-clinical-border shadow-modal max-w-md text-center space-y-4">
           <div className="w-12 h-12 rounded-full bg-neon/30 text-dark-chassis flex items-center justify-center mx-auto font-bold">
-            <Sparkles className="w-6 h-6" />
+            <BrainCircuit className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-dark-chassis">No Applications or Features Yet</h2>
           <p className="text-xs text-txt-secondary">

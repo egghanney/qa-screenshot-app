@@ -17,7 +17,7 @@ import {
   HelpCircle, 
   CheckSquare, 
   AlertCircle, 
-  Sparkles, 
+  BrainCircuit, 
   ArrowRight, 
   Smartphone, 
   ShieldCheck,
@@ -92,7 +92,7 @@ export function FeatureOverviewView({
             onClick={() => onNavigateTab('knowledge')}
             className="px-4 py-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <BrainCircuit className="w-3.5 h-3.5" />
             View 7 Knowledge Pillars
           </button>
           {onDeleteFeature && (

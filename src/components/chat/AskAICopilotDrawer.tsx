@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   Send, 
-  Sparkles, 
+  BrainCircuit, 
   Bot, 
   User, 
   HelpCircle, 
@@ -102,7 +102,7 @@ export function AskAICopilotDrawer({ isOpen, onClose, feature }: AskAICopilotDra
       <div className="p-4 border-b border-dark-secondary flex items-center justify-between bg-dark-soft_black/60">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-neon flex items-center justify-center text-dark-chassis font-bold">
-            <Sparkles className="w-4 h-4" />
+            <BrainCircuit className="w-4 h-4" />
           </div>
           <div>
             <h3 className="text-xs font-bold text-white tracking-tight flex items-center gap-1.5">

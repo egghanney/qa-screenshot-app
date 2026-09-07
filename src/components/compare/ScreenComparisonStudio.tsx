@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { ScreenItem, Feature, ScreenComparison } from '@/lib/types';
 import { 
   GitCompare, 
-  Sparkles, 
+  BrainCircuit, 
   ArrowRight, 
   Check, 
   AlertTriangle, 
@@ -88,7 +88,7 @@ export function ScreenComparisonStudio({ screens, feature }: ScreenComparisonStu
           disabled={isComparing}
           className="px-5 py-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <BrainCircuit className="w-3.5 h-3.5" />
           {isComparing ? 'Analyzing Visual Diff...' : 'Run AI Screen Comparison'}
         </button>
       </div>

@@ -7,7 +7,7 @@ import {
   AIScreenAnalysis 
 } from '@/lib/types';
 import { 
-  Sparkles, 
+  BrainCircuit, 
   Shield, 
   Trash2, 
   Copy, 
@@ -288,7 +288,7 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                         onClick={(e) => { e.stopPropagation(); onAnalyzeScreen(scr); }}
                         className="w-full py-1 px-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-[10px] font-bold flex items-center justify-center gap-1 shadow"
                       >
-                        <Sparkles className="w-3 h-3" />
+                        <BrainCircuit className="w-3 h-3" />
                         AI Analyze Screen
                       </button>
                     </div>
@@ -399,7 +399,7 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                       <div className="pt-2 border-t border-clinical-border space-y-1.5">
                         <div className="flex items-center justify-between text-[10px] font-semibold text-dark-chassis">
                           <span className="flex items-center gap-1">
-                            <Sparkles className="w-2.5 h-2.5 text-neon" />
+                            <BrainCircuit className="w-2.5 h-2.5 text-neon" />
                             AI Screen Elements
                           </span>
                           <span className="text-status-positive font-mono text-[9px]">CONFIRMED</span>

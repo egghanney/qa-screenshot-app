@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { QACheckpoint, CheckpointCategory, Feature } from '@/lib/types';
 import { 
-  Sparkles, 
+  BrainCircuit, 
   CheckCircle, 
   XCircle, 
   Clock, 
@@ -126,7 +126,7 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
             onClick={onGenerateCheckpoints}
             className="px-4 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center gap-1.5 transition active:scale-95"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <BrainCircuit className="w-3.5 h-3.5" />
             Generate QA Checkpoints with AI
           </button>
         </div>

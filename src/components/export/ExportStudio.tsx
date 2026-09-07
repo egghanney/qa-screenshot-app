@@ -18,7 +18,7 @@ import {
   Check, 
   Copy, 
   Share2, 
-  Sparkles,
+  BrainCircuit,
   Layers,
   Printer
 } from 'lucide-react';

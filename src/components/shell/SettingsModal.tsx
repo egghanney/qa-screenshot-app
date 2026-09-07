@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Key, Database, Check, Sparkles, Shield } from 'lucide-react';
+import { X, Key, Database, Check, BrainCircuit, Shield } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -97,7 +97,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             onClick={handleSave}
             className="px-5 py-1.5 rounded-pill text-xs font-bold bg-dark-chassis text-neon flex items-center gap-1.5 shadow"
           >
-            {saved ? <Check className="w-3.5 h-3.5 text-status-positive" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {saved ? <Check className="w-3.5 h-3.5 text-status-positive" /> : <BrainCircuit className="w-3.5 h-3.5" />}
             {saved ? 'Saved!' : 'Save Settings'}
           </button>
         </div>

@@ -9,7 +9,7 @@ import {
   Feature 
 } from '@/lib/types';
 import { 
-  Sparkles, 
+  BrainCircuit, 
   CheckCircle, 
   AlertCircle, 
   HelpCircle, 
@@ -161,7 +161,7 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
             onClick={onGenerateKnowledge}
             className="px-4 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center gap-1.5 transition active:scale-95"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <BrainCircuit className="w-3.5 h-3.5" />
             Regenerate Knowledge with AI
           </button>
         </div>

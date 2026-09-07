@@ -29,7 +29,7 @@ import {
   GitBranch, 
   Maximize2, 
   RotateCcw, 
-  Sparkles, 
+  BrainCircuit, 
   CheckCircle, 
   AlertTriangle, 
   ArrowRight,
@@ -313,7 +313,7 @@ export function VisualJourneyCanvas({
             onClick={onGenerateJourney}
             className="px-4 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center gap-1.5 transition active:scale-95"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <BrainCircuit className="w-3.5 h-3.5" />
             Regenerate Journey with AI
           </button>
         </div>

@@ -10,7 +10,7 @@ import {
   Copy, 
   MoveUp, 
   MoveDown, 
-  Sparkles, 
+  BrainCircuit, 
   Check, 
   Smartphone, 
   ShieldAlert, 
@@ -909,7 +909,7 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
           {step === 5 && (
             <div className="space-y-6 text-center py-6 animate-fadeIn">
               <div className="w-16 h-16 rounded-full bg-neon/20 border-2 border-neon flex items-center justify-center mx-auto text-dark-chassis">
-                <Sparkles className="w-8 h-8 text-dark-chassis" />
+                <BrainCircuit className="w-8 h-8 text-dark-chassis" />
               </div>
 
               <div>
@@ -992,7 +992,7 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
                 disabled={isProcessing || screens.length === 0 || !featureName.trim()}
                 className="px-6 py-2.5 rounded-pill text-xs font-bold bg-neon hover:bg-neon-bright text-dark-chassis flex items-center gap-2 transition shadow-md disabled:opacity-50"
               >
-                <Sparkles className="w-4 h-4" />
+                <BrainCircuit className="w-4 h-4" />
                 {isProcessing ? 'Synthesizing...' : 'Analyze & Generate Feature'}
               </button>
             )}

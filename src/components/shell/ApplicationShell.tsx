@@ -11,7 +11,7 @@ import {
   AlertCircle, 
   GitCompare, 
   Download, 
-  Sparkles, 
+  BrainCircuit, 
   Plus, 
   Search, 
   Settings, 
@@ -198,7 +198,7 @@ export function ApplicationShell({
                   : 'bg-dark-secondary text-white border-dark-tertiary hover:bg-dark-tertiary'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <BrainCircuit className="w-3.5 h-3.5" />
               Ask AI Copilot
             </button>
 

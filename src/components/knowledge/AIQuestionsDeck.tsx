@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { AIQuestion, Feature } from '@/lib/types';
-import { HelpCircle, CheckCircle, Send, Sparkles, Check, ArrowRight } from 'lucide-react';
+import { HelpCircle, CheckCircle, Send, BrainCircuit, Check, ArrowRight } from 'lucide-react';
 
 interface AIQuestionsDeckProps {
   questions: AIQuestion[];
