@@ -58,7 +58,29 @@ export async function POST(req: Request) {
     const rawCharters = result.charters;
     const engineUsed = result.engine;
 
-    // 4. Persist to Supabase
+    // 4. Persist Context Pack and Traceability Map into qa_features.advanced_context
+    const traceabilityMap: Record<string, any> = {};
+    rawCharters.forEach(c => {
+      c.scenarios.forEach(s => {
+        if (s.traceability) {
+          traceabilityMap[s.prompt_id] = s.traceability;
+        }
+      });
+    });
+
+    const updatedAdvancedContext = {
+      ...(feature.advanced_context || {}),
+      latest_context_pack: result.context_pack,
+      latest_validation_report: result.validation_report,
+      latest_traceability_map: traceabilityMap
+    };
+
+    await supabase
+      .from('qa_features')
+      .update({ advanced_context: updatedAdvancedContext })
+      .eq('id', feature_id);
+
+    // 5. Persist to Supabase qa_charters & qa_charter_scenarios
     // Delete previous charters for this feature to prevent duplicates on regenerate
     const { data: existingCharters } = await supabase
       .from('qa_charters')
@@ -74,11 +96,18 @@ export async function POST(req: Request) {
     const savedCharters: QACharter[] = [];
 
     for (const charter of rawCharters) {
-      const { scenarios, ...charterFields } = charter;
+      const { scenarios } = charter;
       const { data: insertedCharter, error: cErr } = await supabase
         .from('qa_charters')
         .insert({
-          ...charterFields,
+          charter_code: charter.charter_code,
+          title: charter.title,
+          mission: charter.mission,
+          user_persona: charter.user_persona,
+          starting_condition: charter.starting_condition,
+          expected_outcome: charter.expected_outcome,
+          scope: charter.scope || 'feature',
+          status: charter.status || 'Draft',
           feature_id: feature.id,
           project_id: feature.project_id
         })
@@ -90,11 +119,15 @@ export async function POST(req: Request) {
         continue;
       }
 
-      let insertedScenarios = [];
+      let insertedScenarios: any[] = [];
       if (scenarios && scenarios.length > 0) {
         const scenariosToInsert = scenarios.map((s, idx) => ({
-          ...s,
           charter_id: insertedCharter.id,
+          prompt_id: s.prompt_id,
+          prompt_text: s.prompt_text,
+          status: s.status || 'Untested',
+          observations: s.observations || '',
+          media_url: s.media_url || '',
           sort_order: s.sort_order ?? idx
         }));
 
@@ -107,12 +140,17 @@ export async function POST(req: Request) {
         if (sErr) {
           console.error('Error inserting charter scenarios:', sErr);
         } else {
-          insertedScenarios = sData || [];
+          insertedScenarios = (sData || []).map((dbS, idx) => ({
+            ...dbS,
+            traceability: scenarios[idx]?.traceability || traceabilityMap[dbS.prompt_id]
+          }));
         }
       }
 
       savedCharters.push({
         ...insertedCharter,
+        context_pack: result.context_pack,
+        validation_report: result.validation_report,
         scenarios: insertedScenarios
       });
     }
@@ -120,7 +158,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       charters: savedCharters,
-      engine: engineUsed
+      engine: engineUsed,
+      context_pack: result.context_pack,
+      validation_report: result.validation_report
     });
   } catch (err: any) {
     console.error('Error in /api/charters/generate:', err);

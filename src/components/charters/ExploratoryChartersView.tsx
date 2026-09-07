@@ -6,8 +6,11 @@ import {
   Project, 
   QACharter, 
   CharterScenario, 
-  ScenarioStatus 
+  ScenarioStatus,
+  ContextPack,
+  ValidationReport
 } from '@/lib/types';
+import { ContextPackModal } from './ContextPackModal';
 import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
   BrainCircuit, 
@@ -28,7 +31,10 @@ import {
   ChevronDown,
   Sparkles,
   Zap,
-  Shield
+  Shield,
+  Info,
+  ShieldCheck,
+  Box
 } from 'lucide-react';
 
 interface ExploratoryChartersViewProps {
@@ -51,6 +57,9 @@ export function ExploratoryChartersView({
   const [savingScenarioId, setSavingScenarioId] = useState<string | null>(null);
   const [engineUsed, setEngineUsed] = useState<'gemini' | 'deterministic' | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isContextPackModalOpen, setIsContextPackModalOpen] = useState(false);
+  const [contextPack, setContextPack] = useState<ContextPack | null>(null);
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
 
   // Local state for instant editing responsiveness
   const [localCharters, setLocalCharters] = useState<QACharter[]>(charters);
@@ -62,6 +71,12 @@ export function ExploratoryChartersView({
       if (currentFeature) {
         const cachedEngine = localStorage.getItem(`charters_engine_${currentFeature.id}`) as 'gemini' | 'deterministic' | null;
         setEngineUsed(cachedEngine);
+        try {
+          const cachedCP = localStorage.getItem(`charters_context_pack_${currentFeature.id}`);
+          if (cachedCP) setContextPack(JSON.parse(cachedCP));
+          const cachedVR = localStorage.getItem(`charters_validation_report_${currentFeature.id}`);
+          if (cachedVR) setValidationReport(JSON.parse(cachedVR));
+        } catch {}
       }
     }
   }, [currentFeature]);
@@ -78,6 +93,8 @@ export function ExploratoryChartersView({
   }, [charters, selectedCharterId]);
 
   const activeCharter = localCharters.find(c => c.id === selectedCharterId) || localCharters[0];
+  const activeContextPack = activeCharter?.context_pack || contextPack;
+  const activeValidationReport = activeCharter?.validation_report || validationReport;
 
   // AI Generation Handler
   const handleGenerateCharters = async () => {
@@ -105,6 +122,18 @@ export function ExploratoryChartersView({
         setEngineUsed(resData.engine);
         if (typeof window !== 'undefined') {
           localStorage.setItem(`charters_engine_${currentFeature.id}`, resData.engine);
+        }
+      }
+      if (resData.context_pack) {
+        setContextPack(resData.context_pack);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`charters_context_pack_${currentFeature.id}`, JSON.stringify(resData.context_pack));
+        }
+      }
+      if (resData.validation_report) {
+        setValidationReport(resData.validation_report);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`charters_validation_report_${currentFeature.id}`, JSON.stringify(resData.validation_report));
         }
       }
 
@@ -257,6 +286,17 @@ export function ExploratoryChartersView({
                   Offline Domain Engine
                 </span>
               ) : null}
+
+              {activeValidationReport && (
+                <button
+                  onClick={() => setIsContextPackModalOpen(true)}
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs hover:bg-emerald-100 transition"
+                  title="Quality Gate Verified: Click to view evidence audit report"
+                >
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  Quality Gate: {activeValidationReport.score}%
+                </button>
+              )}
             </div>
             <p className="text-xs text-txt-muted">
               Investigative test missions, prompts, empirical observations, and evidence tracking.
@@ -266,6 +306,16 @@ export function ExploratoryChartersView({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {activeContextPack && (
+            <button
+              onClick={() => setIsContextPackModalOpen(true)}
+              className="px-3 py-1.5 rounded-pill bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-medium flex items-center gap-1.5 transition"
+              title="Inspect Controlled Evidence Context Pack, 8 Blueprint Dimensions & Visual Observations"
+            >
+              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Evidence Pipeline</span>
+            </button>
+          )}
           {hasApiKey ? (
             <span className="text-[10px] text-emerald-600 font-mono hidden md:flex items-center gap-1 px-2.5 py-1 bg-emerald-50 rounded-full border border-emerald-200" title="Gemini API Key detected from Settings">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -457,9 +507,38 @@ export function ExploratoryChartersView({
                                 {scenario.prompt_id}
                               </td>
 
-                              {/* Exploration Prompts & Scenarios */}
+                              {/* Exploration Prompts & Scenarios with Traceability */}
                               <td className="py-3.5 px-4 text-dark-secondary align-top leading-relaxed">
-                                {scenario.prompt_text}
+                                <div className="text-dark-chassis font-medium">{scenario.prompt_text}</div>
+                                {scenario.traceability && (
+                                  <div className="mt-2 space-y-1.5 pt-1.5 border-t border-slate-100">
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {scenario.traceability.exploration_dimensions?.map((dim, dIdx) => (
+                                        <span key={dIdx} className="px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                          {dim}
+                                        </span>
+                                      ))}
+                                    </div>
+                                    {scenario.traceability.derived_from && (
+                                      <details className="text-[10px] text-txt-muted group/trace">
+                                        <summary className="cursor-pointer hover:text-dark-chassis font-medium inline-flex items-center gap-1 text-[10px]">
+                                          <Info className="w-3 h-3 text-indigo-500" /> Traceability Reason
+                                        </summary>
+                                        <div className="mt-1 p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-0.5 text-[10px] text-slate-700">
+                                          {scenario.traceability.derived_from.failure_state && (
+                                            <div><strong className="text-rose-700">Failure State:</strong> {scenario.traceability.derived_from.failure_state.join('; ')}</div>
+                                          )}
+                                          {scenario.traceability.derived_from.risk && (
+                                            <div><strong className="text-amber-700">Testing Risk:</strong> {scenario.traceability.derived_from.risk.join('; ')}</div>
+                                          )}
+                                          {scenario.traceability.derived_from.feature && (
+                                            <div><strong className="text-blue-700">Feature Scope:</strong> {scenario.traceability.derived_from.feature.join('; ')}</div>
+                                          )}
+                                        </div>
+                                      </details>
+                                    )}
+                                  </div>
+                                )}
                               </td>
 
                               {/* Status Dropdown / Badge */}
@@ -565,6 +644,14 @@ export function ExploratoryChartersView({
           </div>
         </div>
       )}
+      {/* Evidence Context Pack & Audit Modal */}
+      <ContextPackModal
+        isOpen={isContextPackModalOpen}
+        onClose={() => setIsContextPackModalOpen(false)}
+        contextPack={activeContextPack}
+        validationReport={activeValidationReport}
+        featureName={currentFeature?.name}
+      />
     </div>
   );
 }

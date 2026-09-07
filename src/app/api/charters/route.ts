@@ -37,18 +37,46 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: sErr.message }, { status: 500 });
     }
 
+    // Fetch feature context for traceability and context pack if featureId provided
+    let traceMap: Record<string, any> = {};
+    let contextPack: any = null;
+    let validationReport: any = null;
+
+    if (featureId) {
+      const { data: feat } = await supabase
+        .from('qa_features')
+        .select('advanced_context')
+        .eq('id', featureId)
+        .single();
+      if (feat?.advanced_context) {
+        traceMap = feat.advanced_context.latest_traceability_map || {};
+        contextPack = feat.advanced_context.latest_context_pack || null;
+        validationReport = feat.advanced_context.latest_validation_report || null;
+      }
+    }
+
     const scenariosByCharter = (scenarios || []).reduce((acc: Record<string, CharterScenario[]>, s: CharterScenario) => {
       if (!acc[s.charter_id]) acc[s.charter_id] = [];
-      acc[s.charter_id].push(s);
+      acc[s.charter_id].push({
+        ...s,
+        traceability: traceMap[s.prompt_id] || s.traceability
+      });
       return acc;
     }, {});
 
     const enrichedCharters: QACharter[] = charters.map(c => ({
       ...c,
+      context_pack: contextPack,
+      validation_report: validationReport,
       scenarios: scenariosByCharter[c.id] || []
     }));
 
-    return NextResponse.json({ success: true, charters: enrichedCharters });
+    return NextResponse.json({ 
+      success: true, 
+      charters: enrichedCharters,
+      context_pack: contextPack,
+      validation_report: validationReport
+    });
   } catch (err: any) {
     console.error('Error in GET /api/charters:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -258,6 +258,17 @@ export interface ScreenComparison {
 export type CharterStatus = 'Draft' | 'In Progress' | 'Completed';
 export type ScenarioStatus = 'Pass' | 'Fail' | 'Blocked' | 'Untested';
 
+export interface PromptTraceability {
+  derived_from: {
+    feature?: string[];
+    journey?: string[];
+    interaction?: string[];
+    failure_state?: string[];
+    risk?: string[];
+  };
+  exploration_dimensions: string[];
+}
+
 export interface CharterScenario {
   id: string;
   charter_id: string;
@@ -267,8 +278,74 @@ export interface CharterScenario {
   observations: string;
   media_url: string;
   sort_order: number;
+  traceability?: PromptTraceability;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface ValidationReport {
+  passed: boolean;
+  score: number;
+  checks: {
+    feature_scope: boolean;
+    persona_relevant: boolean;
+    journey_relevant: boolean;
+    screenshot_grounded: boolean;
+    business_rules_grounded: boolean;
+    failure_states_considered: boolean;
+    dependencies_considered: boolean;
+    exploratory_not_scripted: boolean;
+    duplicate_prompts: boolean;
+    unsupported_claims: boolean;
+  };
+  notes?: string;
+}
+
+export interface VisualObservation {
+  fact: string;
+  source: 'screenshot' | 'blueprint' | 'inference';
+  confidence: 'confirmed' | 'unknown';
+}
+
+export interface ControlledPersona {
+  type: string;
+  experience: string;
+  goal: string;
+  conditions: string[];
+}
+
+export interface ContextPack {
+  feature_scope: {
+    feature: string;
+    feature_goal: string;
+    scope: string[];
+  };
+  visual_evidence: Array<{
+    screen_id: string;
+    screen_name: string;
+    visual_observations: VisualObservation[];
+  }>;
+  blueprint_dimensions: {
+    features: string[];
+    user_types: string[];
+    journeys: string[];
+    interactions: string[];
+    business_rules: string[];
+    failure_states: string[];
+    dependencies: string[];
+    historical_risks: string[];
+  };
+  persona: ControlledPersona;
+  risk_profile: {
+    critical_states: string[];
+    interruption_points: string[];
+    key_risks: string[];
+  };
+  exploration_dimensions: Array<{
+    dimension: string;
+    priority: 'HIGH' | 'MEDIUM' | 'LOW';
+    rationale: string;
+  }>;
 }
 
 export interface QACharter {
@@ -284,6 +361,8 @@ export interface QACharter {
   scope: 'feature' | 'product';
   status: CharterStatus;
   scenarios?: CharterScenario[];
+  context_pack?: ContextPack;
+  validation_report?: ValidationReport;
   created_at?: string;
   updated_at?: string;
 }

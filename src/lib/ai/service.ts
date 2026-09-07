@@ -10,8 +10,13 @@ import {
   ScreenComparison,
   QACharter,
   CharterScenario,
-  GeneratedCharter
+  GeneratedCharter,
+  ContextPack,
+  ValidationReport,
+  PromptTraceability
 } from '@/lib/types';
+import { buildContextPack } from './contextPack';
+import { validateChartersProgrammatic } from './charterValidator';
 
 // Helper to resolve an image (URL or Base64) into Gemini inlineData format
 async function resolveImagePart(imageInput: string): Promise<{ mimeType: string; data: string } | null> {
@@ -1160,6 +1165,8 @@ All knowledge items and checkpoints are strictly anti-hallucination grounded to 
 export interface GenerateChartersResult {
   charters: GeneratedCharter[];
   engine: 'gemini' | 'deterministic';
+  context_pack?: ContextPack;
+  validation_report?: ValidationReport;
 }
 
 // Pure Helper to synthesize baseline domain exploratory testing charters
@@ -1517,7 +1524,7 @@ export function buildDeterministicCharters(
   ];
 }
 
-// 7. Exploratory Testing (ET) Charters Generation Engine (Mission-Conforming Innovative Suite)
+// 7. Exploratory Testing (ET) Charters Generation Agent (Controlled Evidence Pipeline)
 export async function generateExploratoryCharters(
   feature: Feature,
   screens: ScreenItem[],
@@ -1530,9 +1537,6 @@ export async function generateExploratoryCharters(
   const words = (feature.name || 'QA').split(/\s+/).filter(Boolean);
   const codeSuffix = words.map(w => w[0]?.toUpperCase()).join('').slice(0, 3) || 'ET';
   const prefix = `GH-${codeSuffix}`;
-
-  const confirmedRules = knowledge.filter(k => k.confidence === 'CONFIRMED');
-  const unknownGaps = knowledge.filter(k => k.confidence === 'UNKNOWN' || k.confidence === 'INFERRED');
 
   // Helper to ensure raw device filenames never leak into charters
   const getSemanticName = (s?: ScreenItem, fallback = 'Initial Screen') => {
@@ -1551,7 +1555,10 @@ export async function generateExploratoryCharters(
   const lastScreenName = getSemanticName(screens[screens.length - 1], feature.expected_outcome || 'Confirmation Receipt');
   const primaryPersona = feature.user_types?.[0] || 'Customer';
 
-  // Synthesize deterministic domain baseline to ground & empower Gemini AI
+  // Build Context Pack across all 6 hierarchy levels
+  const contextPack = buildContextPack(feature, screens, nodes, edges, knowledge);
+
+  // Baseline deterministic charters
   const defaultCharters = buildDeterministicCharters(
     feature,
     screens,
@@ -1563,133 +1570,104 @@ export async function generateExploratoryCharters(
     prefix
   );
 
-  const baselineHeuristicsSummary = defaultCharters.map((c, idx) => 
-`[Baseline Charter #${idx + 1}: ${c.title}]
-- Mission: ${c.mission}
-- Baseline Core Probes:
-${c.scenarios.map(s => `  * ${s.prompt_text}`).join('\n')}`
-  ).join('\n\n');
-
   // Gather screen image URLs for Gemini Multimodal Vision analysis
   const screenImages = screens
     .map(s => s.image_url)
     .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
     .slice(0, 8);
 
-  const prompt = `You are an elite Principal QA Lead and Exploratory Testing Specialist.
-Your objective: Visually inspect the provided mobile/web application screenshots and formulate 4 to 6 highly targeted, creative Exploratory Testing (ET) Charters that uncover deep, unexpected bugs.
+  const prompt = `You are an elite Principal QA Lead and Exploratory Testing Specialist acting as a Charter Generation Agent.
+Your responsibility: Transform the provided Controlled Evidence Pipeline (Context Pack) and visual UI screenshots into 4 to 6 focused, creative Exploratory Testing (ET) Charters that give testers an investigative mission rather than prescriptive, scripted click-steps.
 
-APPLICATION & FEATURE DETAILS:
-Application / Feature: "${feature.name}" (${feature.platform || 'Mobile'})
-Primary Purpose: "${feature.purpose || feature.description || 'Core feature workflow'}"
-Target User Personas: ${feature.user_types?.join(', ') || 'Customer'}
-Starting Entry Point: "${feature.entry_point || 'App Home'}"
-Expected Outcome: "${feature.expected_outcome || 'Success'}"
+============================================================
+CONTROLLED EVIDENCE PIPELINE (CONTEXT PACK)
+============================================================
 
-DOCUMENTED SCREENS & VISUAL CONTROLS:
-${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'Interactive inputs & buttons'}`).join('\n')}
+LEVEL 1 — FEATURE SCOPE:
+Feature: "${contextPack.feature_scope.feature}"
+Goal: "${contextPack.feature_scope.feature_goal}"
+In-Scope Boundaries:
+${contextPack.feature_scope.scope.map(s => `- ${s}`).join('\n')}
 
-CONFIRMED BUSINESS RULES:
-${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard validation rules apply.'}
+LEVEL 2 — VISUAL EVIDENCE (OBSERVATIONS, NOT ASSUMPTIONS):
+${contextPack.visual_evidence.map(v => `Screen: "${v.screen_name}" (ID: ${v.screen_id}):
+${v.visual_observations.map(o => `  * [${o.confidence.toUpperCase()}] ${o.fact}`).join('\n')}`).join('\n\n')}
 
-UNKNOWN GAPS & RISKS:
-${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Probe boundary limits, network disconnections, and exception handling.'}
+LEVEL 3 — BLUEPRINT PRODUCT DIMENSIONS:
+- Core Features: ${contextPack.blueprint_dimensions.features.join(', ')}
+- Target User Personas: ${contextPack.blueprint_dimensions.user_types.join(', ')}
+- End-to-End Journeys: ${contextPack.blueprint_dimensions.journeys.join(' | ')}
+- Key Controls & Interactions: ${contextPack.blueprint_dimensions.interactions.join(', ')}
+- Confirmed Business Rules: ${contextPack.blueprint_dimensions.business_rules.join('; ')}
+- Known Failure States: ${contextPack.blueprint_dimensions.failure_states.join('; ')}
+- Dependencies: ${contextPack.blueprint_dimensions.dependencies.join(', ')}
+- Historical Risks: ${contextPack.blueprint_dimensions.historical_risks.join('; ')}
 
-=== FOUNDATIONAL DOMAIN HEURISTICS BASELINE (EXPAND & TRANSCEND) ===
-We have already synthesized a comprehensive domain baseline of testing missions and edge cases for "${feature.name}":
+LEVEL 4 — CONTROLLED USER PERSONA:
+- Persona Type: ${contextPack.persona.type}
+- Experience Level: ${contextPack.persona.experience}
+- User Goal: ${contextPack.persona.goal}
+- Environmental Conditions: ${contextPack.persona.conditions.join('; ')}
 
-${baselineHeuristicsSummary}
+LEVEL 5 — REASONING CHAIN & RISK PROFILE:
+- Critical Flow States: ${contextPack.risk_profile.critical_states.join(' -> ')}
+- Interruption Points: ${contextPack.risk_profile.interruption_points.join('; ')}
+- Critical Risks: ${contextPack.risk_profile.key_risks.join('; ')}
 
-CRITICAL DIRECTIVE FOR GEMINI AI GENERATION:
-- Treat the baseline above as your starting foundation and testing floor.
-- Visually inspect the provided application screenshot images. Look for real, specific UI controls: exact button labels (e.g. 'CONFIRM & PAY', 'Send Airtime', 'Add Beneficiary'), input placeholders, carrier chips (MTN, Telecel, AT), balance counters, toggles, back navigation chevrons, and disclaimers.
-- Upgrade, enrich, and anchor each charter mission with concrete UI interactions observed directly in the screenshots.
-- Ensure every single charter contains 5 to 8+ deep, inventive, zero-blindspot investigative scenarios conforming strictly to that charter's mission.
+LEVEL 6 — PRIORITIZED EXPLORATION DIMENSIONS:
+${contextPack.exploration_dimensions.map(d => `- [${d.priority}] ${d.dimension}: ${d.rationale}`).join('\n')}
 
-=== THREE SACRED RULES FOR CHARTER CREATION ===
+============================================================
+10-POINT EVIDENCE POLICY (SACRED "DO NOT INVENT" RULES)
+============================================================
+1. Never invent a business rule not supported by the context pack.
+2. Never invent a UI element not present in supplied screenshots, screen analysis, or blueprint data.
+3. Never state an implementation detail as fact unless supported by context.
+4. If expected behaviour is unknown, frame it as an INVESTIGATION (e.g. "Investigate whether...").
+5. Distinguish observed behaviour from expected behaviour.
+6. Historical defects may only be referenced when provided in historical knowledge.
+7. Do not assume that a screenshot represents the complete feature.
+8. Do not convert every exploratory prompt into a deterministic test case. Prompts must be investigative missions giving the tester room to think, probe, and uncover subtle bugs.
+9. Do not introduce unrelated product areas.
+10. Every exploration prompt must have a traceable reason for existing (include traceability metadata).
 
-RULE 1: STRICT MISSION CONFORMANCE
-Every charter MUST have a clear, specific, high-risk MISSION. 
-Every single prompt/scenario generated under that charter MUST strictly and directly test that specific mission! 
-Do NOT put random or generic scenarios under a charter. For example:
-- If the charter's mission is "Carrier Prefix Compatibility & Number Formats", ALL prompts under it must specifically probe telephone formats, network prefix mismatches, contact imports, or missing leading digits.
-- If the charter's mission is "Amount Chips & Fee Arithmetic Transparency", ALL prompts under it must specifically probe preset quick chips vs manual typing, fee additions vs exact balance ceilings, 0.00/negative values, or decimal cents.
-- If the charter's mission is "Navigation Backtracking & Real-World Interruption", ALL prompts under it must probe Back button data preservation, app switching, incoming phone calls, or screen locking.
-- If the charter's mission is "Network Disconnections & Balance Protection", ALL prompts under it must probe Airplane mode mid-spinner, timeout recovery, and verifying funds are NOT deducted when a network failure occurs.
-
-RULE 2: EXHAUSTIVE, UNRESTRICTED SCENARIO DEPTH (ZERO BLIND SPOTS)
-DO NOT artificially restrict charters to 3 or 4 scenarios.
-Generate an EXHAUSTIVE suite of scenarios (typically 5 to 8+ deep, rigorous scenarios per charter).
-Thoroughly exhaust every conceivable edge case, failure mode, user mistake, boundary limit, network glitch, and data corruption trap relevant to the mission.
-Testers must be provided with complete, zero-blindspot coverage.
-
-RULE 3: CREATIVE, SKEPTICAL "QA HACKER" SCENARIOS
-Do not write obvious or boring happy-path steps. Act like a smart, inquisitive tester looking for real bugs developers forgot to test:
-- Carrier Mismatches: E.g., selecting MTN but typing a Telecel (020) prefix.
-- Preset vs Manual Input Conflict: E.g., tapping a 10 GHS chip then typing 25 in the custom box.
-- Balance & Fee Traps: E.g., having 50 GHS balance and entering 50 GHS when a fee or e-levy applies.
-- Contact Book Parsing: E.g., contacts with international prefixes +233, spaces, or emojis.
-- Decimal Cent Handling: E.g., entering 1.55 or 0.99 for transactions that only accept whole numbers.
-- Rapid Double-Tapping: E.g., clicking Confirm 3 times fast to check duplicate charge lockouts.
-
-=== LANGUAGE STYLE GUIDELINES ===
-- Use simple, direct, conversational plain English (Grade 6 to 8 reading level) so any tester can understand and execute immediately on a real phone or computer.
-- FORBIDDEN JARGON: Never use terms like "semantic variations", "validation deadlocks", "heuristic attack", "payload rejection", "multi-turn progression", or "friction-free interaction experience".
-- CONCRETE ACTIONS: Tell the tester exactly what to type, tap, or observe.
+============================================================
+EXHAUSTIVE DEPTH & STYLE MANDATE
+============================================================
+- Every charter must contain 5 to 8+ deep, rigorous scenarios probing edge cases, timeouts, invalid data, interruptions, and recovery.
+- Style: Simple, direct, conversational plain English (Grade 6 to 8 level). No academic jargon.
 
 Respond in STRICT JSON format:
 [
   {
-    "charter_code": "${prefix}-01",
-    "title": "Short descriptive title",
-    "mission": "Explore whether [specific component] handles [specific condition/challenge] without [failure mode].",
-    "user_persona": "Realistic user profile and mindset",
+    "title": "Short descriptive mission title",
+    "mission": "Explore whether [specific component] handles [condition/challenge] without [failure mode].",
+    "user_persona": "Realistic user profile with conditions",
     "starting_condition": "Exact starting screen and initial state",
     "expected_outcome": "Clear, measurable criteria for acceptable behavior",
     "scenarios": [
       {
-        "prompt_id": "01-P01",
         "prompt_text": "Plain English investigative prompt describing exact action and what to observe",
         "status": "Untested",
         "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P02",
-        "prompt_text": "Second distinct probe testing a different edge case under this same mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P03",
-        "prompt_text": "Third distinct probe testing boundary limits or bad data under this mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P04",
-        "prompt_text": "Fourth distinct probe testing user error or formatting quirks under this mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
-      },
-      {
-        "prompt_id": "01-P05",
-        "prompt_text": "Fifth distinct probe testing recovery or system warnings under this mission",
-        "status": "Untested",
-        "observations": "",
-        "media_url": ""
+        "media_url": "",
+        "traceability": {
+          "derived_from": {
+            "feature": ["${feature.name}"],
+            "failure_state": ["Network timeout"],
+            "risk": ["Transaction state loss"]
+          },
+          "exploration_dimensions": ["Network Failure & Recovery", "State Transitions & Timing"]
+        }
       }
     ]
   }
 ]`;
 
   let geminiResult = await callGeminiAPI(prompt, screenImages.length > 0 ? screenImages : undefined, apiKey);
-  // If multimodal call failed (e.g. payload too large or image fetch error), retry with rich text prompt
+  // If multimodal call failed (e.g. payload too large or image fetch error), retry with structured text prompt
   if (!geminiResult && screenImages.length > 0) {
-    console.warn('Multimodal charter call failed, retrying with structured text prompt...');
+    console.warn('Multimodal charter call failed, retrying with structured text Context Pack prompt...');
     geminiResult = await callGeminiAPI(prompt, undefined, apiKey);
   }
 
@@ -1708,10 +1686,11 @@ Respond in STRICT JSON format:
         : (parsed.charters || parsed.data || parsed.results || []);
 
       if (Array.isArray(chartersList) && chartersList.length >= 2) {
-        const mapped = chartersList.map((c: any, cIdx: number) => ({
+        // Backend assigns deterministic IDs
+        const mapped: GeneratedCharter[] = chartersList.map((c: any, cIdx: number) => ({
           project_id: feature.project_id,
           feature_id: feature.id,
-          charter_code: c.charter_code || `${prefix}-0${cIdx + 1}`,
+          charter_code: `${prefix}-0${cIdx + 1}`,
           title: c.title || `Charter 0${cIdx + 1}`,
           mission: c.mission || `Explore behavior of ${feature.name}`,
           user_persona: c.user_persona || primaryPersona,
@@ -1719,21 +1698,40 @@ Respond in STRICT JSON format:
           expected_outcome: c.expected_outcome || feature.expected_outcome || 'Success',
           scope: 'feature' as const,
           status: 'Draft' as const,
+          context_pack: contextPack,
           scenarios: Array.isArray(c.scenarios)
             ? c.scenarios.map((s: any, sIdx: number) => ({
-                prompt_id: s.prompt_id || `0${cIdx + 1}-P0${sIdx + 1}`,
+                prompt_id: `0${cIdx + 1}-P0${sIdx + 1}`,
                 prompt_text: s.prompt_text || 'Test scenario',
                 status: (s.status as any) || 'Untested',
                 observations: s.observations || '',
                 media_url: s.media_url || '',
-                sort_order: sIdx
+                sort_order: sIdx,
+                traceability: s.traceability || {
+                  derived_from: {
+                    feature: [feature.name],
+                    failure_state: ['User interruption / Validation failure'],
+                    risk: ['Transaction ambiguity']
+                  },
+                  exploration_dimensions: ['State Transitions & Timing']
+                }
               }))
             : []
         }));
 
+        // Quality Gate Validation Stage
+        const validationReport = validateChartersProgrammatic(mapped, contextPack);
+
+        // Attach validation report to each charter
+        mapped.forEach(c => {
+          c.validation_report = validationReport;
+        });
+
         return {
           charters: mapped,
-          engine: 'gemini'
+          engine: 'gemini',
+          context_pack: contextPack,
+          validation_report: validationReport
         };
       }
     } catch (e) {
@@ -1741,10 +1739,17 @@ Respond in STRICT JSON format:
     }
   }
 
-    // Deterministic Fallback if Gemini generation is offline or unavailable
+  // Deterministic Fallback if Gemini generation is offline or unavailable
+  const validationReport = validateChartersProgrammatic(defaultCharters, contextPack);
+  defaultCharters.forEach(c => {
+    c.context_pack = contextPack;
+    c.validation_report = validationReport;
+  });
+
   return {
     charters: defaultCharters,
-    engine: 'deterministic'
+    engine: 'deterministic',
+    context_pack: contextPack,
+    validation_report: validationReport
   };
 }
-
