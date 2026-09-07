@@ -182,7 +182,7 @@ export function ApplicationShell({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`px-3.5 py-1.5 rounded-pill text-xs font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
+                className={`px-3.5 py-1.5 rounded-pill text-xs font-medium flex items-center gap-2 whitespace-nowrap shrink-0 transition-all ${
                   isActive
                     ? 'bg-clinical-warm text-dark-chassis font-semibold shadow-sm'
                     : 'text-txt-muted hover:text-white hover:bg-dark-secondary'

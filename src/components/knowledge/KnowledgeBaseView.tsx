@@ -171,13 +171,20 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
         <button
           onClick={() => setActiveCategory('all')}
-          className={`px-3 py-1.5 rounded-pill text-xs font-semibold transition ${
+          className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
             activeCategory === 'all'
               ? 'bg-dark-chassis text-white shadow-sm'
               : 'bg-clinical-white text-txt-secondary border border-clinical-border hover:bg-clinical-warm'
           }`}
         >
-          All Categories ({items.length})
+          <span>All Categories</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none ${
+            activeCategory === 'all'
+              ? 'bg-dark-secondary text-white'
+              : 'bg-clinical-warm text-dark-chassis'
+          }`}>
+            {items.length}
+          </span>
         </button>
 
         {categories.map((cat, idx) => {
@@ -187,7 +194,7 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap transition flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
                 isActive
                   ? 'bg-dark-chassis text-white font-semibold shadow-sm'
                   : 'bg-clinical-white text-txt-secondary border border-clinical-border hover:bg-clinical-warm'
@@ -195,7 +202,11 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
             >
               <span className="text-neon font-mono text-[10px]">#{idx + 1}</span>
               <span>{cat}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-clinical-warm text-dark-chassis">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none ${
+                isActive
+                  ? 'bg-dark-secondary text-white'
+                  : 'bg-clinical-warm text-dark-chassis'
+              }`}>
                 {count}
               </span>
             </button>
@@ -216,13 +227,13 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-txt-muted text-[11px]">Filter by Confidence:</span>
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <span className="text-txt-muted text-[11px] whitespace-nowrap shrink-0">Filter by Confidence:</span>
           {['all', 'CONFIRMED', 'INFERRED', 'UNKNOWN'].map((conf) => (
             <button
               key={conf}
               onClick={() => setConfidenceFilter(conf)}
-              className={`px-2.5 py-1 rounded-pill text-[10px] font-semibold border transition ${
+              className={`px-2.5 py-1 rounded-pill text-[10px] font-semibold border whitespace-nowrap shrink-0 transition ${
                 confidenceFilter === conf 
                   ? 'bg-dark-chassis text-neon border-dark-chassis' 
                   : 'bg-clinical-white text-txt-secondary border-clinical-border'
