@@ -10,6 +10,7 @@ import {
   ScreenComparison,
   QACharter,
   CharterScenario,
+  ScenarioCategory,
   GeneratedCharter,
   ContextPack,
   ValidationReport,
@@ -1197,6 +1198,7 @@ export function buildDeterministicCharters(
           prompt_id: '01-P01',
           prompt_text: `Walk through the primary happy path from "${firstScreenName}" entering valid, normal details. Verify that buttons respond instantly and screen transitions are smooth.`,
           status: 'Untested' as const,
+          category: 'Golden Path' as const,
           observations: '',
           media_url: '',
           sort_order: 0
@@ -1205,6 +1207,7 @@ export function buildDeterministicCharters(
           prompt_id: '01-P02',
           prompt_text: `Check every label, input hint, and instruction on "${secondScreenName}". Make sure the text is clear, easy to read, and free of confusing technical terms.`,
           status: 'Untested' as const,
+          category: 'Golden Path' as const,
           observations: '',
           media_url: '',
           sort_order: 1
@@ -1213,6 +1216,7 @@ export function buildDeterministicCharters(
           prompt_id: '01-P03',
           prompt_text: `Complete the transaction and verify that the final confirmation screen or receipt clearly displays the transaction amount, recipient, fee breakdown, and reference number.`,
           status: 'Untested' as const,
+          category: 'Golden Path' as const,
           observations: '',
           media_url: '',
           sort_order: 2
@@ -1221,6 +1225,7 @@ export function buildDeterministicCharters(
           prompt_id: '01-P04',
           prompt_text: `Verify that an external receipt trigger (such as SMS or push notification) is sent promptly with matching transaction details.`,
           status: 'Untested' as const,
+          category: 'Golden Path' as const,
           observations: '',
           media_url: '',
           sort_order: 3
@@ -1229,6 +1234,7 @@ export function buildDeterministicCharters(
           prompt_id: '01-P05',
           prompt_text: `Return to the main dashboard after completion and verify that your wallet balance is immediately and accurately deducted.`,
           status: 'Untested' as const,
+          category: 'Golden Path' as const,
           observations: '',
           media_url: '',
           sort_order: 4
@@ -1251,6 +1257,7 @@ export function buildDeterministicCharters(
           prompt_id: '02-P01',
           prompt_text: `Attempt to proceed with an empty or incomplete phone number (e.g. 7 digits instead of 10). Verify the Continue button stays disabled or highlights the missing digits with a clear warning.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 0
@@ -1259,6 +1266,7 @@ export function buildDeterministicCharters(
           prompt_id: '02-P02',
           prompt_text: `Select a specific network carrier, then enter a phone number with a mismatched carrier prefix (e.g. 020 or 050 Telecel prefix when MTN is selected). Check if the app alerts you or auto-detects the right carrier.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 1
@@ -1267,6 +1275,7 @@ export function buildDeterministicCharters(
           prompt_id: '02-P03',
           prompt_text: `Tap the contact book icon and pick a contact saved with international format (e.g. +233 24 123 4567). Check whether the app cleanly parses the number into standard format without crashing.`,
           status: 'Untested' as const,
+          category: 'Alternative Flow' as const,
           observations: '',
           media_url: '',
           sort_order: 2
@@ -1275,6 +1284,7 @@ export function buildDeterministicCharters(
           prompt_id: '02-P04',
           prompt_text: `Type a 9-digit phone number omitting the leading zero (e.g. 241234567). Verify if the app automatically inserts the leading zero or shows a helpful suggestion.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 3
@@ -1283,6 +1293,7 @@ export function buildDeterministicCharters(
           prompt_id: '02-P05',
           prompt_text: `Try pasting text containing symbols, punctuation, or alphabetic letters into the phone number box. Verify that invalid characters are cleanly rejected or ignored.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 4
@@ -1291,6 +1302,7 @@ export function buildDeterministicCharters(
           prompt_id: '02-P06',
           prompt_text: `Select a contact whose name contains emojis or special unicode symbols. Verify that the contact name displays properly on the review screen without layout corruption.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 5
@@ -1313,6 +1325,7 @@ export function buildDeterministicCharters(
           prompt_id: '03-P01',
           prompt_text: `Tap a quick preset chip (e.g. GHS 10), then immediately type a different amount (e.g. 25) into the custom amount box. Confirm which amount appears on the final review screen.`,
           status: 'Untested' as const,
+          category: 'Alternative Flow' as const,
           observations: '',
           media_url: '',
           sort_order: 0
@@ -1321,6 +1334,7 @@ export function buildDeterministicCharters(
           prompt_id: '03-P02',
           prompt_text: `If your account balance is GHS 50.00, enter GHS 50.00 for the transaction. Verify whether processing fees make the total GHS 50.50 and whether the app gives an early insufficient funds warning before asking for a PIN.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 1
@@ -1329,6 +1343,7 @@ export function buildDeterministicCharters(
           prompt_id: '03-P03',
           prompt_text: `Try entering 0, negative numbers, or non-numeric characters. Check if the app clearly informs you of the minimum allowed denomination.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 2
@@ -1337,6 +1352,7 @@ export function buildDeterministicCharters(
           prompt_id: '03-P04',
           prompt_text: `Try entering decimal fractions (e.g. GHS 1.55 or GHS 0.99). Check if fractional cent amounts are supported or if the app requires whole cedi denominations.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 3
@@ -1345,6 +1361,7 @@ export function buildDeterministicCharters(
           prompt_id: '03-P05',
           prompt_text: `Try entering an amount exceeding the maximum daily transaction ceiling (e.g. GHS 10,000). Check if the maximum allowable cap is clearly stated in the error message.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 4
@@ -1353,6 +1370,7 @@ export function buildDeterministicCharters(
           prompt_id: '03-P06',
           prompt_text: `Check the fee breakdown summary on the confirmation screen to verify that the base amount plus processing fees exactly equals the total deduction.`,
           status: 'Untested' as const,
+          category: 'Golden Path' as const,
           observations: '',
           media_url: '',
           sort_order: 5
@@ -1375,6 +1393,7 @@ export function buildDeterministicCharters(
           prompt_id: '04-P01',
           prompt_text: `Fill in details on "${secondScreenName}", then tap the device or in-app Back button. Return to the screen and check if your entered information is still there without requiring re-entry.`,
           status: 'Untested' as const,
+          category: 'Alternative Flow' as const,
           observations: '',
           media_url: '',
           sort_order: 0
@@ -1383,6 +1402,7 @@ export function buildDeterministicCharters(
           prompt_id: '04-P02',
           prompt_text: `While on "${midScreenName}", minimize the app (go to home screen), open another app, and return after 30 seconds. Verify that the app reopens without crashing or freezing on a white screen.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 1
@@ -1391,6 +1411,7 @@ export function buildDeterministicCharters(
           prompt_id: '04-P03',
           prompt_text: `Simulate an incoming phone call or lock and unlock the phone screen right before the final confirmation step. Check if the screen recovers smoothly.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 2
@@ -1399,6 +1420,7 @@ export function buildDeterministicCharters(
           prompt_id: '04-P04',
           prompt_text: `Tap the Cancel or Close button on the confirmation modal. Verify that the app asks for confirmation before discarding entered transaction data.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 3
@@ -1407,6 +1429,7 @@ export function buildDeterministicCharters(
           prompt_id: '04-P05',
           prompt_text: `Rotate the phone between portrait and landscape modes while viewing the review screen. Check if all fields, buttons, and summary cards stay within view.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 4
@@ -1429,6 +1452,7 @@ export function buildDeterministicCharters(
           prompt_id: '05-P01',
           prompt_text: `Immediately after tapping the pay or submit button while the loading spinner is active, turn on Airplane mode. Verify the app shows a helpful retry message rather than spinning indefinitely.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 0
@@ -1437,6 +1461,7 @@ export function buildDeterministicCharters(
           prompt_id: '05-P02',
           prompt_text: `Reconnect to the internet after a failed network attempt and tap Try Again. Verify the transaction finishes properly without asking you to restart from scratch.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 1
@@ -1445,6 +1470,7 @@ export function buildDeterministicCharters(
           prompt_id: '05-P03',
           prompt_text: `If a transaction fails due to network disconnection, check account balances and history to verify that money was NOT deducted.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 2
@@ -1453,6 +1479,7 @@ export function buildDeterministicCharters(
           prompt_id: '05-P04',
           prompt_text: `Simulate high network latency (slow 3G network). Verify that the loading indicator provides reassurance and does not time out prematurely.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 3
@@ -1461,6 +1488,7 @@ export function buildDeterministicCharters(
           prompt_id: '05-P05',
           prompt_text: `Disconnect the network right after entering the security PIN before the receipt loads. Reopen the app and verify if the transaction succeeded or failed without being charged twice.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 4
@@ -1483,6 +1511,7 @@ export function buildDeterministicCharters(
           prompt_id: '06-P01',
           prompt_text: `Rapidly tap the primary submit or confirm button 2 to 3 times very fast. Verify that the button disables immediately on the first tap to prevent charging twice.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 0
@@ -1491,6 +1520,7 @@ export function buildDeterministicCharters(
           prompt_id: '06-P02',
           prompt_text: `Enter the wrong PIN or security password twice, then enter the correct one on the third attempt. Check if the app handles the failed attempts securely with a clear warning.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 1
@@ -1499,6 +1529,7 @@ export function buildDeterministicCharters(
           prompt_id: '06-P03',
           prompt_text: `Enter the wrong PIN consecutively three times. Verify that the account or feature enforces a temporary security lockout with clear instructions.`,
           status: 'Untested' as const,
+          category: 'Boundary & Edge' as const,
           observations: '',
           media_url: '',
           sort_order: 2
@@ -1507,6 +1538,7 @@ export function buildDeterministicCharters(
           prompt_id: '06-P04',
           prompt_text: `Leave the confirmation screen idle for several minutes to let the session expire. Verify that the app prompts to re-authenticate rather than submitting an expired, unsafe transaction.`,
           status: 'Untested' as const,
+          category: 'Failure & Recovery' as const,
           observations: '',
           media_url: '',
           sort_order: 3
@@ -1515,6 +1547,7 @@ export function buildDeterministicCharters(
           prompt_id: '06-P05',
           prompt_text: `Verify that the confirmation receipt generates a unique, idempotent transaction reference number that cannot be re-executed or duplicate-charged.`,
           status: 'Untested' as const,
+          category: 'Golden Path' as const,
           observations: '',
           media_url: '',
           sort_order: 4
@@ -1632,10 +1665,47 @@ ${contextPack.exploration_dimensions.map(d => `- [${d.priority}] ${d.dimension}:
 10. Every exploration prompt must have a traceable reason for existing (include traceability metadata).
 
 ============================================================
-EXHAUSTIVE DEPTH & STYLE MANDATE
+360-DEGREE COVERAGE MANDATE (POSITIVE GOLDEN JOURNEYS + EDGE CASES)
 ============================================================
-- Every charter must contain 5 to 8+ deep, rigorous scenarios probing edge cases, timeouts, invalid data, interruptions, and recovery.
-- Style: Simple, direct, conversational plain English (Grade 6 to 8 level). No academic jargon.
+We test EVERYTHING — not just negative edge cases! A complete suite MUST establish the golden path baseline before stress-testing failure modes:
+
+1. CHARTER 01 MUST BE "Core Journey & Golden Flow" (MANDATORY POSITIVE BASELINE):
+   - Title: "${feature.name} | Core Journey & Golden Flow"
+   - Mission: Check if a customer can smoothly complete ${feature.name} from "${firstScreenName}" to "${lastScreenName}" with valid details without freezing, crashing, or confusing error messages.
+   - All scenarios in Charter 01 MUST have "category": "Golden Path".
+   - Cover:
+     * End-to-end walkthrough from entry screen to final receipt under normal, valid inputs.
+     * Button responsiveness, touch feedback, and smooth screen transitions.
+     * Clarity of input hints, labels, and fee notices.
+     * Accurate review screen & receipt summary (amount, recipient, fee breakdown, transaction reference).
+     * Immediate, accurate wallet balance deduction on the account dashboard post-transaction.
+     * External receipt notification (SMS or push notification) sent promptly with matching details.
+
+2. CHARTER 02 MUST BE "Alternative Positive Paths, Presets & Shortcuts":
+   - Title: "${feature.name} | Alternative Paths, Presets & Fast-Tracks"
+   - Mission: Explore convenient alternative ways to complete ${feature.name} (preset amount chips, contact picker shortcuts, account switcher, and editing details before final confirmation).
+   - Scenarios in Charter 02 MUST have "category": "Alternative Flow".
+   - Cover:
+     * Quick preset amount chips (e.g. GHS 5, 10, 20) vs typing custom amounts.
+     * Selecting recipient from phonebook / favorites vs typing manually.
+     * Switching source wallet or payment account if multiple are available.
+     * Navigating back from review screen to edit amount or recipient, verifying that previous inputs remain intact without crashing or resetting.
+
+3. CHARTERS 03 TO 06 PROBE BOUNDARIES, FAILURES, RESILIENCE & SECURITY:
+   - Categorize scenarios as "Boundary & Edge" or "Failure & Recovery".
+   - Cover:
+     * Recipient boundaries: carrier prefix mismatch warnings, incomplete phone numbers, international country code (+233) stripping, special characters/emojis.
+     * Balance & Fee boundaries: transactions where amount + fee slightly exceeds wallet balance (early insufficient funds warning before PIN), 0 or negative numbers, decimal cents, daily transaction limit ceiling.
+     * Navigation & Interruption: minimizing app mid-flow, incoming phone calls, screen lock/unlock, canceling confirmation modal.
+     * Network Disconnection: turning on Airplane mode while loading spinner is active, reconnecting and pressing Try Again without double debits.
+     * Concurrency & Security: rapid double-tapping submit button (must disable immediately to prevent duplicate charge), consecutive incorrect PIN attempts lockout, idle session expiration.
+
+4. EVERY SCENARIO MUST INCLUDE A "category" FIELD:
+   Allowed values: "Golden Path" | "Alternative Flow" | "Boundary & Edge" | "Failure & Recovery".
+
+5. EXHAUSTIVE DEPTH & STYLE:
+   - Each charter must contain 5 to 7+ rich, investigative scenarios.
+   - Style: Simple, direct, conversational plain English (Grade 6 to 8 level). Zero academic jargon.
 
 Respond in STRICT JSON format:
 [
@@ -1649,15 +1719,16 @@ Respond in STRICT JSON format:
       {
         "prompt_text": "Plain English investigative prompt describing exact action and what to observe",
         "status": "Untested",
+        "category": "Golden Path",
         "observations": "",
         "media_url": "",
         "traceability": {
           "derived_from": {
             "feature": ["${feature.name}"],
-            "failure_state": ["Network timeout"],
-            "risk": ["Transaction state loss"]
+            "journey": ["Primary checkout flow"],
+            "risk": ["Transaction ambiguity"]
           },
-          "exploration_dimensions": ["Network Failure & Recovery", "State Transitions & Timing"]
+          "exploration_dimensions": ["Core Journey & Golden Flow"]
         }
       }
     ]
@@ -1700,22 +1771,38 @@ Respond in STRICT JSON format:
           status: 'Draft' as const,
           context_pack: contextPack,
           scenarios: Array.isArray(c.scenarios)
-            ? c.scenarios.map((s: any, sIdx: number) => ({
-                prompt_id: `0${cIdx + 1}-P0${sIdx + 1}`,
-                prompt_text: s.prompt_text || 'Test scenario',
-                status: (s.status as any) || 'Untested',
-                observations: s.observations || '',
-                media_url: s.media_url || '',
-                sort_order: sIdx,
-                traceability: s.traceability || {
-                  derived_from: {
-                    feature: [feature.name],
-                    failure_state: ['User interruption / Validation failure'],
-                    risk: ['Transaction ambiguity']
-                  },
-                  exploration_dimensions: ['State Transitions & Timing']
+            ? c.scenarios.map((s: any, sIdx: number) => {
+                let cat: ScenarioCategory = s.category;
+                if (!cat || !['Golden Path', 'Alternative Flow', 'Boundary & Edge', 'Failure & Recovery'].includes(cat)) {
+                  if (cIdx === 0 || /core journey|golden|happy path/i.test(c.title)) {
+                    cat = 'Golden Path';
+                  } else if (cIdx === 1 || /alternative|preset|shortcut|fast-track/i.test(c.title)) {
+                    cat = 'Alternative Flow';
+                  } else if (/network|offline|disconnect|airplane|interrupt|timeout/i.test(s.prompt_text)) {
+                    cat = 'Failure & Recovery';
+                  } else {
+                    cat = 'Boundary & Edge';
+                  }
                 }
-              }))
+
+                return {
+                  prompt_id: `0${cIdx + 1}-P0${sIdx + 1}`,
+                  prompt_text: s.prompt_text || 'Test scenario',
+                  status: (s.status as any) || 'Untested',
+                  category: cat,
+                  observations: s.observations || '',
+                  media_url: s.media_url || '',
+                  sort_order: sIdx,
+                  traceability: s.traceability || {
+                    derived_from: {
+                      feature: [feature.name],
+                      failure_state: [cat === 'Golden Path' ? 'Normal flow execution' : 'User interruption / Validation failure'],
+                      risk: [cat === 'Golden Path' ? 'Core user satisfaction' : 'Transaction ambiguity']
+                    },
+                    exploration_dimensions: [cat === 'Golden Path' ? 'Core Journey & Golden Flow' : 'State Transitions & Timing']
+                  }
+                };
+              })
             : []
         }));
 

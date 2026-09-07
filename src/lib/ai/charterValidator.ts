@@ -23,7 +23,8 @@ export function validateChartersProgrammatic(
     dependencies_considered: true,
     exploratory_not_scripted: true,
     duplicate_prompts: false,
-    unsupported_claims: false
+    unsupported_claims: false,
+    positive_golden_flow_covered: true
   };
 
   const notes: string[] = [];
@@ -81,11 +82,37 @@ export function validateChartersProgrammatic(
     notes.push('Suite lacks sufficient coverage of network interruption or failure states.');
   }
 
-  // Calculate score
-  const checkValues = Object.values(checks);
-  const passedChecks = checkValues.filter(Boolean).length;
-  const score = Math.round((passedChecks / checkValues.length) * 100);
-  const passed = score >= 80 && !checks.duplicate_prompts;
+  // Check if positive golden flow was addressed (Core Journey / Golden Path)
+  const hasGoldenFlow = charters.some(c => 
+    /core journey|golden path|happy path|primary flow/i.test(c.title) ||
+    /smoothly|successfully|end-to-end|normal details/i.test(c.mission) ||
+    c.scenarios.some(s => 
+      s.category === 'Golden Path' || 
+      /smoothly|successfully|valid details|end-to-end|normal flow|golden path|correct receipt|balance deduction/i.test(s.prompt_text)
+    )
+  );
+  if (!hasGoldenFlow) {
+    checks.positive_golden_flow_covered = false;
+    notes.push('Suite lacks a positive baseline test (Core Journey / Golden Path flow from start to receipt).');
+  }
+
+  // Calculate score accurately (true is passing for positive checks, false is passing for negative checks)
+  const checkResults = [
+    checks.feature_scope,
+    checks.persona_relevant,
+    checks.journey_relevant,
+    checks.screenshot_grounded,
+    checks.business_rules_grounded,
+    checks.failure_states_considered,
+    checks.dependencies_considered,
+    checks.exploratory_not_scripted,
+    checks.positive_golden_flow_covered,
+    !checks.duplicate_prompts,
+    !checks.unsupported_claims
+  ];
+  const passedChecks = checkResults.filter(Boolean).length;
+  const score = Math.round((passedChecks / checkResults.length) * 100);
+  const passed = score >= 80 && checks.positive_golden_flow_covered && !checks.duplicate_prompts;
 
   return {
     passed,

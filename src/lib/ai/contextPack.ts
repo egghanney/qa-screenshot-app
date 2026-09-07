@@ -156,6 +156,16 @@ export function buildContextPack(
   
   const explorationDimensions = [
     {
+      dimension: 'Core Journey & Golden Flow',
+      priority: 'HIGH' as const,
+      rationale: 'Verify the complete, uninterrupted end-to-end success path from entry point to receipt with normal, valid inputs.'
+    },
+    {
+      dimension: 'Alternative Paths & Presets',
+      priority: 'HIGH' as const,
+      rationale: 'Test quick-path options including preset amount chips, contact shortcuts, payment method switching, and pre-confirmation editing.'
+    },
+    {
       dimension: 'State Transitions & Timing',
       priority: 'HIGH' as const,
       rationale: 'Verify state integrity between form submission, PIN auth, processing spinners, and final receipt.'

@@ -235,10 +235,10 @@ export function ExploratoryChartersView({
     text += `User Persona: ${activeCharter.user_persona}\n`;
     text += `Starting Condition: ${activeCharter.starting_condition}\n`;
     text += `Expected Outcome: ${activeCharter.expected_outcome}\n\n`;
-    text += `Prompt ID\tExploration Prompts & Investigative Scenarios\tStatus\tObservations & Notes\tMedia URL\n`;
+    text += `Prompt ID\tCoverage Category\tExploration Prompts & Investigative Scenarios\tStatus\tObservations & Notes\tMedia URL\n`;
 
     activeCharter.scenarios?.forEach(s => {
-      text += `${s.prompt_id}\t${s.prompt_text}\t${s.status}\t${s.observations || ''}\t${s.media_url || ''}\n`;
+      text += `${s.prompt_id}\t${s.category || 'Exploratory'}\t${s.prompt_text}\t${s.status}\t${s.observations || ''}\t${s.media_url || ''}\n`;
     });
 
     navigator.clipboard.writeText(text);
@@ -469,6 +469,48 @@ export function ExploratoryChartersView({
                       <span className="text-dark-secondary leading-relaxed">{activeCharter.expected_outcome}</span>
                     </div>
                   </div>
+
+                  {/* 360° Coverage Model Breakdown */}
+                  {activeCharter.scenarios && activeCharter.scenarios.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-slate-200/70 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-txt-muted font-bold text-[10px] uppercase tracking-wider">360° Coverage:</span>
+                      {(() => {
+                        const goldenCount = activeCharter.scenarios.filter(s => s.category === 'Golden Path').length;
+                        const altCount = activeCharter.scenarios.filter(s => s.category === 'Alternative Flow').length;
+                        const boundCount = activeCharter.scenarios.filter(s => s.category === 'Boundary & Edge').length;
+                        const failCount = activeCharter.scenarios.filter(s => s.category === 'Failure & Recovery').length;
+
+                        return (
+                          <>
+                            {goldenCount > 0 && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                {goldenCount} Golden Path
+                              </span>
+                            )}
+                            {altCount > 0 && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-300">
+                                <span className="w-2 h-2 rounded-full bg-sky-500" />
+                                {altCount} Alternative Flow
+                              </span>
+                            )}
+                            {boundCount > 0 && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-300">
+                                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                {boundCount} Boundary &amp; Edge
+                              </span>
+                            )}
+                            {failCount > 0 && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-300">
+                                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                {failCount} Failure &amp; Recovery
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                 {/* Scenarios Table (Exact layout & dark header matching user document) */}
@@ -509,6 +551,30 @@ export function ExploratoryChartersView({
 
                               {/* Exploration Prompts & Scenarios with Traceability */}
                               <td className="py-3.5 px-4 text-dark-secondary align-top leading-relaxed">
+                                {scenario.category && (
+                                  <div className="mb-2">
+                                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                      scenario.category === 'Golden Path'
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                        : scenario.category === 'Alternative Flow'
+                                        ? 'bg-sky-50 text-sky-800 border-sky-300'
+                                        : scenario.category === 'Boundary & Edge'
+                                        ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                                    }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${
+                                        scenario.category === 'Golden Path'
+                                          ? 'bg-emerald-500 animate-pulse'
+                                          : scenario.category === 'Alternative Flow'
+                                          ? 'bg-sky-500'
+                                          : scenario.category === 'Boundary & Edge'
+                                          ? 'bg-amber-500'
+                                          : 'bg-rose-500'
+                                      }`} />
+                                      {scenario.category}
+                                    </span>
+                                  </div>
+                                )}
                                 <div className="text-dark-chassis font-medium">{scenario.prompt_text}</div>
                                 {scenario.traceability && (
                                   <div className="mt-2 space-y-1.5 pt-1.5 border-t border-slate-100">

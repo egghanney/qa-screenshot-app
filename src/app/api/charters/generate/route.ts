@@ -62,9 +62,10 @@ export async function POST(req: Request) {
     const traceabilityMap: Record<string, any> = {};
     rawCharters.forEach(c => {
       c.scenarios.forEach(s => {
-        if (s.traceability) {
-          traceabilityMap[s.prompt_id] = s.traceability;
-        }
+        traceabilityMap[s.prompt_id] = {
+          category: s.category,
+          traceability: s.traceability
+        };
       });
     });
 
@@ -140,10 +141,15 @@ export async function POST(req: Request) {
         if (sErr) {
           console.error('Error inserting charter scenarios:', sErr);
         } else {
-          insertedScenarios = (sData || []).map((dbS, idx) => ({
-            ...dbS,
-            traceability: scenarios[idx]?.traceability || traceabilityMap[dbS.prompt_id]
-          }));
+          insertedScenarios = (sData || []).map((dbS, idx) => {
+            const rawS = scenarios[idx];
+            const meta = traceabilityMap[dbS.prompt_id];
+            return {
+              ...dbS,
+              category: rawS?.category || meta?.category || (dbS.prompt_id.startsWith('01-') ? 'Golden Path' : 'Boundary & Edge'),
+              traceability: rawS?.traceability || meta?.traceability || meta
+            };
+          });
         }
       }
 

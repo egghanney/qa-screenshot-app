@@ -398,22 +398,35 @@ export function ContextPackModal({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {Object.entries(validationReport.checks).map(([checkKey, passed], idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-white border border-clinical-border flex items-center justify-between text-xs">
-                    <span className="font-mono text-[11px] text-slate-700 capitalize">
-                      {checkKey.replace(/_/g, ' ')}
-                    </span>
-                    {passed ? (
-                      <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> PASSED
+                {Object.entries(validationReport.checks).map(([checkKey, passed], idx) => {
+                  const isNegativeCheck = checkKey === 'duplicate_prompts' || checkKey === 'unsupported_claims';
+                  const isSuccess = isNegativeCheck ? !passed : !!passed;
+                  
+                  const label = checkKey === 'duplicate_prompts'
+                    ? 'No Duplicate Prompts'
+                    : checkKey === 'unsupported_claims'
+                    ? 'No Unsupported Claims'
+                    : checkKey === 'positive_golden_flow_covered'
+                    ? 'Positive Golden Flow Covered'
+                    : checkKey.replace(/_/g, ' ');
+
+                  return (
+                    <div key={idx} className="p-3 rounded-xl bg-white border border-clinical-border flex items-center justify-between text-xs">
+                      <span className="font-mono text-[11px] text-slate-700 capitalize">
+                        {label}
                       </span>
-                    ) : (
-                      <span className="text-rose-600 font-bold flex items-center gap-1 text-[10px]">
-                        <XCircle className="w-3.5 h-3.5" /> FAILED
-                      </span>
-                    )}
-                  </div>
-                ))}
+                      {isSuccess ? (
+                        <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> PASSED
+                        </span>
+                      ) : (
+                        <span className="text-rose-600 font-bold flex items-center gap-1 text-[10px]">
+                          <XCircle className="w-3.5 h-3.5" /> FAILED
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

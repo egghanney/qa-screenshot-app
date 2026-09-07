@@ -57,9 +57,22 @@ export async function GET(req: Request) {
 
     const scenariosByCharter = (scenarios || []).reduce((acc: Record<string, CharterScenario[]>, s: CharterScenario) => {
       if (!acc[s.charter_id]) acc[s.charter_id] = [];
+      const meta = traceMap[s.prompt_id];
+      const category = meta?.category || s.category || (
+        s.prompt_id.startsWith('01-') || /smoothly|valid details|happy path|golden|balance deduction/i.test(s.prompt_text)
+          ? 'Golden Path'
+          : s.prompt_id.startsWith('02-') || /preset|shortcut|alternative/i.test(s.prompt_text)
+          ? 'Alternative Flow'
+          : /network|offline|airplane|timeout|disconnect|double|reopen/i.test(s.prompt_text)
+          ? 'Failure & Recovery'
+          : 'Boundary & Edge'
+      );
+      const traceability = meta?.traceability ? meta.traceability : (meta?.derived_from ? meta : s.traceability);
+
       acc[s.charter_id].push({
         ...s,
-        traceability: traceMap[s.prompt_id] || s.traceability
+        category: category,
+        traceability: traceability
       });
       return acc;
     }, {});

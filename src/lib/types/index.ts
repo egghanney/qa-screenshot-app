@@ -258,6 +258,8 @@ export interface ScreenComparison {
 export type CharterStatus = 'Draft' | 'In Progress' | 'Completed';
 export type ScenarioStatus = 'Pass' | 'Fail' | 'Blocked' | 'Untested';
 
+export type ScenarioCategory = 'Golden Path' | 'Alternative Flow' | 'Boundary & Edge' | 'Failure & Recovery';
+
 export interface PromptTraceability {
   derived_from: {
     feature?: string[];
@@ -278,6 +280,7 @@ export interface CharterScenario {
   observations: string;
   media_url: string;
   sort_order: number;
+  category?: ScenarioCategory;
   traceability?: PromptTraceability;
   created_at?: string;
   updated_at?: string;
@@ -297,6 +300,7 @@ export interface ValidationReport {
     exploratory_not_scripted: boolean;
     duplicate_prompts: boolean;
     unsupported_claims: boolean;
+    positive_golden_flow_covered: boolean;
   };
   notes?: string;
 }
