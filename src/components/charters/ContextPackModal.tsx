@@ -315,10 +315,10 @@ export function ContextPackModal({
                             <span className="text-[10px] text-slate-500 font-mono font-medium">{steps.length} steps</span>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          <div className="flex flex-wrap items-center gap-2.5 py-1">
                             {steps.map((step, sIdx) => (
                               <React.Fragment key={sIdx}>
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border shadow-2xs ${
+                                <span className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border shadow-2xs my-0.5 ${
                                   isGolden 
                                     ? 'bg-white text-emerald-950 border-emerald-200/90' 
                                     : isFailure 
@@ -337,7 +337,7 @@ export function ContextPackModal({
                                   {step}
                                 </span>
                                 {sIdx < steps.length - 1 && (
-                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 mx-0.5" />
                                 )}
                               </React.Fragment>
                             ))}

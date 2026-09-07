@@ -230,12 +230,7 @@ export function VisualJourneyCanvas({
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(formattedNodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(formattedEdges);
-
-  // Sync state if props change
-  React.useEffect(() => {
-    setRfNodes(formattedNodes);
-    setRfEdges(formattedEdges);
-  }, [formattedNodes, formattedEdges, setRfNodes, setRfEdges]);
+  const hasAutoFixedRef = React.useRef(false);
 
   const onConnect = useCallback(
     async (params: Connection) => {
@@ -255,35 +250,127 @@ export function VisualJourneyCanvas({
     [feature.id, onRefresh, setRfEdges]
   );
 
-  // Dagre Auto Layout Engine
-  const autoLayout = useCallback(() => {
+  // Helper to get precise node bounding box dimensions per type
+  const getNodeDimensions = useCallback((type?: string) => {
+    switch (type) {
+      case 'screen':
+        return { width: 280, height: 340 };
+      case 'decision':
+      case 'error_state':
+        return { width: 250, height: 180 };
+      case 'entry':
+      case 'exit':
+        return { width: 220, height: 70 };
+      default:
+        return { width: 260, height: 220 };
+    }
+  }, []);
+
+  // Dagre Auto Layout Engine (Guarantees nodes NEVER touch or overlap)
+  const autoLayout = useCallback(async (persistToDb = true) => {
+    if (formattedNodes.length === 0) return;
+
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
-    dagreGraph.setGraph({ rankdir: 'LR', nodesep: 70, ranksep: 100 });
-
-    rfNodes.forEach((node) => {
-      dagreGraph.setNode(node.id, { width: 260, height: 220 });
+    dagreGraph.setGraph({ 
+      rankdir: 'LR', 
+      nodesep: 140, // 140px vertical separation between branch rows
+      ranksep: 200, // 200px horizontal separation between columns
+      marginx: 80, 
+      marginy: 80 
     });
 
-    rfEdges.forEach((edge) => {
+    formattedNodes.forEach((node) => {
+      const dim = getNodeDimensions(node.type);
+      dagreGraph.setNode(node.id, { width: dim.width, height: dim.height });
+    });
+
+    formattedEdges.forEach((edge) => {
       dagreGraph.setEdge(edge.source, edge.target);
     });
 
     dagre.layout(dagreGraph);
 
-    const layoutedNodes = rfNodes.map((node) => {
+    const layoutedNodes = formattedNodes.map((node) => {
       const nodeWithPosition = dagreGraph.node(node.id);
+      const dim = getNodeDimensions(node.type);
+      if (!nodeWithPosition) return node;
+
       return {
         ...node,
         position: {
-          x: nodeWithPosition.x - 130,
-          y: nodeWithPosition.y - 110,
+          x: Math.round(nodeWithPosition.x - dim.width / 2),
+          y: Math.round(nodeWithPosition.y - dim.height / 2),
         },
       };
     });
 
     setRfNodes(layoutedNodes);
-  }, [rfNodes, rfEdges, setRfNodes]);
+
+    if (persistToDb) {
+      try {
+        await Promise.all(
+          layoutedNodes.map((n) =>
+            supabase
+              .from('qa_journey_nodes')
+              .update({
+                position_x: Math.round(n.position.x),
+                position_y: Math.round(n.position.y),
+              })
+              .eq('id', n.id)
+          )
+        );
+      } catch (err) {
+        console.warn('Failed persisting auto-layout to database:', err);
+      }
+    }
+  }, [formattedNodes, formattedEdges, setRfNodes, getNodeDimensions]);
+
+  // Sync state if props change, and auto-separate if overlaps detected
+  React.useEffect(() => {
+    setRfNodes(formattedNodes);
+    setRfEdges(formattedEdges);
+
+    // Overlap detector: runs once on mount to auto-heal existing colliding nodes
+    if (!hasAutoFixedRef.current && formattedNodes.length > 1) {
+      const hasOverlap = formattedNodes.some((a, i) => {
+        const aDim = getNodeDimensions(a.type);
+        const aR = a.position.x + aDim.width;
+        const aB = a.position.y + aDim.height;
+
+        return formattedNodes.slice(i + 1).some((b) => {
+          const bDim = getNodeDimensions(b.type);
+          const bR = b.position.x + bDim.width;
+          const bB = b.position.y + bDim.height;
+          // Flag if distance between nodes is less than 30px
+          return (a.position.x < bR + 30 && aR + 30 > b.position.x && a.position.y < bB + 30 && aB + 30 > b.position.y);
+        });
+      });
+
+      if (hasOverlap) {
+        hasAutoFixedRef.current = true;
+        autoLayout(true);
+      }
+    }
+  }, [formattedNodes, formattedEdges, autoLayout, getNodeDimensions, setRfNodes, setRfEdges]);
+
+  // Persist dragged node position to Supabase
+  const onNodeDragStop = useCallback(
+    async (_: any, node: Node) => {
+      try {
+        await supabase
+          .from('qa_journey_nodes')
+          .update({
+            position_x: Math.round(node.position.x),
+            position_y: Math.round(node.position.y),
+          })
+          .eq('id', node.id);
+      } catch (err) {
+        console.warn('Failed saving dragged node position:', err);
+      }
+    },
+    []
+  );
 
   return (
     <div className="w-full h-full min-h-[600px] flex-1 relative bg-clinical-warm flex flex-col">
@@ -302,7 +389,7 @@ export function VisualJourneyCanvas({
         {/* Right Action Tools */}
         <div className="pointer-events-auto flex items-center gap-2">
           <button
-            onClick={autoLayout}
+            onClick={() => autoLayout(true)}
             className="px-3 py-1.5 rounded-pill bg-clinical-white hover:bg-clinical-surface text-dark-chassis text-xs font-semibold border border-clinical-border shadow-subtle flex items-center gap-1.5 transition"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -345,9 +432,10 @@ export function VisualJourneyCanvas({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              onNodeDragStop={onNodeDragStop}
               nodeTypes={nodeTypes}
               fitView
-              fitViewOptions={{ padding: 0.15 }}
+              fitViewOptions={{ padding: 0.2 }}
               minZoom={0.05}
               maxZoom={1.5}
               style={{ width: '100%', height: '100%' }}

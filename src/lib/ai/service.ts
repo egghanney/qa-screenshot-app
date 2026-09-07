@@ -18,6 +18,7 @@ import {
 } from '@/lib/types';
 import { buildContextPack } from './contextPack';
 import { validateChartersProgrammatic } from './charterValidator';
+import dagre from '@dagrejs/dagre';
 
 // Helper to resolve an image (URL or Base64) into Gemini inlineData format
 async function resolveImagePart(imageInput: string): Promise<{ mimeType: string; data: string } | null> {
@@ -303,6 +304,69 @@ CRITICAL ANTI-HALLUCINATION RULE: Only document elements visible in the screensh
   };
 }
 
+/**
+ * Layout DAG nodes using Dagre with generous separation parameters.
+ * Guarantees that nodes never touch or overlap on the journey chart.
+ */
+export function layoutDAGNodes(nodes: JourneyNodeData[], edges: JourneyEdgeData[]): JourneyNodeData[] {
+  if (!nodes || nodes.length === 0) return [];
+  
+  try {
+    const g = new dagre.graphlib.Graph();
+    g.setDefaultEdgeLabel(() => ({}));
+    g.setGraph({ 
+      rankdir: 'LR', 
+      nodesep: 140, // 140px vertical separation
+      ranksep: 200, // 200px horizontal separation
+      marginx: 80, 
+      marginy: 80 
+    });
+
+    const getDimensions = (node: JourneyNodeData) => {
+      switch (node.type) {
+        case 'screen':
+          return { width: 280, height: node.metadata?.image_url ? 340 : 240 };
+        case 'decision':
+        case 'error_state':
+          return { width: 250, height: 180 };
+        case 'entry':
+        case 'exit':
+          return { width: 220, height: 70 };
+        default:
+          return { width: 260, height: 220 };
+      }
+    };
+
+    nodes.forEach(node => {
+      const dim = getDimensions(node);
+      g.setNode(node.id, { width: dim.width, height: dim.height });
+    });
+
+    const nodeSet = new Set(nodes.map(n => n.id));
+    edges.forEach(edge => {
+      if (nodeSet.has(edge.source_node_id) && nodeSet.has(edge.target_node_id)) {
+        g.setEdge(edge.source_node_id, edge.target_node_id);
+      }
+    });
+
+    dagre.layout(g);
+
+    return nodes.map(node => {
+      const dagreNode = g.node(node.id);
+      const dim = getDimensions(node);
+      if (!dagreNode) return node;
+      return {
+        ...node,
+        position_x: Math.round(dagreNode.x - dim.width / 2),
+        position_y: Math.round(dagreNode.y - dim.height / 2),
+      };
+    });
+  } catch (err) {
+    console.warn('Error during dagre layout in service.ts:', err);
+    return nodes;
+  }
+}
+
 // 2. Journey Graph Reconstruction
 export async function generateJourneyDAG(
   feature: Feature,
@@ -359,8 +423,8 @@ Format as JSON:
           screen_id: n.screen_id || (screens[idx] ? screens[idx].id : null),
           type: n.type || 'screen',
           label: n.label || `Step ${idx + 1}`,
-          position_x: (idx % 3) * 320 + 80,
-          position_y: Math.floor(idx / 3) * 260 + 80,
+          position_x: (idx % 3) * 360 + 80,
+          position_y: Math.floor(idx / 3) * 360 + 80,
           metadata: n.metadata || {}
         }));
 
@@ -375,7 +439,7 @@ Format as JSON:
           edge_type: e.edge_type || 'default'
         }));
 
-        return { nodes: layoutNodes, edges: layoutEdges };
+        return { nodes: layoutDAGNodes(layoutNodes, layoutEdges), edges: layoutEdges };
       }
     } catch (e) {
       console.warn('Failed parsing Gemini journey JSON:', e);
@@ -531,7 +595,7 @@ Format as JSON:
     edge_type: 'success'
   });
 
-  return { nodes, edges };
+  return { nodes: layoutDAGNodes(nodes, edges), edges };
 }
 
 // 3. 7-Pillar Knowledge Generation
