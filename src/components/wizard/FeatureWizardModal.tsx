@@ -184,12 +184,16 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
     const newItems: UploadedScreen[] = [];
     validImages.forEach((file, idx) => {
       const url = URL.createObjectURL(file);
+      const rawName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      const isRaw = /^(screenshot|img|image|screen)[\s_-]?\d*/i.test(rawName) || /\d{8}/.test(rawName);
+      const initialName = isRaw ? `Step ${screens.length + idx + 1}: Screen View` : rawName;
+
       newItems.push({
         id: `upload-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
         file,
         previewUrl: url,
-        name: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') || `Screen ${screens.length + idx + 1}`,
-        userAction: `User interacts with Screen ${screens.length + idx + 1}`,
+        name: initialName,
+        userAction: `User interacts with Step ${screens.length + idx + 1}`,
         expectedBehavior: 'System validates input and advances'
       });
     });
@@ -313,28 +317,55 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
         });
       }
 
-      // 4. Trigger AI Journey DAG Generation
-      setProcessingStage('3/5 Reconstructing Visual User Journey DAG & Decision Nodes...');
+      // Read API Key if configured in Settings
+      let apiKey = '';
+      try {
+        const savedSettings = localStorage.getItem('aether_qa_settings');
+        if (savedSettings) {
+          apiKey = JSON.parse(savedSettings).geminiApiKey || '';
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // 4. Trigger AI Auto-Naming for Screenshots
+      setProcessingStage('2/6 AI Analyzing Screenshots & Generating Semantic Titles...');
+      await fetch('/api/screens/auto-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature_id: featureId, api_key: apiKey, force_all: true })
+      });
+
+      // 5. Trigger AI Journey DAG Generation
+      setProcessingStage('3/6 Reconstructing Visual User Journey DAG & Decision Nodes...');
       await fetch('/api/journey/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feature_id: featureId })
       });
 
-      // 5. Trigger 7-Pillar Knowledge Generation
-      setProcessingStage('4/5 Synthesizing 7 Core Knowledge Pillars with Anti-Hallucination Confidence...');
+      // 6. Trigger 7-Pillar Knowledge Generation
+      setProcessingStage('4/6 Synthesizing 7 Core Knowledge Pillars with Anti-Hallucination Confidence...');
       await fetch('/api/knowledge/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feature_id: featureId })
       });
 
-      // 6. Trigger QA Checkpoint Generation
-      setProcessingStage('5/5 Generating QA Field, Navigation and Failure Checkpoints...');
+      // 7. Trigger QA Checkpoint Generation
+      setProcessingStage('5/6 Generating QA Field, Navigation and Failure Checkpoints...');
       await fetch('/api/qa/checkpoints', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feature_id: featureId })
+      });
+
+      // 8. Trigger Exploratory Testing (ET) Charters Generation
+      setProcessingStage('6/6 Synthesizing Exploratory Testing (ET) Charters...');
+      await fetch('/api/charters/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature_id: featureId, api_key: apiKey })
       });
 
       // Update feature status

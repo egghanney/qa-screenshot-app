@@ -38,12 +38,42 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
   const [expandedInfoId, setExpandedInfoId] = useState<string | null>(screens[0]?.id || null);
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [nameVal, setNameVal] = useState('');
+  const [isAutoNaming, setIsAutoNaming] = useState(false);
 
   // Redaction Modal State
   const [redactingScreen, setRedactingScreen] = useState<ScreenItem | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handleAutoNameAll = async () => {
+    setIsAutoNaming(true);
+    try {
+      let apiKey = '';
+      try {
+        const savedSettings = localStorage.getItem('aether_qa_settings');
+        if (savedSettings) {
+          apiKey = JSON.parse(savedSettings).geminiApiKey || '';
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const res = await fetch('/api/screens/auto-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature_id: featureId, api_key: apiKey, force_all: true })
+      });
+
+      if (!res.ok) throw new Error('Auto-naming failed');
+      onRefresh();
+    } catch (err) {
+      console.error('Error auto-naming screens:', err);
+      alert('Error auto-naming screens. Check console for details.');
+    } finally {
+      setIsAutoNaming(false);
+    }
+  };
 
   const stateColors: Record<ScreenStateType, string> = {
     normal: 'bg-clinical-border text-dark-chassis',
@@ -187,17 +217,29 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-txt-muted hidden sm:inline">Sequence:</span>
-          <div className="flex items-center gap-1 overflow-x-auto max-w-md py-0.5 text-[11px] font-mono">
-            {screens.map((s, idx) => (
-              <React.Fragment key={s.id}>
-                <span className="px-2 py-0.5 rounded bg-clinical-warm text-dark-chassis border border-clinical-border font-semibold">
-                  #{s.screen_number}
-                </span>
-                {idx < screens.length - 1 && <span className="text-txt-muted">→</span>}
-              </React.Fragment>
-            ))}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleAutoNameAll}
+            disabled={isAutoNaming || screens.length === 0}
+            className="px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50"
+            title="Automatically analyze and rename all screens with clean semantic AI titles"
+          >
+            <BrainCircuit className={`w-3.5 h-3.5 ${isAutoNaming ? 'animate-spin' : ''}`} />
+            {isAutoNaming ? 'Naming Screens...' : 'Auto-Name All Screens with AI'}
+          </button>
+
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="text-xs text-txt-muted">Sequence:</span>
+            <div className="flex items-center gap-1 overflow-x-auto max-w-md py-0.5 text-[11px] font-mono">
+              {screens.map((s, idx) => (
+                <React.Fragment key={s.id}>
+                  <span className="px-2 py-0.5 rounded bg-clinical-warm text-dark-chassis border border-clinical-border font-semibold">
+                    #{s.screen_number}
+                  </span>
+                  {idx < screens.length - 1 && <span className="text-txt-muted">→</span>}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
       </div>

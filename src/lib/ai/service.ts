@@ -64,6 +64,18 @@ async function callGeminiAPI(prompt: string, imageBase64?: string, apiKeyOverrid
   }
 }
 
+// Filename Sanitizer: Detects device screenshot timestamps and raw paths
+export function isRawDeviceFilename(name?: string | null): boolean {
+  if (!name) return true;
+  const trimmed = name.trim();
+  return (
+    /^(screenshot|img|image|photo|pic|screen)[\s_-]?\d*/i.test(trimmed) ||
+    /\d{8}[\s_-]?\d{6}/.test(trimmed) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(trimmed) ||
+    /^screen\s*\d+$/i.test(trimmed)
+  );
+}
+
 // 1. Screen Analysis
 export async function analyzeScreenWithAI(
   screenNumber: number,
@@ -72,15 +84,18 @@ export async function analyzeScreenWithAI(
   existingName?: string,
   apiKey?: string
 ): Promise<AIScreenAnalysis> {
+  const isRaw = isRawDeviceFilename(existingName);
+  const cleanExistingName = isRaw ? '' : existingName;
+
   const prompt = `You are an expert QA and Mobile/Web UI Analyst.
 Analyze this screenshot from application "${feature.name}" (${feature.platform}), feature "${feature.name}".
 Primary purpose: "${feature.purpose}".
 Screen number in sequence: ${screenNumber}.
-Existing name hint: "${existingName || ''}".
+${cleanExistingName ? `Existing name hint: "${cleanExistingName}".` : 'Analyze the visual header, form inputs, buttons, and state in the image to generate a clean, concise, human-readable semantic title for this screen.'}
 
 Respond in STRICT JSON format matching:
 {
-  "screen_name": "Concise Descriptive Title (e.g. Recipient Selection, Payment Amount, OTP Confirmation)",
+  "screen_name": "Concise Descriptive Title (e.g. Recipient Mobile Number Entry, Airtime Value Selection, Payment Wallet, PIN Verification, Transaction Receipt) - DO NOT USE RAW FILENAMES OR GENERIC SCREEN NUMBERS",
   "screen_type": "Form | Modal | List | Dashboard | Result | Prompt | Details",
   "state": "normal | loading | empty | success | error | warning | validation | authentication | permission | confirmation | exceptional",
   "elements": [
@@ -113,15 +128,42 @@ CRITICAL ANTI-HALLUCINATION RULE: Only document elements visible in the screensh
   }
 
   // Deterministic High-Fidelity Simulation Fallback
-  const featureSlug = feature.name.toLowerCase();
-  let screenName = existingName || `Screen ${screenNumber}`;
+  const featureSlug = `${feature.name} ${feature.purpose || ''}`.toLowerCase();
+  let screenName = cleanExistingName || `Screen ${screenNumber}`;
   let state: AIScreenAnalysis['state'] = 'normal';
   let suggestedAction = `User interacts with Screen ${screenNumber}`;
   let suggestedResponse = `System processes input and navigates forward`;
 
-  if (featureSlug.includes('send') || featureSlug.includes('pay') || featureSlug.includes('transfer')) {
+  if (featureSlug.includes('airtime') || featureSlug.includes('topup') || featureSlug.includes('recharge')) {
     const titles = [
-      'Dashboard & Quick Actions',
+      'Recipient Mobile Number Entry',
+      'Select Network Operator & Airtime Value',
+      'Payment Wallet Selection',
+      'Review Purchase & Fee Breakdown',
+      'PIN / Biometric Authentication',
+      'Airtime Dispense & Success Receipt'
+    ];
+    screenName = titles[(screenNumber - 1) % titles.length] || `Step ${screenNumber}: Airtime Action`;
+    if (screenNumber === 4) state = 'confirmation';
+    if (screenNumber === 5) state = 'authentication';
+    if (screenNumber >= 6) state = 'success';
+
+    suggestedAction = screenNumber === 1 ? 'User enters recipient mobile number'
+      : screenNumber === 2 ? 'User selects network operator (MTN/Telecel/AirtelTigo) and amount'
+      : screenNumber === 3 ? 'User selects payment wallet or card'
+      : screenNumber === 4 ? 'User reviews transaction details and taps "Confirm"'
+      : screenNumber === 5 ? 'User enters 4-digit security PIN'
+      : 'User reviews transaction reference and taps "Done"';
+
+    suggestedResponse = screenNumber === 1 ? 'System validates MSISDN prefix and queries network carrier'
+      : screenNumber === 2 ? 'System validates denomination and minimum recharge limit'
+      : screenNumber === 3 ? 'System calculates processing fees and wallet balance'
+      : screenNumber === 4 ? 'System dispatches authentication prompt'
+      : screenNumber === 5 ? 'System posts recharge request to telecommunications gateway'
+      : 'System displays recharge confirmation receipt and dispatches confirmation SMS';
+  } else if (featureSlug.includes('send') || featureSlug.includes('pay') || featureSlug.includes('transfer')) {
+    const titles = [
+      'Dashboard & Transfer Method',
       'Select Recipient & Network',
       'Enter Amount & Reference',
       'Review & Fee Breakdown',
@@ -146,6 +188,29 @@ CRITICAL ANTI-HALLUCINATION RULE: Only document elements visible in the screensh
       : screenNumber === 4 ? 'System triggers 2FA / security challenge'
       : screenNumber === 5 ? 'System submits payment payload to provider'
       : 'System displays transaction reference ID and confirmation SMS trigger';
+  } else if (featureSlug.includes('food') || featureSlug.includes('delivery') || featureSlug.includes('order')) {
+    const titles = [
+      'Store & Menu Catalog',
+      'Item Details & Customizations',
+      'Cart & Order Summary',
+      'Delivery Address & Contact',
+      'Payment Checkout',
+      'Order Tracking & Live Status'
+    ];
+    screenName = titles[(screenNumber - 1) % titles.length] || `Step ${screenNumber}: Order Step`;
+    if (screenNumber === 4) state = 'confirmation';
+    if (screenNumber === 5) state = 'authentication';
+    if (screenNumber >= 6) state = 'success';
+  } else {
+    const titles = [
+      'Initial Dashboard & Entry',
+      'Input & Selection Form',
+      'Configuration & Details',
+      'Verification & Confirmation',
+      'Authorization & Processing',
+      'Completion & Status Receipt'
+    ];
+    screenName = titles[(screenNumber - 1) % titles.length] || `Step ${screenNumber} View`;
   }
 
   return {
@@ -1044,6 +1109,17 @@ export async function generateExploratoryCharters(
   const confirmedRules = knowledge.filter(k => k.confidence === 'CONFIRMED');
   const unknownGaps = knowledge.filter(k => k.confidence === 'UNKNOWN' || k.confidence === 'INFERRED');
 
+  // Helper to ensure raw device filenames never leak into charters
+  const getSemanticName = (s?: ScreenItem, fallback = 'Initial Screen') => {
+    if (!s) return fallback;
+    if (isRawDeviceFilename(s.name)) {
+      return s.screen_number === 1 ? (feature.entry_point || 'Entry Screen')
+        : s.screen_number === screens.length ? (feature.expected_outcome || 'Success Receipt')
+        : `Step ${s.screen_number} View`;
+    }
+    return s.name;
+  };
+
   const prompt = `You are a Principal QA Architect and Exploratory Testing Specialist.
 Generate 3 to 4 comprehensive Exploratory Testing (ET) Charters for the following mobile/web feature:
 Application / Feature: "${feature.name}" (${feature.platform || 'Mobile'})
@@ -1053,7 +1129,7 @@ Starting Entry Point: "${feature.entry_point || 'App Home'}"
 Expected Outcome: "${feature.expected_outcome || 'Success'}"
 
 Documented Screens & Elements:
-${screens.map(s => `- Screen #${s.screen_number}: "${s.name}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'General controls'}`).join('\n')}
+${screens.map(s => `- Screen #${s.screen_number}: "${getSemanticName(s, `Screen ${s.screen_number}`)}" (State: ${s.state}) | Elements: ${(s.ai_analysis?.elements || []).map(e => e.label).join(', ') || 'General controls'}`).join('\n')}
 
 Confirmed Business Rules:
 ${confirmedRules.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Standard validation rules apply.'}
@@ -1064,7 +1140,7 @@ ${unknownGaps.map(k => `- ${k.title}: ${k.content}`).join('\n') || 'Test boundar
 Format each Charter strictly following this professional Exploratory Testing Charter structure:
 - charter_code: e.g. "${prefix}-01", "${prefix}-02", "${prefix}-03"
 - title: Concise descriptive title (e.g. "Natural Conversation & Response Quality", "Recipient Boundary Limits & Fee Accuracy")
-- mission: "Explore whether [feature component] behaves [attribute] when [situation/context]."
+- mission: "Explore whether [feature component] behaves [attribute] when [situation/context]." (IMPORTANT: Never include raw filenames or screenshot timestamps in the mission)
 - user_persona: Specific realistic user mindset/role (e.g. "${feature.user_types?.[0] || 'Customer'} who has missed or not received a food delivery")
 - starting_condition: Starting state and screen (e.g. "${feature.entry_point || 'App Home'}")
 - expected_outcome: Qualitative and functional standard of acceptable behavior without robotic loops, errors, or data loss
@@ -1130,8 +1206,10 @@ Respond in STRICT JSON format:
   }
 
   // Deterministic High-Fidelity Exploratory Testing Charters Fallback
-  const firstScreenName = screens[0]?.name || 'Initial Screen';
-  const lastScreenName = screens[screens.length - 1]?.name || 'Confirmation Screen';
+  const firstScreenName = getSemanticName(screens[0], feature.entry_point || 'Initial Screen');
+  const secondScreenName = getSemanticName(screens[1], 'Primary Form Entry');
+  const midScreenName = getSemanticName(screens[Math.floor(screens.length / 2)], 'Active Transaction Flow');
+  const lastScreenName = getSemanticName(screens[screens.length - 1], feature.expected_outcome || 'Confirmation Receipt');
   const primaryPersona = feature.user_types?.[0] || 'Customer';
 
   const defaultCharters = [
@@ -1180,7 +1258,7 @@ Respond in STRICT JSON format:
       title: `${feature.name} | Boundary Limits & Input Validation Resilience`,
       mission: `Explore system boundaries, zero/negative limits, whitespace handling, and rapid consecutive taps across all interactive elements.`,
       user_persona: `${primaryPersona} testing fast typing, boundary inputs, or unfamiliar device keyboard configurations.`,
-      starting_condition: `User on primary input form screen (${screens[1]?.name || firstScreenName}).`,
+      starting_condition: `User on primary input form screen (${secondScreenName}).`,
       expected_outcome: `All input fields enforce strict validation, reject invalid payloads with helpful cues, and disable primary action buttons until requirements are satisfied.`,
       scope: 'feature' as const,
       status: 'Draft' as const,
