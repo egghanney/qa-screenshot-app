@@ -27,6 +27,20 @@ export function ScreenComparisonStudio({ screens, feature }: ScreenComparisonStu
   const screenA = screens.find(s => s.id === screenAId) || screens[0];
   const screenB = screens.find(s => s.id === screenBId) || screens[1] || screens[0];
 
+  if (screens.length < 2) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-clinical-bg">
+        <div className="bg-clinical-white p-10 rounded-2xl border border-clinical-border shadow-subtle max-w-md space-y-3">
+          <GitCompare className="w-8 h-8 text-txt-muted mx-auto opacity-40" />
+          <h4 className="text-sm font-bold text-dark-chassis">Minimum 2 Screens Required</h4>
+          <p className="text-xs text-txt-secondary">
+            Upload at least 2 screenshots for this feature to run visual regression diffing and state comparison.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const handleRunComparison = async () => {
     if (!screenA || !screenB) return;
     setIsComparing(true);

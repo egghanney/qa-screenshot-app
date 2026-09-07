@@ -23,6 +23,8 @@ import { Project, Feature } from '@/lib/types';
 interface ApplicationShellProps {
   currentProject: Project | null;
   currentFeature: Feature | null;
+  allFeatures?: Feature[];
+  onSelectFeature?: (id: string) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenWizard: () => void;
@@ -44,6 +46,8 @@ interface ApplicationShellProps {
 export function ApplicationShell({
   currentProject,
   currentFeature,
+  allFeatures = [],
+  onSelectFeature,
   activeTab,
   setActiveTab,
   onOpenWizard,
@@ -93,15 +97,32 @@ export function ApplicationShell({
             <div className="flex items-center gap-1.5 text-xs">
               <span className="px-2.5 py-1 rounded-pill bg-dark-secondary text-txt-muted hover:text-white transition flex items-center gap-1">
                 <Smartphone className="w-3 h-3" />
-                {currentProject?.name || 'Hubtel'}
+                {currentProject?.name || 'Active Project'}
               </span>
               <ChevronRight className="w-3 h-3 text-txt-muted" />
-              <span className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium flex items-center gap-1">
-                {currentFeature?.name || 'Send Money'}
-                <span className="text-[10px] text-neon ml-1 px-1 py-0.2 bg-dark-chassis/60 rounded">
-                  v{currentFeature?.version || '1.0'}
+
+              {allFeatures.length > 1 && onSelectFeature ? (
+                <select
+                  value={currentFeature?.id || ''}
+                  onChange={(e) => onSelectFeature(e.target.value)}
+                  className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium text-xs border border-dark-secondary focus:outline-none focus:border-neon cursor-pointer"
+                >
+                  {allFeatures.map(f => (
+                    <option key={f.id} value={f.id} className="bg-dark-chassis text-white">
+                      {f.name} (v{f.version || '1.0'})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium flex items-center gap-1">
+                  {currentFeature?.name || 'No Active Feature'}
+                  {currentFeature?.version && (
+                    <span className="text-[10px] text-neon ml-1 px-1 py-0.2 bg-dark-chassis/60 rounded font-mono">
+                      v{currentFeature.version}
+                    </span>
+                  )}
                 </span>
-              </span>
+              )}
             </div>
           </div>
 

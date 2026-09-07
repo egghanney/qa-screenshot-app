@@ -317,32 +317,50 @@ export function VisualJourneyCanvas({
       </div>
 
       {/* Main Flow Canvas */}
-      <div className="flex-1 w-full h-full">
-        <ReactFlow
-          nodes={rfNodes}
-          edges={rfEdges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          fitView
-          minZoom={0.2}
-          maxZoom={1.5}
-        >
-          <Background color="#DCDDD6" gap={24} size={1.5} />
-          <Controls 
-            className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card overflow-hidden" 
-          />
-          <MiniMap 
-            className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card !bottom-4 !right-4"
-            nodeColor={(n) => {
-              if (n.type === 'decision') return '#F2F52A';
-              if (n.type === 'error_state') return '#E56B68';
-              if (n.type === 'exit') return '#9BD3B5';
-              return '#1D1E1C';
-            }}
-          />
-        </ReactFlow>
+      <div className="flex-1 w-full h-full relative">
+        {rfNodes.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="bg-clinical-white p-8 rounded-2xl border border-clinical-border shadow-card text-center max-w-sm space-y-3">
+              <GitBranch className="w-8 h-8 text-txt-muted mx-auto opacity-40" />
+              <h4 className="text-sm font-bold text-dark-chassis">No Journey Graph Generated</h4>
+              <p className="text-xs text-txt-secondary">
+                Synthesize your sequenced screens into an interactive directed acyclic graph (DAG) with explicit decision branches and error recovery states.
+              </p>
+              <button
+                onClick={onGenerateJourney}
+                className="px-4 py-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow transition"
+              >
+                Generate Journey Map
+              </button>
+            </div>
+          </div>
+        ) : (
+          <ReactFlow
+            nodes={rfNodes}
+            edges={rfEdges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            fitView
+            minZoom={0.2}
+            maxZoom={1.5}
+          >
+            <Background color="#DCDDD6" gap={24} size={1.5} />
+            <Controls 
+              className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card overflow-hidden" 
+            />
+            <MiniMap 
+              className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card !bottom-4 !right-4"
+              nodeColor={(n) => {
+                if (n.type === 'decision') return '#F2F52A';
+                if (n.type === 'error_state') return '#E56B68';
+                if (n.type === 'exit') return '#9BD3B5';
+                return '#1D1E1C';
+              }}
+            />
+          </ReactFlow>
+        )}
       </div>
 
     </div>

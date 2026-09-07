@@ -32,6 +32,7 @@ import { Sparkles } from 'lucide-react';
 export default function Home() {
   const [project, setProject] = useState<Project | null>(null);
   const [feature, setFeature] = useState<Feature | null>(null);
+  const [allFeatures, setAllFeatures] = useState<Feature[]>([]);
   const [screens, setScreens] = useState<ScreenItem[]>([]);
   const [nodes, setNodes] = useState<JourneyNodeData[]>([]);
   const [edges, setEdges] = useState<JourneyEdgeData[]>([]);
@@ -49,24 +50,52 @@ export default function Home() {
   // Load active feature data from Supabase
   const loadFeatureData = useCallback(async (featureId?: string) => {
     try {
-      // 1. Fetch Project
-      const { data: projData } = await supabase.from('qa_projects').select('*').limit(1).single();
-      if (projData) setProject(projData);
+      // 1. Fetch all Features from DB
+      const { data: allFeats } = await supabase
+        .from('qa_features')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      // 2. Fetch Feature
-      let featQuery = supabase.from('qa_features').select('*');
-      if (featureId) {
-        featQuery = featQuery.eq('id', featureId);
-      }
-      const { data: featData } = await featQuery.limit(1).single();
-      if (!featData) {
+      const featureList = (allFeats || []) as Feature[];
+      setAllFeatures(featureList);
+
+      if (featureList.length === 0) {
+        setFeature(null);
+        setProject(null);
+        setScreens([]);
+        setNodes([]);
+        setEdges([]);
+        setKnowledge([]);
+        setQuestions([]);
+        setCheckpoints([]);
+        setObservations([]);
         setIsLoading(false);
         return;
       }
-      setFeature(featData);
-      const targetFeatureId = featData.id;
 
-      // 3. Fetch Screens
+      // 2. Select target feature
+      let targetFeat = featureList[0];
+      if (featureId) {
+        const found = featureList.find(f => f.id === featureId);
+        if (found) targetFeat = found;
+      }
+      setFeature(targetFeat);
+      const targetFeatureId = targetFeat.id;
+
+      // 3. Fetch Project for this feature
+      if (targetFeat.project_id) {
+        const { data: projData } = await supabase
+          .from('qa_projects')
+          .select('*')
+          .eq('id', targetFeat.project_id)
+          .single();
+        if (projData) setProject(projData);
+      } else {
+        const { data: defaultProj } = await supabase.from('qa_projects').select('*').limit(1).single();
+        if (defaultProj) setProject(defaultProj);
+      }
+
+      // 4. Fetch Screens
       const { data: scrs } = await supabase
         .from('qa_screens')
         .select('*')
@@ -74,21 +103,21 @@ export default function Home() {
         .order('screen_number', { ascending: true });
       setScreens(scrs || []);
 
-      // 4. Fetch Journey Nodes
+      // 5. Fetch Journey Nodes
       const { data: nds } = await supabase
         .from('qa_journey_nodes')
         .select('*')
         .eq('feature_id', targetFeatureId);
       setNodes(nds || []);
 
-      // 5. Fetch Journey Edges
+      // 6. Fetch Journey Edges
       const { data: edgs } = await supabase
         .from('qa_journey_edges')
         .select('*')
         .eq('feature_id', targetFeatureId);
       setEdges(edgs || []);
 
-      // 6. Fetch Knowledge Items
+      // 7. Fetch Knowledge Items
       const { data: knw } = await supabase
         .from('qa_knowledge_items')
         .select('*')
@@ -96,7 +125,7 @@ export default function Home() {
         .order('created_at', { ascending: true });
       setKnowledge(knw || []);
 
-      // 7. Fetch AI Questions
+      // 8. Fetch AI Questions
       const { data: qst } = await supabase
         .from('qa_questions')
         .select('*')
@@ -104,7 +133,7 @@ export default function Home() {
         .order('created_at', { ascending: true });
       setQuestions(qst || []);
 
-      // 8. Fetch QA Checkpoints
+      // 9. Fetch QA Checkpoints
       const { data: cps } = await supabase
         .from('qa_checkpoints')
         .select('*')
@@ -112,7 +141,7 @@ export default function Home() {
         .order('created_at', { ascending: true });
       setCheckpoints(cps || []);
 
-      // 9. Fetch QA Observations
+      // 10. Fetch QA Observations
       const { data: obs } = await supabase
         .from('qa_observations')
         .select('*')
@@ -202,6 +231,15 @@ export default function Home() {
     }
   };
 
+  const handleDeleteFeature = async (featureId: string) => {
+    try {
+      await supabase.from('qa_features').delete().eq('id', featureId);
+      await loadFeatureData();
+    } catch (e) {
+      console.error('Failed to delete feature:', e);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-clinical-bg flex items-center justify-center">
@@ -249,6 +287,8 @@ export default function Home() {
       <ApplicationShell
         currentProject={project}
         currentFeature={feature}
+        allFeatures={allFeatures}
+        onSelectFeature={(id) => loadFeatureData(id)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenWizard={() => setIsWizardOpen(true)}
@@ -274,6 +314,7 @@ export default function Home() {
             questions={questions}
             onNavigateTab={setActiveTab}
             onOpenWizard={() => setIsWizardOpen(true)}
+            onDeleteFeature={() => handleDeleteFeature(feature.id)}
           />
         )}
 

@@ -21,7 +21,8 @@ import {
   X, 
   ChevronDown, 
   ChevronUp,
-  Maximize2
+  Maximize2,
+  Layers
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
@@ -203,9 +204,18 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
 
       {/* Main Screen Cards Grid */}
       <div className="flex-1 overflow-y-auto space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          {screens.map((scr, idx) => {
-            const isExpanded = expandedInfoId === scr.id;
+        {screens.length === 0 ? (
+          <div className="bg-clinical-white rounded-2xl border border-clinical-border p-12 text-center max-w-md mx-auto space-y-3 mt-12 shadow-subtle">
+            <Layers className="w-8 h-8 text-txt-muted mx-auto opacity-40" />
+            <h4 className="text-sm font-bold text-dark-chassis">No Screenshots Uploaded Yet</h4>
+            <p className="text-xs text-txt-secondary">
+              Upload application screenshots in sequence to map this feature&apos;s UI and build journey intelligence.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {screens.map((scr, idx) => {
+              const isExpanded = expandedInfoId === scr.id;
             return (
               <div 
                 key={scr.id}
@@ -410,6 +420,7 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
             );
           })}
         </div>
+        )}
       </div>
 
       {/* PII Redaction / Sensitive Data Masking Modal */}

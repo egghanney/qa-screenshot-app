@@ -21,7 +21,8 @@ import {
   ArrowRight, 
   Smartphone, 
   ShieldCheck,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 
 interface FeatureOverviewViewProps {
@@ -33,6 +34,7 @@ interface FeatureOverviewViewProps {
   questions: AIQuestion[];
   onNavigateTab: (tab: string) => void;
   onOpenWizard: () => void;
+  onDeleteFeature?: () => void;
 }
 
 export function FeatureOverviewView({
@@ -43,7 +45,8 @@ export function FeatureOverviewView({
   observations,
   questions,
   onNavigateTab,
-  onOpenWizard
+  onOpenWizard,
+  onDeleteFeature
 }: FeatureOverviewViewProps) {
   const pendingQuestions = questions.filter(q => q.status === 'Pending').length;
   const confirmedRules = knowledge.filter(k => k.confidence === 'CONFIRMED').length;
@@ -92,6 +95,19 @@ export function FeatureOverviewView({
             <Sparkles className="w-3.5 h-3.5" />
             View 7 Knowledge Pillars
           </button>
+          {onDeleteFeature && (
+            <button
+              onClick={() => {
+                if (confirm(`Are you sure you want to delete feature "${feature.name}" and all its screens, journeys, and checkpoints from the database?`)) {
+                  onDeleteFeature();
+                }
+              }}
+              className="p-2 rounded-pill bg-clinical-warm hover:bg-status-critical/20 text-txt-muted hover:text-status-critical border border-clinical-border transition"
+              title="Delete Feature from Database"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

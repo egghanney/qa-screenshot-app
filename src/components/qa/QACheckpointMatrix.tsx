@@ -214,6 +214,19 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
               </tr>
             </thead>
             <tbody className="divide-y divide-clinical-border/60">
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-txt-secondary">
+                    <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                      <ShieldCheck className="w-8 h-8 text-txt-muted opacity-40" />
+                      <p className="text-xs font-bold text-dark-chassis">No QA Checkpoints Generated</p>
+                      <p className="text-[11px] text-txt-muted">
+                        Click &quot;Synthesize QA Matrix&quot; to auto-generate test procedures and validation scenarios for this feature.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {filtered.map((cp) => (
                 <tr key={cp.id} className="hover:bg-clinical-warm/60 transition group">
                   

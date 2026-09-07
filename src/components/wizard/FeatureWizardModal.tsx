@@ -41,65 +41,29 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Step 1: Feature Context
-  const [featureName, setFeatureName] = useState('Send Money');
-  const [application, setApplication] = useState('Hubtel');
-  const [platform, setPlatform] = useState<PlatformType>('Android');
-  const [description, setDescription] = useState('Enables customers to send money instantly to mobile wallets and bank accounts.');
-  const [purpose, setPurpose] = useState('Allow customers to send money to another user with real-time settlement.');
+  const [featureName, setFeatureName] = useState('');
+  const [application, setApplication] = useState('');
+  const [platform, setPlatform] = useState<PlatformType>('Web');
+  const [description, setDescription] = useState('');
+  const [purpose, setPurpose] = useState('');
   const [userTypes, setUserTypes] = useState<UserRole[]>(['Customer']);
-  const [startingPoint, setStartingPoint] = useState('Home → Payments → Send Money');
-  const [expectedOutcome, setExpectedOutcome] = useState('Transaction settled with receipt ID and confirmation SMS');
+  const [startingPoint, setStartingPoint] = useState('');
+  const [expectedOutcome, setExpectedOutcome] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
 
   // Step 2: Advanced Context
   const [advancedContext, setAdvancedContext] = useState<AdvancedFeatureContext>({
-    known_business_rules: 'Zero duplicate transactions within 60-second window.',
-    known_limitations: 'Cross-network transfers incur 1% surcharge.',
-    known_dependencies: 'Core Banking Ledger, Carrier SMS Gateway',
-    known_apis: 'POST /v2/transfers/initiate',
-    known_notifications: 'Carrier transactional SMS',
-    known_permissions: 'KYC Tier-1 verified status',
-    known_edge_cases: 'Network timeout during carrier handshake'
+    known_business_rules: '',
+    known_limitations: '',
+    known_dependencies: '',
+    known_apis: '',
+    known_notifications: '',
+    known_permissions: '',
+    known_edge_cases: ''
   });
 
-  // Step 3 & 4: Uploaded Screens
-  const [screens, setScreens] = useState<UploadedScreen[]>([
-    {
-      id: 'scr-1',
-      previewUrl: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=800&auto=format&fit=crop&q=60',
-      name: 'Home & Payments Hub',
-      userAction: 'User taps "Send Money"',
-      expectedBehavior: 'System opens recipient selection directory'
-    },
-    {
-      id: 'scr-2',
-      previewUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&auto=format&fit=crop&q=60',
-      name: 'Select Recipient & Network',
-      userAction: 'User selects recipient from contacts',
-      expectedBehavior: 'System validates phone number and network'
-    },
-    {
-      id: 'scr-3',
-      previewUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=800&auto=format&fit=crop&q=60',
-      name: 'Enter Amount & Reference',
-      userAction: 'User enters transfer amount and taps Continue',
-      expectedBehavior: 'System checks balance and calculates fees'
-    },
-    {
-      id: 'scr-4',
-      previewUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=60',
-      name: 'Review & Security Authorization',
-      userAction: 'User enters 4-digit PIN and authorizes',
-      expectedBehavior: 'System submits payload to banking gateway'
-    },
-    {
-      id: 'scr-5',
-      previewUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&auto=format&fit=crop&q=60',
-      name: 'Transaction Receipt & Confirmation',
-      userAction: 'User taps "Done"',
-      expectedBehavior: 'System displays reference ID and triggers confirmation SMS'
-    }
-  ]);
+  // Step 3 & 4: Uploaded Screens (Clean user-uploaded screens only)
+  const [screens, setScreens] = useState<UploadedScreen[]>([]);
 
   // Step 5: Execution Status
   const [isProcessing, setIsProcessing] = useState(false);
@@ -643,7 +607,23 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
               </div>
 
               <div className="space-y-3">
-                {screens.map((scr, idx) => (
+                {screens.length === 0 ? (
+                  <div className="p-8 bg-clinical-white rounded-2xl border border-clinical-border text-center space-y-3">
+                    <ImageIcon className="w-8 h-8 text-txt-muted mx-auto opacity-40" />
+                    <p className="text-sm font-bold text-dark-chassis">No Screenshots Uploaded</p>
+                    <p className="text-xs text-txt-secondary">
+                      Please go back to Step 3 and upload at least one screenshot for this journey.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setStep(3)}
+                      className="px-4 py-2 rounded-pill bg-dark-chassis text-white text-xs font-semibold hover:bg-dark-secondary transition"
+                    >
+                      Go to Step 3 (Upload)
+                    </button>
+                  </div>
+                ) : (
+                  screens.map((scr, idx) => (
                   <div key={scr.id} className="p-3 bg-clinical-white rounded-2xl border border-clinical-border shadow-subtle flex flex-col sm:flex-row items-start sm:items-center gap-3">
                     
                     {/* Screen Thumbnail */}
@@ -734,7 +714,7 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
                       </button>
                     </div>
                   </div>
-                ))}
+                )))}
               </div>
             </div>
           )}
@@ -809,7 +789,12 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
               <button
                 type="button"
                 onClick={() => setStep((Math.min(5, step + 1)) as any)}
-                className="px-5 py-2 rounded-pill text-xs font-semibold bg-dark-chassis text-white hover:bg-dark-secondary flex items-center gap-1.5 transition shadow-sm"
+                disabled={
+                  (step === 1 && (!featureName.trim() || !application.trim() || !description.trim())) ||
+                  (step === 3 && screens.length === 0) ||
+                  (step === 4 && screens.length === 0)
+                }
+                className="px-5 py-2 rounded-pill text-xs font-semibold bg-dark-chassis text-white hover:bg-dark-secondary disabled:opacity-40 flex items-center gap-1.5 transition shadow-sm"
               >
                 Next Step
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -818,7 +803,7 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated }: Featur
               <button
                 type="button"
                 onClick={executePipeline}
-                disabled={isProcessing}
+                disabled={isProcessing || screens.length === 0 || !featureName.trim()}
                 className="px-6 py-2.5 rounded-pill text-xs font-bold bg-neon hover:bg-neon-bright text-dark-chassis flex items-center gap-2 transition shadow-md disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4" />

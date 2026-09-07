@@ -21,7 +21,8 @@ import {
   Check, 
   X,
   ShieldCheck,
-  Flag
+  Flag,
+  BookOpen
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
@@ -249,6 +250,19 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
               </tr>
             </thead>
             <tbody className="divide-y divide-clinical-border/60">
+              {filteredItems.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-txt-secondary">
+                    <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                      <BookOpen className="w-8 h-8 text-txt-muted opacity-40" />
+                      <p className="text-xs font-bold text-dark-chassis">No Knowledge Items Documented</p>
+                      <p className="text-[11px] text-txt-muted">
+                        Generate the 7 core pillars from your sequenced screens or click &quot;Add Knowledge Item&quot; to manually define verified rules.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {filteredItems.map((item) => (
                 <tr key={item.id} className="hover:bg-clinical-warm/60 transition group">
                   
