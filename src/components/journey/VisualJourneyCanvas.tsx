@@ -112,6 +112,8 @@ function DecisionNodeComponent({ data }: { data: any }) {
 
       <Handle type="source" position={Position.Right} id="success" className="!w-2.5 !h-2.5 !bg-status-positive" />
       <Handle type="source" position={Position.Bottom} id="failure" className="!w-2.5 !h-2.5 !bg-status-critical" />
+      {/* Default source handle fallback */}
+      <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5 !opacity-0" />
     </div>
   );
 }
@@ -120,6 +122,7 @@ function DecisionNodeComponent({ data }: { data: any }) {
 function ErrorStateNodeComponent({ data }: { data: any }) {
   return (
     <div className="w-56 bg-status-critical/10 rounded-2xl border-2 border-status-critical shadow-card p-3 text-xs">
+      <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-status-critical" />
       <Handle type="target" position={Position.Top} className="!w-2.5 !h-2.5 !bg-status-critical" />
       
       <div className="flex items-center gap-1.5 text-status-critical font-bold text-[11px] mb-1">
@@ -283,7 +286,7 @@ export function VisualJourneyCanvas({
   }, [rfNodes, rfEdges, setRfNodes]);
 
   return (
-    <div className="flex-1 h-full w-full relative bg-clinical-warm flex flex-col">
+    <div className="w-full h-full min-h-[600px] flex-1 relative bg-clinical-warm flex flex-col">
       
       {/* Canvas Top Bar */}
       <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
@@ -317,7 +320,7 @@ export function VisualJourneyCanvas({
       </div>
 
       {/* Main Flow Canvas */}
-      <div className="flex-1 w-full h-full relative">
+      <div className="w-full h-full min-h-[600px] flex-1 relative">
         {rfNodes.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="bg-clinical-white p-8 rounded-2xl border border-clinical-border shadow-card text-center max-w-sm space-y-3">
@@ -335,31 +338,35 @@ export function VisualJourneyCanvas({
             </div>
           </div>
         ) : (
-          <ReactFlow
-            nodes={rfNodes}
-            edges={rfEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            nodeTypes={nodeTypes}
-            fitView
-            minZoom={0.2}
-            maxZoom={1.5}
-          >
-            <Background color="#DCDDD6" gap={24} size={1.5} />
-            <Controls 
-              className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card overflow-hidden" 
-            />
-            <MiniMap 
-              className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card !bottom-4 !right-4"
-              nodeColor={(n) => {
-                if (n.type === 'decision') return '#F2F52A';
-                if (n.type === 'error_state') return '#E56B68';
-                if (n.type === 'exit') return '#9BD3B5';
-                return '#1D1E1C';
-              }}
-            />
-          </ReactFlow>
+          <div className="absolute inset-0 w-full h-full">
+            <ReactFlow
+              nodes={rfNodes}
+              edges={rfEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              nodeTypes={nodeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.15 }}
+              minZoom={0.05}
+              maxZoom={1.5}
+              style={{ width: '100%', height: '100%' }}
+            >
+              <Background color="#DCDDD6" gap={24} size={1.5} />
+              <Controls 
+                className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card overflow-hidden" 
+              />
+              <MiniMap 
+                className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card !bottom-4 !right-4"
+                nodeColor={(n) => {
+                  if (n.type === 'decision') return '#F2F52A';
+                  if (n.type === 'error_state') return '#E56B68';
+                  if (n.type === 'exit') return '#9BD3B5';
+                  return '#1D1E1C';
+                }}
+              />
+            </ReactFlow>
+          </div>
         )}
       </div>
 

@@ -73,9 +73,9 @@ export function ApplicationShell({
   ];
 
   return (
-    <div className="min-h-screen p-2 sm:p-4 bg-clinical-bg flex flex-col justify-between">
+    <div className="min-h-screen h-screen max-h-screen p-2 sm:p-4 bg-clinical-bg flex flex-col justify-between overflow-hidden">
       {/* Outer Charcoal Framing with Rounded 32px */}
-      <div className="w-full bg-dark-chassis rounded-[32px] p-2 sm:p-3 shadow-2xl flex flex-col flex-1 border border-dark-secondary/60">
+      <div className="w-full bg-dark-chassis rounded-[32px] p-2 sm:p-3 shadow-2xl flex flex-col flex-1 border border-dark-secondary/60 min-h-0 overflow-hidden">
         
         {/* Top Header Bar */}
         <header className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-white border-b border-dark-secondary/80">
@@ -209,7 +209,7 @@ export function ApplicationShell({
         </nav>
 
         {/* Inner Clinical Workspace Surface (Warm Neutral Ivory #F4F3EE) */}
-        <main className="flex-1 bg-clinical-warm rounded-[24px] overflow-hidden flex flex-col relative m-1 border border-clinical-border">
+        <main className="flex-1 bg-clinical-warm rounded-[24px] overflow-hidden flex flex-col relative m-1 border border-clinical-border min-h-0">
           {children}
         </main>
       </div>
