@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPgPool } from '@/lib/supabase/serverDb';
+import { supabase } from '@/lib/supabase/client';
 
 const PRIMARY_ADMIN_EMAIL = 'egghanney@gmail.com';
 
@@ -47,11 +48,6 @@ export async function POST(req: Request) {
 
     if (checkRes.rows.length === 0) {
       // 1. Create primary admin user via Supabase Auth
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: PRIMARY_ADMIN_EMAIL,
         password,
