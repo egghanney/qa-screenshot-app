@@ -86,20 +86,20 @@ export function ApplicationShell({
   ];
 
   return (
-    <div className="min-h-screen h-screen max-h-screen p-2 sm:p-4 bg-qa-bg flex flex-col overflow-hidden">
-      {/* Outer Charcoal Framing with Rounded 32px */}
-      <div className="w-full bg-dark-chassis rounded-[32px] p-2 sm:p-3 shadow-2xl flex flex-col flex-1 border border-dark-secondary/60 min-h-0 overflow-hidden">
+    <div className="min-h-screen h-screen max-h-screen p-0 sm:p-2 md:p-4 bg-qa-bg flex flex-col overflow-hidden">
+      {/* Outer Charcoal Framing */}
+      <div className="w-full bg-dark-chassis rounded-none sm:rounded-[32px] p-1.5 sm:p-3 shadow-2xl flex flex-col flex-1 border-0 sm:border border-dark-secondary/60 min-h-0 overflow-hidden">
         
         {/* Top Header Bar */}
-        <header className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-white border-b border-dark-secondary/80">
+        <header className="px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 text-white border-b border-dark-secondary/80 shrink-0">
           
           {/* Left: Brand + Breadcrumbs */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-neon flex items-center justify-center text-dark-chassis font-bold text-xs shadow-sm shadow-neon/40">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-neon flex items-center justify-center text-dark-chassis font-bold text-xs shadow-sm shadow-neon/40">
                 QA
               </div>
-              <span className="font-semibold tracking-tight text-sm text-white">
+              <span className="font-semibold tracking-tight text-xs sm:text-sm text-white hidden xs:inline">
                 AETHER <span className="text-neon">//</span> QA
               </span>
             </div>
@@ -107,20 +107,20 @@ export function ApplicationShell({
             {onOpenAppsHub && (
               <button
                 onClick={onOpenAppsHub}
-                className="px-2.5 py-1 rounded-pill bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white font-medium text-xs border border-dark-tertiary flex items-center gap-1 transition active:scale-95"
+                className="px-2 sm:px-2.5 py-1 rounded-pill bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white font-medium text-xs border border-dark-tertiary flex items-center gap-1 transition active:scale-95 shrink-0"
                 title="Return to Apps Hub"
               >
                 <ChevronLeft className="w-3.5 h-3.5 text-neon" />
-                <span>Apps Hub</span>
+                <span className="hidden sm:inline">Apps Hub</span>
               </button>
             )}
 
-            <div className="h-4 w-px bg-dark-tertiary hidden sm:block" />
+            <div className="h-4 w-px bg-dark-tertiary hidden md:block shrink-0" />
 
             {/* Project / Feature Breadcrumbs */}
-            <div className="flex items-center gap-1.5 text-xs">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-xs min-w-0">
               {allProjects && allProjects.length > 0 && onSelectProject ? (
-                <div className="relative flex items-center">
+                <div className="relative flex items-center max-w-[100px] xs:max-w-[130px] sm:max-w-[180px]">
                   <select
                     value={selectedProjectId || currentProject?.id || 'all'}
                     onChange={(e) => {
@@ -130,34 +130,34 @@ export function ApplicationShell({
                         onSelectProject(e.target.value);
                       }
                     }}
-                    className="px-2.5 py-1 rounded-pill bg-dark-secondary text-white font-medium text-xs border border-dark-tertiary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-6 hover:bg-dark-tertiary transition"
+                    className="w-full px-2 sm:px-2.5 py-1 rounded-pill bg-dark-secondary text-white font-medium text-xs border border-dark-tertiary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-5 sm:pr-6 hover:bg-dark-tertiary transition truncate"
                   >
                     <option value="hub" className="bg-dark-chassis text-neon font-semibold">
-                      🏠 All Applications (Apps Hub)
+                      🏠 All Apps
                     </option>
                     {allProjects.map(p => (
                       <option key={p.id} value={p.id} className="bg-dark-chassis text-white">
-                        📱 {p.name} ({p.platform || 'General'})
+                        📱 {p.name}
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-2 pointer-events-none" />
+                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-1.5 sm:right-2 pointer-events-none" />
                 </div>
               ) : (
-                <span className="px-2.5 py-1 rounded-pill bg-dark-secondary text-txt-muted hover:text-white transition flex items-center gap-1">
-                  <Smartphone className="w-3 h-3" />
-                  {currentProject?.name || 'Active Project'}
+                <span className="px-2 sm:px-2.5 py-1 rounded-pill bg-dark-secondary text-txt-muted hover:text-white transition flex items-center gap-1 max-w-[110px] truncate">
+                  <Smartphone className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{currentProject?.name || 'Project'}</span>
                 </span>
               )}
 
-              <ChevronRight className="w-3 h-3 text-txt-muted" />
+              <ChevronRight className="w-3 h-3 text-txt-muted shrink-0" />
 
               {allFeatures.length > 1 && onSelectFeature ? (
-                <div className="relative flex items-center">
+                <div className="relative flex items-center max-w-[100px] xs:max-w-[130px] sm:max-w-[180px]">
                   <select
                     value={currentFeature?.id || ''}
                     onChange={(e) => onSelectFeature(e.target.value)}
-                    className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium text-xs border border-dark-secondary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-6 hover:border-dark-tertiary transition"
+                    className="w-full px-2 sm:px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium text-xs border border-dark-secondary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-5 sm:pr-6 hover:border-dark-tertiary transition truncate"
                   >
                     {selectedProjectId === 'all' && allProjects && allProjects.length > 1 ? (
                       allProjects.map(proj => {
@@ -167,7 +167,7 @@ export function ApplicationShell({
                           <optgroup key={proj.id} label={`${proj.name} (${proj.platform})`} className="bg-dark-chassis text-txt-muted font-bold">
                             {feats.map(f => (
                               <option key={f.id} value={f.id} className="bg-dark-soft_black text-white font-normal">
-                                {f.name} (v{f.version || '1.0'})
+                                {f.name}
                               </option>
                             ))}
                           </optgroup>
@@ -176,32 +176,27 @@ export function ApplicationShell({
                     ) : (
                       allFeatures.map(f => (
                         <option key={f.id} value={f.id} className="bg-dark-chassis text-white">
-                          {f.name} (v{f.version || '1.0'})
+                          {f.name}
                         </option>
                       ))
                     )}
                   </select>
-                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-2 pointer-events-none" />
+                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-1.5 sm:right-2 pointer-events-none" />
                 </div>
               ) : (
-                <span className="px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium flex items-center gap-1">
-                  {currentFeature?.name || 'No Active Feature'}
-                  {currentFeature?.version && (
-                    <span className="text-[10px] text-neon ml-1 px-1 py-0.2 bg-dark-chassis/60 rounded font-mono">
-                      v{currentFeature.version}
-                    </span>
-                  )}
+                <span className="px-2 sm:px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium flex items-center gap-1 max-w-[110px] truncate">
+                  <span className="truncate">{currentFeature?.name || 'No Feature'}</span>
                 </span>
               )}
             </div>
           </div>
 
-          {/* Center: Search Pill */}
-          <div className="flex-1 max-w-xs relative hidden md:block">
+          {/* Center: Search Pill (hidden on tablet & mobile) */}
+          <div className="flex-1 max-w-xs relative hidden lg:block">
             <Search className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-txt-muted" />
             <input
               type="text"
-              placeholder="Search features, rules, checkpoints... (⌘K)"
+              placeholder="Search features, rules... (⌘K)"
               value={searchVal}
               onChange={(e) => {
                 setSearchVal(e.target.value);
@@ -212,22 +207,24 @@ export function ApplicationShell({
           </div>
 
           {/* Right: Copilot Pill + Settings + Create Feature CTA */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={onToggleChat}
-              className={`px-3 py-1.5 rounded-pill text-xs font-medium flex items-center gap-1.5 transition border ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-pill text-xs font-medium flex items-center gap-1.5 transition border ${
                 isChatOpen 
                   ? 'bg-neon text-dark-chassis border-neon shadow-sm shadow-neon/30 font-semibold' 
                   : 'bg-dark-secondary text-white border-dark-tertiary hover:bg-dark-tertiary'
               }`}
+              title="Ask AI QA Copilot"
             >
-              <BrainCircuit className="w-3.5 h-3.5" />
-              Ask AI Copilot
+              <BrainCircuit className="w-3.5 h-3.5 text-neon" />
+              <span className="hidden md:inline">Ask AI Copilot</span>
+              <span className="hidden xs:inline md:hidden">Copilot</span>
             </button>
 
             <button
               onClick={onOpenSettings}
-              className="w-8 h-8 rounded-full bg-dark-secondary border border-dark-tertiary flex items-center justify-center text-txt-muted hover:text-white transition"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary border border-dark-tertiary flex items-center justify-center text-txt-muted hover:text-white transition"
               title="System Settings & API Keys"
             >
               <Settings className="w-3.5 h-3.5" />
@@ -235,16 +232,17 @@ export function ApplicationShell({
 
             <button
               onClick={onOpenWizard}
-              className="px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-sm active:scale-95"
+              className="px-2.5 sm:px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-sm active:scale-95"
+              title="Create New Feature"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              New Feature
+              <span className="hidden sm:inline">New Feature</span>
             </button>
           </div>
         </header>
 
         {/* Secondary Navigation Pill Bar */}
-        <nav className="px-4 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-dark-secondary/60 bg-dark-chassis">
+        <nav className="px-3 sm:px-4 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-dark-secondary/60 bg-dark-chassis shrink-0">
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -252,7 +250,7 @@ export function ApplicationShell({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`px-3.5 py-1.5 rounded-pill text-xs font-medium flex items-center gap-2 whitespace-nowrap shrink-0 transition-all ${
+                className={`px-3 sm:px-3.5 py-1.5 rounded-pill text-xs font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 transition-all ${
                   isActive
                     ? 'bg-clinical-warm text-dark-chassis font-semibold shadow-sm'
                     : 'text-txt-muted hover:text-white hover:bg-dark-secondary'
@@ -278,8 +276,8 @@ export function ApplicationShell({
           })}
         </nav>
 
-        {/* Inner Clinical Workspace Surface (Warm Neutral Ivory #F4F3EE) */}
-        <main className="flex-1 bg-clinical-warm rounded-[24px] overflow-hidden flex flex-col relative m-1 border border-clinical-border min-h-0">
+        {/* Inner Clinical Workspace Surface */}
+        <main className="flex-1 bg-clinical-warm rounded-none sm:rounded-[24px] overflow-hidden flex flex-col relative m-0 sm:m-1 border-0 sm:border border-clinical-border min-h-0">
           {children}
         </main>
       </div>

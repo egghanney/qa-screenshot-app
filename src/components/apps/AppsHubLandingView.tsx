@@ -250,50 +250,51 @@ export function AppsHubLandingView({
   return (
     <div className="min-h-screen bg-qa-bg text-txt-primary flex flex-col">
       {/* Studio Header Bar */}
-      <header className="bg-dark-chassis text-white border-b border-dark-secondary px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-neon text-dark-chassis flex items-center justify-center font-bold text-xs shadow-sm shadow-neon/40">
+      <header className="bg-dark-chassis text-white border-b border-dark-secondary px-3.5 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-30 shadow-md">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neon text-dark-chassis flex items-center justify-center font-bold text-xs shadow-sm shadow-neon/40 shrink-0">
             QA
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-bold tracking-tight text-base text-white">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h1 className="font-bold tracking-tight text-sm sm:text-base text-white truncate">
                 AETHER <span className="text-neon">//</span> QA TEST STUDIO
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-dark-secondary text-txt-muted border border-dark-tertiary">
+              <span className="hidden xs:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-dark-secondary text-txt-muted border border-dark-tertiary">
                 APPS HUB
               </span>
             </div>
-            <p className="text-[11px] text-txt-muted">
+            <p className="text-[10px] sm:text-[11px] text-txt-muted truncate hidden sm:block">
               Select an application workspace to view screen flows, journeys, and run test charters
             </p>
           </div>
         </div>
 
         {/* Global Action Tools */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              className="w-8 h-8 rounded-full bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white flex items-center justify-center transition border border-dark-tertiary"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white flex items-center justify-center transition border border-dark-tertiary"
               title="Settings & API Keys"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           )}
 
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition shadow-card flex items-center gap-2 active:scale-95"
+            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition shadow-card flex items-center gap-1.5 sm:gap-2 active:scale-95"
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>New Application</span>
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+            <span className="hidden xs:inline">New Application</span>
+            <span className="xs:hidden">New App</span>
           </button>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8">
         {/* KPI Metric Ribbon */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-4 rounded-2xl bg-qa-white border border-qa-border shadow-xs space-y-1">
@@ -465,101 +466,170 @@ export function AppsHubLandingView({
               </div>
             ) : viewMode === 'list' ? (
               /* LIST VIEW MODE */
-              <div className="bg-qa-white rounded-2xl border border-qa-border shadow-xs overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-qa-warm/70 border-b border-qa-border text-txt-muted uppercase font-mono text-[10px]">
-                      <th className="py-3 px-5">Application</th>
-                      <th className="py-3 px-4">Platform</th>
-                      <th className="py-3 px-4">Mapped Features</th>
-                      <th className="py-3 px-4">Exploratory Charters</th>
-                      <th className="py-3 px-4">Test Scenarios</th>
-                      <th className="py-3 px-5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-qa-border/60">
-                    {filteredProjects.map((proj) => {
-                      const projFeats = featuresByProject[proj.id] || [];
-                      const cCount = chartersCountByProject[proj.id] || 0;
-                      const sCount = scenariosCountByProject[proj.id] || 0;
+              <div className="space-y-3">
+                {/* Desktop Table */}
+                <div className="hidden md:block bg-qa-white rounded-2xl border border-qa-border shadow-xs overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-qa-warm/70 border-b border-qa-border text-txt-muted uppercase font-mono text-[10px]">
+                        <th className="py-3 px-5">Application</th>
+                        <th className="py-3 px-4">Platform</th>
+                        <th className="py-3 px-4">Mapped Features</th>
+                        <th className="py-3 px-4">Exploratory Charters</th>
+                        <th className="py-3 px-4">Test Scenarios</th>
+                        <th className="py-3 px-5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-qa-border/60">
+                      {filteredProjects.map((proj) => {
+                        const projFeats = featuresByProject[proj.id] || [];
+                        const cCount = chartersCountByProject[proj.id] || 0;
+                        const sCount = scenariosCountByProject[proj.id] || 0;
 
-                      return (
-                        <tr 
-                          key={proj.id}
-                          onClick={() => onSelectProject(proj.id)}
-                          className="hover:bg-qa-warm/50 cursor-pointer transition-colors group"
-                        >
-                          <td className="py-4 px-5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-xl bg-dark-chassis text-neon flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
-                                {proj.name.substring(0, 2).toUpperCase()}
+                        return (
+                          <tr 
+                            key={proj.id}
+                            onClick={() => onSelectProject(proj.id)}
+                            className="hover:bg-qa-warm/50 cursor-pointer transition-colors group"
+                          >
+                            <td className="py-4 px-5">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-dark-chassis text-neon flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+                                  {proj.name.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-dark-chassis text-sm block group-hover:text-neon-dark transition-colors">
+                                    {proj.name}
+                                  </span>
+                                  <span className="text-[11px] text-txt-secondary line-clamp-1 max-w-sm">
+                                    {proj.description || 'Application workspace ready for exploratory testing'}
+                                  </span>
+                                </div>
                               </div>
-                              <div>
-                                <span className="font-bold text-dark-chassis text-sm block group-hover:text-neon-dark transition-colors">
-                                  {proj.name}
-                                </span>
-                                <span className="text-[11px] text-txt-secondary line-clamp-1 max-w-sm">
-                                  {proj.description || 'Application workspace ready for exploratory testing'}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="py-4 px-4">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono bg-qa-surface border border-qa-border text-slate-800">
-                              {getPlatformIcon(proj.platform)}
-                              <span>{proj.platform || 'General'}</span>
-                            </span>
-                          </td>
-
-                          <td className="py-4 px-4">
-                            <span className="font-bold text-dark-chassis">{projFeats.length}</span>
-                            <span className="text-[11px] text-txt-muted ml-1">flows</span>
-                          </td>
-
-                          <td className="py-4 px-4">
-                            {cCount > 0 ? (
-                              <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-dark-chassis text-neon">
-                                {cCount} Charters
+                            <td className="py-4 px-4">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono bg-qa-surface border border-qa-border text-slate-800">
+                                {getPlatformIcon(proj.platform)}
+                                <span>{proj.platform || 'General'}</span>
                               </span>
-                            ) : (
-                              <span className="text-[11px] text-txt-muted italic">None yet</span>
-                            )}
-                          </td>
+                            </td>
 
-                          <td className="py-4 px-4 font-mono text-slate-700">
-                            {sCount > 0 ? `${sCount} scenarios` : '—'}
-                          </td>
+                            <td className="py-4 px-4">
+                              <span className="font-bold text-dark-chassis">{projFeats.length}</span>
+                              <span className="text-[11px] text-txt-muted ml-1">flows</span>
+                            </td>
 
-                          <td className="py-4 px-5 text-right">
-                            <div className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                              {onRunAppCharters && (
+                            <td className="py-4 px-4">
+                              {cCount > 0 ? (
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-dark-chassis text-neon">
+                                  {cCount} Charters
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-txt-muted italic">None yet</span>
+                              )}
+                            </td>
+
+                            <td className="py-4 px-4 font-mono text-slate-700">
+                              {sCount > 0 ? `${sCount} scenarios` : '—'}
+                            </td>
+
+                            <td className="py-4 px-5 text-right">
+                              <div className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                {onRunAppCharters && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onRunAppCharters(proj)}
+                                    className="px-3 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-neon text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95"
+                                    title="Run full suite in Full-Page Studio"
+                                  >
+                                    <Play className="w-3 h-3 fill-neon" />
+                                    <span>Run Suite</span>
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
-                                  onClick={() => onRunAppCharters(proj)}
-                                  className="px-3 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-neon text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95"
-                                  title="Run full suite in Full-Page Studio"
+                                  onClick={() => onSelectProject(proj.id)}
+                                  className="px-3 py-1.5 rounded-pill bg-qa-warm hover:bg-neon hover:text-dark-chassis text-dark-chassis text-xs font-bold transition flex items-center gap-1 border border-qa-border"
                                 >
-                                  <Play className="w-3 h-3 fill-neon" />
-                                  <span>Run Suite</span>
+                                  <span>Open</span>
+                                  <ArrowRight className="w-3 h-3" />
                                 </button>
-                              )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                              <button
-                                type="button"
-                                onClick={() => onSelectProject(proj.id)}
-                                className="px-3 py-1.5 rounded-pill bg-qa-warm hover:bg-neon hover:text-dark-chassis text-dark-chassis text-xs font-bold transition flex items-center gap-1 border border-qa-border"
-                              >
-                                <span>Open</span>
-                                <ArrowRight className="w-3 h-3" />
-                              </button>
+                {/* Mobile Application Cards for Small Screens */}
+                <div className="md:hidden space-y-3">
+                  {filteredProjects.map((proj) => {
+                    const projFeats = featuresByProject[proj.id] || [];
+                    const cCount = chartersCountByProject[proj.id] || 0;
+                    const sCount = scenariosCountByProject[proj.id] || 0;
+
+                    return (
+                      <div
+                        key={proj.id}
+                        onClick={() => onSelectProject(proj.id)}
+                        className="p-4 rounded-2xl bg-qa-white border border-qa-border hover:border-dark-chassis/40 shadow-xs space-y-3 cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-dark-chassis text-neon flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+                              {proj.name.substring(0, 2).toUpperCase()}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            <div className="min-w-0">
+                              <span className="font-bold text-dark-chassis text-sm block truncate">
+                                {proj.name}
+                              </span>
+                              <span className="text-[11px] text-txt-secondary line-clamp-1">
+                                {proj.description || 'Application workspace ready for exploratory testing'}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-qa-surface border border-qa-border text-slate-800 shrink-0">
+                            {getPlatformIcon(proj.platform)}
+                            <span>{proj.platform || 'General'}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs border-t border-qa-border/60 pt-2 text-txt-secondary font-mono">
+                          <span>{projFeats.length} flows</span>
+                          <span>•</span>
+                          <span>{cCount} charters</span>
+                          <span>•</span>
+                          <span>{sCount} scenarios</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                          {onRunAppCharters && (
+                            <button
+                              type="button"
+                              onClick={() => onRunAppCharters(proj)}
+                              className="flex-1 py-2 rounded-pill bg-dark-chassis hover:bg-black text-neon text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
+                            >
+                              <Play className="w-3 h-3 fill-neon" />
+                              <span>Run Suite</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onSelectProject(proj.id)}
+                            className="flex-1 py-2 rounded-pill bg-qa-warm text-dark-chassis text-xs font-bold transition flex items-center justify-center gap-1 border border-qa-border"
+                          >
+                            <span>Open</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               /* GRID VIEW MODE */
@@ -654,16 +724,16 @@ export function AppsHubLandingView({
           <div className="space-y-4">
             {/* Product Filter Bar */}
             {dbRuns.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-qa-white rounded-2xl border border-qa-border shadow-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold text-txt-secondary flex items-center gap-1.5 mr-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 p-3 sm:p-3.5 bg-qa-white rounded-2xl border border-qa-border shadow-xs">
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0 max-w-full">
+                  <span className="text-xs font-semibold text-txt-secondary flex items-center gap-1 mr-1 shrink-0">
                     <Filter className="w-3.5 h-3.5 text-txt-muted" />
                     Product:
                   </span>
                   <button
                     type="button"
                     onClick={() => setSelectedRunProductFilter('All')}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition shrink-0 ${
                       selectedRunProductFilter === 'All'
                         ? 'bg-dark-chassis text-neon shadow-xs'
                         : 'bg-qa-warm/60 text-txt-secondary hover:text-dark-chassis hover:bg-qa-warm'
@@ -679,7 +749,7 @@ export function AppsHubLandingView({
                         key={proj.id}
                         type="button"
                         onClick={() => setSelectedRunProductFilter(proj.id)}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 ${
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
                           isSelected
                             ? 'bg-dark-chassis text-neon shadow-xs'
                             : 'bg-qa-warm/60 text-txt-secondary hover:text-dark-chassis hover:bg-qa-warm'
@@ -696,7 +766,7 @@ export function AppsHubLandingView({
                   })}
                 </div>
 
-                <div className="text-xs text-txt-muted font-mono">
+                <div className="text-[11px] sm:text-xs text-txt-muted font-mono self-end sm:self-auto">
                   Showing {filteredDbRuns.length} of {dbRuns.length} runs
                 </div>
               </div>
@@ -737,10 +807,10 @@ export function AppsHubLandingView({
                   return (
                     <div
                       key={run.id}
-                      className="p-5 rounded-3xl bg-qa-white border border-qa-border hover:border-dark-chassis/40 shadow-xs hover:shadow-card transition flex flex-wrap items-center justify-between gap-4"
+                      className="p-4 sm:p-5 rounded-3xl bg-qa-white border border-qa-border hover:border-dark-chassis/40 shadow-xs hover:shadow-card transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
                     >
                       <div className="space-y-1.5">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-bold text-sm text-dark-chassis">{run.name}</span>
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                             isCompleted 
@@ -756,7 +826,7 @@ export function AppsHubLandingView({
                         </div>
 
                         {targetProj && (
-                          <div className="text-xs text-txt-secondary flex items-center gap-2">
+                          <div className="text-xs text-txt-secondary flex flex-wrap items-center gap-1.5 sm:gap-2">
                             <span>Product: <strong className="text-dark-chassis">{targetProj.name}</strong></span>
                             {featureNames.length > 0 && <span>•</span>}
                             {featureNames.length > 0 && (
@@ -770,7 +840,7 @@ export function AppsHubLandingView({
                           </p>
                         )}
 
-                        <div className="flex items-center gap-3 text-xs font-mono pt-1">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-mono pt-1">
                           <span className="text-emerald-700 font-bold">{run.passed_count} Passed ({run.pass_rate}%)</span>
                           <span>•</span>
                           <span className="text-rose-700 font-bold">{run.failed_count} Failed</span>
@@ -781,12 +851,12 @@ export function AppsHubLandingView({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                         <button
                           type="button"
                           onClick={() => handleDownloadRunReport(run)}
                           disabled={downloadingRunId === run.id}
-                          className="px-3.5 py-2 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis border border-slate-300 text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs active:scale-95 disabled:opacity-60 cursor-pointer"
+                          className="flex-1 sm:flex-initial px-3.5 py-2 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis border border-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-2xs active:scale-95 disabled:opacity-60 cursor-pointer min-h-[36px]"
                           title="Download PDF Defect Report"
                         >
                           <FileDown className={`w-3.5 h-3.5 text-rose-600 ${downloadingRunId === run.id ? 'animate-bounce' : ''}`} />
@@ -797,7 +867,7 @@ export function AppsHubLandingView({
                           <button
                             type="button"
                             onClick={() => onResumeRun(run)}
-                            className="px-4 py-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs active:scale-95"
+                            className="flex-1 sm:flex-initial px-4 py-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-2xs active:scale-95 min-h-[36px]"
                           >
                             <Play className="w-3.5 h-3.5 text-neon fill-neon" />
                             <span>{isCompleted ? 'View Run' : 'Resume Run'}</span>
@@ -806,7 +876,7 @@ export function AppsHubLandingView({
                           <button
                             type="button"
                             onClick={() => onRunAppCharters(targetProj)}
-                            className="px-4 py-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs active:scale-95"
+                            className="flex-1 sm:flex-initial px-4 py-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-2xs active:scale-95 min-h-[36px]"
                           >
                             <Play className="w-3.5 h-3.5 text-neon fill-neon" />
                             <span>Open in Studio</span>
@@ -815,7 +885,7 @@ export function AppsHubLandingView({
 
                         <button
                           onClick={() => handleDeleteRun(run.id)}
-                          className="p-2 rounded-full hover:bg-rose-50 text-txt-muted hover:text-rose-600 transition"
+                          className="p-2 rounded-full hover:bg-rose-50 text-txt-muted hover:text-rose-600 transition shrink-0"
                           title="Delete test run record from database"
                         >
                           <Trash2 className="w-4 h-4" />

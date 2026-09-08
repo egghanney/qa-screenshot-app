@@ -39,7 +39,8 @@ import {
   Play,
   Download,
   FileDown,
-  FileText
+  FileText,
+  RotateCcw
 } from 'lucide-react';
 import { 
   exportDefectReportPdf, 
@@ -330,13 +331,13 @@ export function ExploratoryChartersView({
   return (
     <div className="flex-1 flex flex-col h-full bg-clinical-warm overflow-hidden">
       {/* Top Header Bar */}
-      <div className="px-6 py-3.5 bg-white border-b border-clinical-border flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-xs">
+      <div className="px-3.5 sm:px-6 py-3.5 bg-white border-b border-clinical-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-dark-chassis text-neon flex items-center justify-center font-mono text-xs font-bold shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-dark-chassis text-neon flex items-center justify-center font-mono text-xs font-bold shrink-0 shadow-xs">
             ET
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <h2 className="text-sm font-bold text-dark-chassis tracking-tight">
                 Exploratory Testing Charters
               </h2>
@@ -373,11 +374,11 @@ export function ExploratoryChartersView({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {activeContextPack && (
             <button
               onClick={() => setIsContextPackModalOpen(true)}
-              className="px-3 py-1.5 rounded-pill bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-medium flex items-center gap-1.5 transition"
+              className="min-h-[38px] px-3 py-1.5 rounded-pill bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-medium flex items-center gap-1.5 transition"
               title="Inspect Controlled Evidence Context Pack, 8 Blueprint Dimensions & Visual Observations"
             >
               <Layers className="w-3.5 h-3.5 text-indigo-600" />
@@ -400,7 +401,7 @@ export function ExploratoryChartersView({
           <div className="relative">
             <button
               onClick={() => setShowDefectMenu(!showDefectMenu)}
-              className="px-3 py-1.5 rounded-pill bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
+              className="min-h-[38px] px-3 py-1.5 rounded-pill bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
               title="Download defect report for developers"
             >
               <FileDown className="w-3.5 h-3.5 text-rose-600" />
@@ -461,7 +462,7 @@ export function ExploratoryChartersView({
           <button
             onClick={handleCopyFormattedTable}
             disabled={!activeCharter}
-            className="px-3 py-1.5 rounded-pill bg-dark-tertiary/10 hover:bg-dark-tertiary/20 text-dark-chassis text-xs font-medium flex items-center gap-1.5 transition disabled:opacity-40"
+            className="min-h-[38px] px-3 py-1.5 rounded-pill bg-dark-tertiary/10 hover:bg-dark-tertiary/20 text-dark-chassis text-xs font-medium hidden sm:flex items-center gap-1.5 transition disabled:opacity-40"
             title="Copy Charter formatted for Google Sheets, Notion, or Excel"
           >
             {copied ? (
@@ -485,7 +486,7 @@ export function ExploratoryChartersView({
                 setIsLocalRunnerOpen(true);
               }
             }}
-            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm active:scale-95 border border-dark-secondary"
+            className="min-h-[38px] px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm active:scale-95 border border-dark-secondary"
             title="Run all charters across this app or select multiple features"
           >
             <Play className="w-3.5 h-3.5 text-neon fill-neon" />
@@ -495,10 +496,11 @@ export function ExploratoryChartersView({
           <button
             onClick={handleGenerateCharters}
             disabled={isGenerating || !currentFeature}
-            className="px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-sm active:scale-95 disabled:opacity-50"
+            className="min-h-[38px] px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-sm active:scale-95 disabled:opacity-50"
           >
             <BrainCircuit className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-            {isGenerating ? 'Synthesizing Charters...' : 'Generate Charters with AI'}
+            <span className="hidden sm:inline">{isGenerating ? 'Synthesizing Charters...' : 'Generate Charters with AI'}</span>
+            <span className="sm:hidden">{isGenerating ? 'Generating...' : 'Generate AI'}</span>
           </button>
         </div>
       </div>
@@ -527,7 +529,7 @@ export function ExploratoryChartersView({
       ) : (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Secondary Sub-Bar: Charter Tabs & Filter Badges */}
-          <div className="px-6 py-2 bg-clinical-warm/80 border-b border-clinical-border flex items-center justify-between gap-3 shrink-0 overflow-x-auto no-scrollbar">
+          <div className="px-3.5 sm:px-6 py-2 bg-clinical-warm/80 border-b border-clinical-border flex items-center justify-between gap-3 shrink-0 overflow-x-auto no-scrollbar touch-pan-x">
             {/* Charter Tabs */}
             <div className="flex items-center gap-1.5">
               {localCharters.map((charter) => {
@@ -560,7 +562,7 @@ export function ExploratoryChartersView({
 
             {/* Status Filter Badges */}
             <div className="flex items-center gap-1 shrink-0 text-xs">
-              <span className="text-[11px] text-txt-muted font-medium mr-1">Filter:</span>
+              <span className="text-[11px] text-txt-muted font-medium mr-1 hidden xs:inline">Filter:</span>
               {(['All', 'Pass', 'Fail', 'Blocked', 'Untested'] as const).map(status => {
                 const isActive = filterStatus === status;
                 return (
@@ -581,12 +583,12 @@ export function ExploratoryChartersView({
           </div>
 
           {/* Active Charter Workspace Scroll Area */}
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
+          <div className="flex-1 p-3.5 sm:p-5 md:p-6 overflow-y-auto space-y-4">
             {activeCharter && (
               <div className="bg-white rounded-[20px] border border-clinical-border shadow-xs overflow-hidden">
                 {/* Charter Context Header (Exact format requested) */}
-                <div className="p-5 border-b border-clinical-border bg-gradient-to-r from-slate-50/80 to-white">
-                  <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="p-4 sm:p-5 border-b border-clinical-border bg-gradient-to-r from-slate-50/80 to-white">
+                  <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4 mb-3">
                     <h1 className="text-base sm:text-lg font-extrabold text-dark-chassis tracking-tight font-sans">
                       {activeCharter.charter_code} <span className="text-txt-muted font-normal">|</span> {activeCharter.title.replace(/^[A-Z0-9-]+\s*\|\s*/, '')}
                     </h1>
@@ -597,20 +599,20 @@ export function ExploratoryChartersView({
 
                   {/* 4 Core Mission Pillars */}
                   <div className="space-y-1.5 text-xs">
-                    <div className="flex items-start gap-1.5">
-                      <span className="font-bold text-dark-chassis shrink-0 w-32">Mission:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 sm:gap-2">
+                      <span className="font-bold text-dark-chassis shrink-0 sm:w-32">Mission:</span>
                       <span className="text-dark-secondary leading-relaxed">{activeCharter.mission}</span>
                     </div>
-                    <div className="flex items-start gap-1.5">
-                      <span className="font-bold text-dark-chassis shrink-0 w-32">User Persona:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 sm:gap-2">
+                      <span className="font-bold text-dark-chassis shrink-0 sm:w-32">User Persona:</span>
                       <span className="text-dark-secondary leading-relaxed">{activeCharter.user_persona}</span>
                     </div>
-                    <div className="flex items-start gap-1.5">
-                      <span className="font-bold text-dark-chassis shrink-0 w-32">Starting Condition:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 sm:gap-2">
+                      <span className="font-bold text-dark-chassis shrink-0 sm:w-32">Starting Condition:</span>
                       <span className="text-dark-secondary leading-relaxed">{activeCharter.starting_condition}</span>
                     </div>
-                    <div className="flex items-start gap-1.5">
-                      <span className="font-bold text-dark-chassis shrink-0 w-32">Expected Outcome:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 sm:gap-2">
+                      <span className="font-bold text-dark-chassis shrink-0 sm:w-32">Expected Outcome:</span>
                       <span className="text-dark-secondary leading-relaxed">{activeCharter.expected_outcome}</span>
                     </div>
                   </div>
@@ -658,8 +660,8 @@ export function ExploratoryChartersView({
                   )}
                 </div>
 
-                {/* Scenarios Table (Exact layout & dark header matching user document) */}
-                <div className="overflow-x-auto">
+                {/* Desktop Scenarios Table (hidden on mobile/tablet < lg) */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-[#1E293B] text-white text-[11px] font-bold tracking-wider uppercase border-b border-slate-700">
@@ -836,17 +838,231 @@ export function ExploratoryChartersView({
                   </table>
                 </div>
 
+                {/* Mobile Scenarios Card View (< lg screens) */}
+                <div className="block lg:hidden divide-y divide-clinical-border">
+                  {filteredScenarios.length === 0 ? (
+                    <div className="py-8 text-center text-txt-muted italic text-xs">
+                      No scenarios matching filter "{filterStatus}".
+                    </div>
+                  ) : (
+                    filteredScenarios.map((scenario) => {
+                      return (
+                        <div key={scenario.id} className="p-3.5 sm:p-4 bg-white hover:bg-slate-50/50 space-y-3">
+                          {/* Top Row: Prompt ID, Category, and Delete */}
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-xs text-dark-chassis px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+                                {scenario.prompt_id}
+                              </span>
+                              {scenario.category && (
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  scenario.category === 'Golden Path'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                    : scenario.category === 'Alternative Flow'
+                                    ? 'bg-sky-50 text-sky-800 border-sky-300'
+                                    : scenario.category === 'Boundary & Edge'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                    : 'bg-rose-50 text-rose-800 border-rose-300'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${
+                                    scenario.category === 'Golden Path'
+                                      ? 'bg-emerald-500 animate-pulse'
+                                      : scenario.category === 'Alternative Flow'
+                                      ? 'bg-sky-500'
+                                      : scenario.category === 'Boundary & Edge'
+                                      ? 'bg-amber-500'
+                                      : 'bg-rose-500'
+                                  }`} />
+                                  {scenario.category}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                scenario.status === 'Pass'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : scenario.status === 'Fail'
+                                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                  : scenario.status === 'Blocked'
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}>
+                                {scenario.status}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteScenario(scenario.id)}
+                                className="p-1 rounded-full text-txt-muted hover:text-rose-600 transition"
+                                title="Delete scenario row"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Prompt Text */}
+                          <div className="text-xs sm:text-sm font-medium text-dark-chassis leading-relaxed">
+                            {scenario.prompt_text}
+                          </div>
+
+                          {/* Traceability */}
+                          {scenario.traceability && (
+                            <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                              <div className="flex flex-wrap items-center gap-1">
+                                {scenario.traceability.exploration_dimensions?.map((dim, dIdx) => (
+                                  <span key={dIdx} className="px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                    {dim}
+                                  </span>
+                                ))}
+                              </div>
+                              {scenario.traceability.derived_from && (
+                                <details className="text-[10px] text-txt-muted group/trace">
+                                  <summary className="cursor-pointer hover:text-dark-chassis font-medium inline-flex items-center gap-1 text-[10px] py-0.5">
+                                    <Info className="w-3 h-3 text-indigo-500" /> Traceability Reason
+                                  </summary>
+                                  <div className="mt-1 p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-0.5 text-[10px] text-slate-700">
+                                    {scenario.traceability.derived_from.failure_state && (
+                                      <div><strong className="text-rose-700">Failure State:</strong> {scenario.traceability.derived_from.failure_state.join('; ')}</div>
+                                    )}
+                                    {scenario.traceability.derived_from.risk && (
+                                      <div><strong className="text-amber-700">Testing Risk:</strong> {scenario.traceability.derived_from.risk.join('; ')}</div>
+                                    )}
+                                    {scenario.traceability.derived_from.feature && (
+                                      <div><strong className="text-blue-700">Feature Scope:</strong> {scenario.traceability.derived_from.feature.join('; ')}</div>
+                                    )}
+                                  </div>
+                                </details>
+                              )}
+                            </div>
+                          )}
+
+                          {/* 1-Click Thumb-Friendly Action Buttons */}
+                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                            <div className="text-[11px] font-semibold text-txt-muted">Execute Outcome:</div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateScenario(scenario.id, { status: 'Pass' })}
+                                className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                  scenario.status === 'Pass'
+                                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                <span>Pass</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateScenario(scenario.id, { status: 'Fail' })}
+                                className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                  scenario.status === 'Fail'
+                                    ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                                    : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200'
+                                }`}
+                              >
+                                <XCircle className="w-4 h-4 shrink-0" />
+                                <span>Fail</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateScenario(scenario.id, { status: 'Blocked' })}
+                                className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                  scenario.status === 'Blocked'
+                                    ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                                }`}
+                              >
+                                <AlertTriangle className="w-4 h-4 shrink-0" />
+                                <span>Block</span>
+                              </button>
+                            </div>
+
+                            {scenario.status !== 'Untested' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateScenario(scenario.id, { status: 'Untested' })}
+                                className="text-xs text-txt-muted hover:text-dark-chassis flex items-center gap-1.5 py-1"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Reset to Untested</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Observations & Media Inputs */}
+                          <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <div>
+                              <label className="text-[11px] font-semibold text-dark-chassis block mb-1">
+                                Observations &amp; Notes
+                              </label>
+                              <textarea
+                                defaultValue={scenario.observations || ''}
+                                placeholder="Record empirical tester observations, replies received, or unexpected bugs..."
+                                onBlur={(e) => {
+                                  if (e.target.value !== scenario.observations) {
+                                    handleUpdateScenario(scenario.id, { observations: e.target.value });
+                                  }
+                                }}
+                                rows={2}
+                                className="w-full text-xs p-2.5 rounded-xl border border-clinical-border bg-white text-dark-chassis placeholder:text-txt-muted/70 focus:outline-none focus:border-dark-chassis transition resize-y leading-relaxed font-sans"
+                              />
+                              {savingScenarioId === scenario.id && (
+                                <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
+                                  <Check className="w-3 h-3" /> Autosaved
+                                </span>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="text-[11px] font-semibold text-dark-chassis block mb-1">
+                                Media / Screenshot URL
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  defaultValue={scenario.media_url || ''}
+                                  placeholder="https://..."
+                                  onBlur={(e) => {
+                                    if (e.target.value !== scenario.media_url) {
+                                      handleUpdateScenario(scenario.id, { media_url: e.target.value });
+                                    }
+                                  }}
+                                  className="flex-1 text-xs p-2 rounded-xl border border-clinical-border bg-white text-dark-secondary placeholder:text-txt-muted/60 focus:outline-none focus:border-dark-chassis font-mono"
+                                />
+                                {scenario.media_url && (
+                                  <a
+                                    href={scenario.media_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-neon-dark text-xs font-semibold flex items-center gap-1 font-mono"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    <span>Open</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
                 {/* Table Footer: Add Prompt Action */}
-                <div className="p-3 bg-slate-50/80 border-t border-clinical-border flex items-center justify-between text-xs">
+                <div className="p-3 bg-slate-50/80 border-t border-clinical-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs">
                   <button
                     onClick={handleAddScenario}
-                    className="px-3 py-1.5 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis font-semibold border border-clinical-border flex items-center gap-1.5 transition text-xs shadow-2xs"
+                    className="min-h-[38px] px-3.5 py-1.5 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis font-semibold border border-clinical-border flex items-center justify-center gap-1.5 transition text-xs shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Add Investigation Scenario Row
+                    <span>Add Investigation Scenario Row</span>
                   </button>
 
-                  <div className="text-[11px] text-txt-muted font-mono">
+                  <div className="text-[11px] text-txt-muted font-mono text-center sm:text-right">
                     Showing {filteredScenarios.length} of {activeCharter.scenarios?.length || 0} scenarios
                   </div>
                 </div>
