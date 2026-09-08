@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Compass, 
   Layers, 
@@ -22,6 +22,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 import { Project, Feature } from '@/lib/types';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 
 interface ApplicationShellProps {
   currentProject: Project | null;
@@ -72,6 +73,50 @@ export function ApplicationShell({
 }: ApplicationShellProps) {
   const [searchVal, setSearchVal] = useState('');
 
+  const projectSelectOptions = useMemo(() => {
+    const opts = [
+      {
+        value: 'hub',
+        label: 'All Apps',
+        icon: <Layers className="w-3.5 h-3.5 text-neon" />
+      }
+    ];
+    if (allProjects) {
+      allProjects.forEach(p => {
+        opts.push({
+          value: p.id,
+          label: p.name,
+          icon: <Smartphone className="w-3.5 h-3.5 text-txt-muted" />
+        });
+      });
+    }
+    return opts;
+  }, [allProjects]);
+
+  const featureSelectOptions = useMemo(() => {
+    if (!allFeatures) return [];
+    if (selectedProjectId === 'all' && allProjects && allProjects.length > 1) {
+      const opts: Array<{ value: string; label: string; group?: string; icon?: React.ReactNode }> = [];
+      allProjects.forEach(proj => {
+        const feats = allFeatures.filter(f => f.project_id === proj.id);
+        feats.forEach(f => {
+          opts.push({
+            value: f.id,
+            label: f.name,
+            group: `${proj.name} (${proj.platform})`,
+            icon: <GitCommit className="w-3.5 h-3.5 text-txt-muted" />
+          });
+        });
+      });
+      return opts;
+    }
+    return allFeatures.map(f => ({
+      value: f.id,
+      label: f.name,
+      icon: <GitCommit className="w-3.5 h-3.5 text-txt-muted" />
+    }));
+  }, [allFeatures, allProjects, selectedProjectId]);
+
   const navigationItems = [
     { id: 'overview', label: 'Overview', icon: Compass },
     { id: 'screens', label: 'Screens', icon: Layers, badge: counts.screens },
@@ -120,29 +165,22 @@ export function ApplicationShell({
             {/* Project / Feature Breadcrumbs */}
             <div className="flex items-center gap-1 sm:gap-1.5 text-xs min-w-0">
               {allProjects && allProjects.length > 0 && onSelectProject ? (
-                <div className="relative flex items-center max-w-[100px] xs:max-w-[130px] sm:max-w-[180px]">
-                  <select
-                    value={selectedProjectId || currentProject?.id || 'all'}
-                    onChange={(e) => {
-                      if (e.target.value === 'hub' && onOpenAppsHub) {
-                        onOpenAppsHub();
-                      } else {
-                        onSelectProject(e.target.value);
-                      }
-                    }}
-                    className="w-full px-2 sm:px-2.5 py-1 rounded-pill bg-dark-secondary text-white font-medium text-xs border border-dark-tertiary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-5 sm:pr-6 hover:bg-dark-tertiary transition truncate"
-                  >
-                    <option value="hub" className="bg-dark-chassis text-neon font-semibold">
-                      🏠 All Apps
-                    </option>
-                    {allProjects.map(p => (
-                      <option key={p.id} value={p.id} className="bg-dark-chassis text-white">
-                        📱 {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-1.5 sm:right-2 pointer-events-none" />
-                </div>
+                <CustomSelect
+                  value={selectedProjectId || currentProject?.id || 'all'}
+                  onChange={(val) => {
+                    if (val === 'hub' && onOpenAppsHub) {
+                      onOpenAppsHub();
+                    } else {
+                      onSelectProject(val);
+                    }
+                  }}
+                  options={projectSelectOptions}
+                  variant="dark"
+                  size="sm"
+                  mobileTitle="Select Application"
+                  className="max-w-[110px] xs:max-w-[130px] sm:max-w-[180px]"
+                  buttonClassName="py-1 px-2 sm:px-2.5 max-w-full truncate"
+                />
               ) : (
                 <span className="px-2 sm:px-2.5 py-1 rounded-pill bg-dark-secondary text-txt-muted hover:text-white transition flex items-center gap-1 max-w-[110px] truncate">
                   <Smartphone className="w-3 h-3 shrink-0" />
@@ -152,37 +190,18 @@ export function ApplicationShell({
 
               <ChevronRight className="w-3 h-3 text-txt-muted shrink-0" />
 
-              {allFeatures.length > 1 && onSelectFeature ? (
-                <div className="relative flex items-center max-w-[100px] xs:max-w-[130px] sm:max-w-[180px]">
-                  <select
-                    value={currentFeature?.id || ''}
-                    onChange={(e) => onSelectFeature(e.target.value)}
-                    className="w-full px-2 sm:px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium text-xs border border-dark-secondary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-5 sm:pr-6 hover:border-dark-tertiary transition truncate"
-                  >
-                    {selectedProjectId === 'all' && allProjects && allProjects.length > 1 ? (
-                      allProjects.map(proj => {
-                        const feats = allFeatures.filter(f => f.project_id === proj.id);
-                        if (feats.length === 0) return null;
-                        return (
-                          <optgroup key={proj.id} label={`${proj.name} (${proj.platform})`} className="bg-dark-chassis text-txt-muted font-bold">
-                            {feats.map(f => (
-                              <option key={f.id} value={f.id} className="bg-dark-soft_black text-white font-normal">
-                                {f.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })
-                    ) : (
-                      allFeatures.map(f => (
-                        <option key={f.id} value={f.id} className="bg-dark-chassis text-white">
-                          {f.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  <ChevronDown className="w-3 h-3 text-txt-muted absolute right-1.5 sm:right-2 pointer-events-none" />
-                </div>
+              {allFeatures && allFeatures.length > 1 && onSelectFeature ? (
+                <CustomSelect
+                  value={currentFeature?.id || ''}
+                  onChange={(val) => onSelectFeature(val)}
+                  options={featureSelectOptions}
+                  variant="dark"
+                  size="sm"
+                  placeholder="Select Feature"
+                  mobileTitle="Select Feature"
+                  className="max-w-[110px] xs:max-w-[130px] sm:max-w-[180px]"
+                  buttonClassName="py-1 px-2 sm:px-2.5 max-w-full truncate"
+                />
               ) : (
                 <span className="px-2 sm:px-2.5 py-1 rounded-pill bg-dark-tertiary text-white font-medium flex items-center gap-1 max-w-[110px] truncate">
                   <span className="truncate">{currentFeature?.name || 'No Feature'}</span>

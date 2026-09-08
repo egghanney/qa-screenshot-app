@@ -36,6 +36,7 @@ import {
   DefectReportMetadata 
 } from '@/lib/defectReportExport';
 import { CreateAppModal } from './CreateAppModal';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 
 interface AppsHubLandingViewProps {
   projects: Project[];
@@ -129,6 +130,25 @@ export function AppsHubLandingView({
     });
     return counts;
   }, [dbRuns, projects]);
+
+  const runProductFilterOptions = useMemo(() => {
+    return [
+      {
+        value: 'All',
+        label: 'All Products',
+        count: runsCountByProject['All'] || 0,
+        icon: <Database className="w-3.5 h-3.5 text-txt-muted" />
+      },
+      ...projects.map(proj => ({
+        value: proj.id,
+        label: proj.name,
+        count: runsCountByProject[proj.id] || 0,
+        icon: (proj.platform === 'Web' || proj.platform === 'Mobile Web') 
+          ? <Globe className="w-3.5 h-3.5 text-txt-muted" /> 
+          : <Smartphone className="w-3.5 h-3.5 text-txt-muted" />
+      }))
+    ];
+  }, [projects, runsCountByProject]);
 
   const filteredDbRuns = useMemo(() => {
     if (selectedRunProductFilter === 'All') return dbRuns;
@@ -731,26 +751,16 @@ export function AppsHubLandingView({
             {dbRuns.length > 0 && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 p-3 sm:p-3.5 bg-qa-white rounded-2xl border border-qa-border shadow-xs">
                 <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
-                  <label htmlFor="run-product-filter" className="text-xs font-semibold text-txt-secondary flex items-center gap-1.5 shrink-0">
-                    <Filter className="w-3.5 h-3.5 text-txt-muted" />
-                    <span>Product:</span>
-                  </label>
-                  <div className="relative flex-1 sm:flex-initial min-w-0 sm:min-w-[240px] w-full">
-                    <select
-                      id="run-product-filter"
-                      value={selectedRunProductFilter}
-                      onChange={(e) => setSelectedRunProductFilter(e.target.value)}
-                      className="w-full appearance-none bg-qa-warm/80 hover:bg-qa-warm text-dark-chassis font-semibold text-xs py-2 pl-3.5 pr-8 rounded-pill border border-qa-border focus:outline-none focus:border-dark-chassis transition cursor-pointer shadow-2xs truncate"
-                    >
-                      <option value="All">All Products ({runsCountByProject['All'] || 0} runs)</option>
-                      {projects.map(proj => (
-                        <option key={proj.id} value={proj.id}>
-                          {proj.name} ({runsCountByProject[proj.id] || 0} runs)
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 text-txt-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
+                  <CustomSelect
+                    value={selectedRunProductFilter}
+                    onChange={setSelectedRunProductFilter}
+                    options={runProductFilterOptions}
+                    label="Product"
+                    leadingIcon={<Filter className="w-3.5 h-3.5" />}
+                    mobileTitle="Filter Runs by Product"
+                    className="w-full sm:w-auto"
+                    buttonClassName="w-full sm:w-auto min-w-[200px] sm:min-w-[220px]"
+                  />
                 </div>
 
                 <div className="text-[11px] sm:text-xs text-txt-muted font-mono self-end sm:self-auto">
