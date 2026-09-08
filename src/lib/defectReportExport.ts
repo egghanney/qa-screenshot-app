@@ -93,18 +93,25 @@ export function extractDefects(
 }
 
 /**
- * Extracts defect items from a specific test run snapshot, using run.metadata.scenario_results if present.
+ * Extracts defect items from a specific test run snapshot, using run.metadata.scenario_results.
+ * Strictly isolates defects to those explicitly executed and marked Fail or Blocked in this run.
  */
 export function extractDefectsFromRunSnapshot(
-  run: { metadata?: any },
+  run: { metadata?: any; failed_count?: number; blocked_count?: number },
   charters: QACharter[],
   featMap: Map<string, string> = new Map()
 ): DefectItem[] {
+  // If run explicitly records 0 failures and 0 blockers, there are guaranteed 0 defects in this run
+  if (run.failed_count === 0 && run.blocked_count === 0) {
+    return [];
+  }
+
   const scenarioResults = run.metadata?.scenario_results || {};
   const hasSnapshot = Object.keys(scenarioResults).length > 0;
 
+  // If there are no scenario execution records for this run, do not fall back to database templates
   if (!hasSnapshot) {
-    return extractDefects(charters, featMap);
+    return [];
   }
 
   const defects: DefectItem[] = [];
@@ -113,9 +120,12 @@ export function extractDefectsFromRunSnapshot(
     const featureName = (c.feature_id ? featMap.get(c.feature_id) : undefined) || 'Feature';
     (c.scenarios || []).forEach(s => {
       const snap = scenarioResults[s.id];
-      const status = snap ? snap.status : s.status;
-      const observations = snap?.observations !== undefined ? snap.observations : s.observations;
-      const media_url = snap?.media_url !== undefined ? snap.media_url : s.media_url;
+      // Only scenarios explicitly recorded in this run session can be defects for this run!
+      if (!snap) return;
+
+      const status = snap.status;
+      const observations = snap.observations !== undefined ? snap.observations : '';
+      const media_url = snap.media_url !== undefined ? snap.media_url : '';
 
       if (status === 'Fail' || status === 'Blocked') {
         defects.push({

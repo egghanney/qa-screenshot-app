@@ -745,7 +745,7 @@ export function MultiCharterRunnerModal({
   const handleDownloadDefectPdf = (customRun?: QATestRun | React.MouseEvent | unknown) => {
     const run = (customRun && typeof customRun === 'object' && 'id' in customRun && !('nativeEvent' in customRun)) 
       ? (customRun as QATestRun) 
-      : undefined;
+      : (activeDbRunId ? dbTestRuns.find(r => r.id === activeDbRunId) : undefined);
     const meta = getDefectReportMetadata(run);
     const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
     const defects = run
@@ -757,9 +757,12 @@ export function MultiCharterRunnerModal({
 
   // Export Markdown Defect Report
   const handleDownloadDefectMarkdown = () => {
-    const meta = getDefectReportMetadata();
+    const run = activeDbRunId ? dbTestRuns.find(r => r.id === activeDbRunId) : undefined;
+    const meta = getDefectReportMetadata(run);
     const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
-    const defects = extractDefects(loadedCharters, featMap);
+    const defects = run
+      ? extractDefectsFromRunSnapshot(run, loadedCharters, featMap)
+      : extractDefects(loadedCharters, featMap);
     const md = exportDefectReportMarkdown(meta, defects);
     const filename = `${meta.projectName.replace(/\s+/g, '_')}_Defect_Report.md`;
     triggerFileDownload(md, filename, 'text/markdown;charset=utf-8;');
@@ -768,9 +771,12 @@ export function MultiCharterRunnerModal({
 
   // Export CSV Defect Report
   const handleDownloadDefectCsv = () => {
-    const meta = getDefectReportMetadata();
+    const run = activeDbRunId ? dbTestRuns.find(r => r.id === activeDbRunId) : undefined;
+    const meta = getDefectReportMetadata(run);
     const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
-    const defects = extractDefects(loadedCharters, featMap);
+    const defects = run
+      ? extractDefectsFromRunSnapshot(run, loadedCharters, featMap)
+      : extractDefects(loadedCharters, featMap);
     const csv = exportDefectReportCsv(meta, defects);
     const filename = `${meta.projectName.replace(/\s+/g, '_')}_Defects.csv`;
     triggerFileDownload(csv, filename, 'text/csv;charset=utf-8;');
