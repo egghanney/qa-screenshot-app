@@ -19,7 +19,10 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronDown,
-  ClipboardList
+  ClipboardList,
+  ShieldCheck,
+  LogOut,
+  User
 } from 'lucide-react';
 import { Project, Feature } from '@/lib/types';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -50,6 +53,11 @@ interface ApplicationShellProps {
     charters?: number;
     observations: number;
   };
+  userEmail?: string;
+  userRole?: string;
+  isAdmin?: boolean;
+  onOpenAdminPanel?: () => void;
+  onSignOut?: () => void;
 }
 
 export function ApplicationShell({
@@ -69,7 +77,12 @@ export function ApplicationShell({
   isChatOpen,
   onSearchQuery,
   children,
-  counts = { screens: 0, nodes: 0, knowledge: 0, questions: 0, checkpoints: 0, charters: 0, observations: 0 }
+  counts = { screens: 0, nodes: 0, knowledge: 0, questions: 0, checkpoints: 0, charters: 0, observations: 0 },
+  userEmail,
+  userRole,
+  isAdmin,
+  onOpenAdminPanel,
+  onSignOut,
 }: ApplicationShellProps) {
   const [searchVal, setSearchVal] = useState('');
 
@@ -225,8 +238,28 @@ export function ApplicationShell({
             />
           </div>
 
-          {/* Right: Copilot Pill + Settings + Create Feature CTA */}
+          {/* Right: Admin + User + Copilot Pill + Settings + Logout + Create Feature CTA */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {isAdmin && onOpenAdminPanel && (
+              <button
+                onClick={onOpenAdminPanel}
+                className="px-2.5 sm:px-3 py-1.5 rounded-pill bg-neon/10 hover:bg-neon/20 text-neon border border-neon/30 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
+                title="Admin Control Panel"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Admin</span>
+              </button>
+            )}
+
+            {userEmail && (
+              <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-dark-secondary border border-dark-tertiary text-xs">
+                <div className="w-4 h-4 rounded-full bg-dark-tertiary flex items-center justify-center text-[9px] font-bold text-neon">
+                  {userEmail.charAt(0).toUpperCase()}
+                </div>
+                <span className="max-w-[100px] truncate text-[10px] font-mono text-txt-secondary">{userEmail}</span>
+              </div>
+            )}
+
             <button
               onClick={onToggleChat}
               className={`px-2.5 sm:px-3 py-1.5 rounded-pill text-xs font-medium flex items-center gap-1.5 transition border ${
@@ -248,6 +281,16 @@ export function ApplicationShell({
             >
               <Settings className="w-3.5 h-3.5" />
             </button>
+
+            {onSignOut && (
+              <button
+                onClick={onSignOut}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 flex items-center justify-center transition border border-dark-tertiary hover:border-rose-500/40"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
 
             <button
               onClick={onOpenWizard}

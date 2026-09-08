@@ -32,9 +32,15 @@ import { FeatureWizardModal } from '@/components/wizard/FeatureWizardModal';
 import { SettingsModal } from '@/components/shell/SettingsModal';
 import { AppsHubLandingView } from '@/components/apps/AppsHubLandingView';
 import { MultiCharterRunnerModal } from '@/components/charters/MultiCharterRunnerModal';
+import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
+import { LoginView } from '@/components/auth/LoginView';
+import { AdminControlPanelModal } from '@/components/admin/AdminControlPanelModal';
 import { BrainCircuit, Smartphone } from 'lucide-react';
 
-export default function Home() {
+function MainAppContent() {
+  const { user, profile, loading: authLoading, isAdmin, signOut } = useAuth();
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+
   const [project, setProject] = useState<Project | null>(null);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
@@ -532,6 +538,25 @@ export default function Home() {
     ? allFeatures
     : allFeatures.filter(f => f.project_id === selectedProjectId);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#141513] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-dark-chassis text-neon flex items-center justify-center font-bold text-sm animate-spin border border-neon/30">
+            QA
+          </div>
+          <span className="text-xs font-mono font-semibold text-neon tracking-wider">
+            AUTHENTICATING QA TEST STUDIO...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-qa-bg flex items-center justify-center">
@@ -566,6 +591,11 @@ export default function Home() {
           }}
           onRefreshProjects={async () => { await loadFeatureData(); }}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          userEmail={user.email}
+          userRole={profile?.role}
+          isAdmin={isAdmin}
+          onOpenAdminPanel={() => setIsAdminModalOpen(true)}
+          onSignOut={signOut}
         />
 
         {/* Multi-Feature & App-Wide Charter Runner Modal */}
@@ -597,6 +627,12 @@ export default function Home() {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+        />
+
+        {/* Admin Control Panel Modal */}
+        <AdminControlPanelModal
+          isOpen={isAdminModalOpen}
+          onClose={() => setIsAdminModalOpen(false)}
         />
       </>
     );
@@ -646,6 +682,11 @@ export default function Home() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         isChatOpen={isChatOpen}
+        userEmail={user.email}
+        userRole={profile?.role}
+        isAdmin={isAdmin}
+        onOpenAdminPanel={() => setIsAdminModalOpen(true)}
+        onSignOut={signOut}
         counts={{
           screens: screens.length,
           nodes: nodes.length,
@@ -847,6 +888,20 @@ export default function Home() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />
+
+      {/* Admin Control Panel Modal */}
+      <AdminControlPanelModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+      />
     </>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthProvider>
+      <MainAppContent />
+    </AuthProvider>
   );
 }

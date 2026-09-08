@@ -26,7 +26,10 @@ import {
   CheckCheck,
   Clock,
   Database,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck,
+  LogOut,
+  User
 } from 'lucide-react';
 import { Project, Feature, QATestRun, QACharter, CharterScenario } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
@@ -48,6 +51,11 @@ interface AppsHubLandingViewProps {
   onResumeRun?: (run: QATestRun) => void;
   onRefreshProjects: () => Promise<void>;
   onOpenSettings?: () => void;
+  userEmail?: string;
+  userRole?: string;
+  isAdmin?: boolean;
+  onOpenAdminPanel?: () => void;
+  onSignOut?: () => void;
 }
 
 export function AppsHubLandingView({
@@ -59,7 +67,12 @@ export function AppsHubLandingView({
   onRunAppCharters,
   onResumeRun,
   onRefreshProjects,
-  onOpenSettings
+  onOpenSettings,
+  userEmail,
+  userRole,
+  isAdmin,
+  onOpenAdminPanel,
+  onSignOut,
 }: AppsHubLandingViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'All' | 'Mobile' | 'Web'>('All');
@@ -293,6 +306,31 @@ export function AppsHubLandingView({
 
         {/* Global Action Tools */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {isAdmin && onOpenAdminPanel && (
+            <button
+              onClick={onOpenAdminPanel}
+              className="px-2.5 sm:px-3 py-1.5 rounded-pill bg-neon/10 hover:bg-neon/20 text-neon border border-neon/30 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
+              title="Admin Control Panel"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Admin Panel</span>
+            </button>
+          )}
+
+          {userEmail && (
+            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-pill bg-dark-secondary border border-dark-tertiary text-xs">
+              <div className="w-5 h-5 rounded-full bg-dark-tertiary flex items-center justify-center text-[10px] font-bold text-neon">
+                {userEmail.charAt(0).toUpperCase()}
+              </div>
+              <span className="max-w-[130px] truncate text-[11px] font-mono text-txt-secondary">{userEmail}</span>
+              {userRole && (
+                <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider bg-dark-chassis text-txt-muted border border-dark-tertiary">
+                  {userRole}
+                </span>
+              )}
+            </div>
+          )}
+
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
@@ -300,6 +338,16 @@ export function AppsHubLandingView({
               title="Settings & API Keys"
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          )}
+
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 flex items-center justify-center transition border border-dark-tertiary hover:border-rose-500/40"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           )}
 
