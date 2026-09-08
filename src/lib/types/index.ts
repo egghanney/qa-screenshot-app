@@ -375,4 +375,30 @@ export type GeneratedCharter = Omit<QACharter, 'id' | 'scenarios' | 'created_at'
   scenarios: Array<Omit<CharterScenario, 'id' | 'charter_id' | 'created_at' | 'updated_at'>>;
 };
 
+export type TestRunStatus = 'in_progress' | 'completed';
+
+export interface QATestRun {
+  id: string;
+  project_id: string;
+  name: string;
+  status: TestRunStatus;
+  total_scenarios: number;
+  passed_count: number;
+  failed_count: number;
+  blocked_count: number;
+  untested_count: number;
+  pass_rate: number;
+  feature_ids: string[];
+  metadata?: {
+    featureNames?: string[];
+    testerName?: string;
+    environment?: string;
+  };
+  started_at: string;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+
 

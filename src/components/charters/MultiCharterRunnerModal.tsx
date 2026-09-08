@@ -14,25 +14,21 @@ import {
   Copy, 
   Check, 
   Layers, 
-  ClipboardList, 
-  Smartphone, 
-  Filter, 
-  Sparkles,
-  Search,
-  Sliders,
+  Sliders, 
   ExternalLink,
   FileText,
   FileSpreadsheet,
   History,
   Eye,
-  ArrowRight,
   Clock,
-  ShieldCheck,
   ChevronDown,
   FileDown,
-  CheckCheck
+  CheckCheck,
+  RefreshCw,
+  Trash2,
+  Database
 } from 'lucide-react';
-import { Project, Feature, QACharter, CharterScenario, ScenarioStatus } from '@/lib/types';
+import { Project, Feature, QACharter, CharterScenario, ScenarioStatus, QATestRun } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
 import { 
   exportDefectReportPdf, 
@@ -61,21 +57,6 @@ interface RunnableScenario extends CharterScenario {
   userPersona?: string;
   startingCondition?: string;
   expectedOutcome?: string;
-}
-
-interface RunSessionRecord {
-  id: string;
-  projectId: string;
-  projectName: string;
-  featureNames: string[];
-  startTime: string;
-  lastUpdated: string;
-  totalScenarios: number;
-  passedCount: number;
-  failedCount: number;
-  blockedCount: number;
-  untestedCount: number;
-  isCompleted: boolean;
 }
 
 export function MultiCharterRunnerModal({
@@ -110,15 +91,15 @@ export function MultiCharterRunnerModal({
 
   // Stepper execution state
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [copied, setCopied] = useState(false);
   const [activeNotes, setActiveNotes] = useState('');
   const [activeMediaUrl, setActiveMediaUrl] = useState('');
   const [savingScenarioId, setSavingScenarioId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // Run Session Records stored in localStorage
-  const [runSessions, setRunSessions] = useState<RunSessionRecord[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  // Database-backed Test Runs (qa_test_runs table in PostgreSQL)
+  const [dbTestRuns, setDbTestRuns] = useState<QATestRun[]>([]);
+  const [activeDbRunId, setActiveDbRunId] = useState<string | null>(null);
+  const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 
   // Initialize selected project
   useEffect(() => {
@@ -128,20 +109,6 @@ export function MultiCharterRunnerModal({
       setSelectedProjectId(allProjects[0].id);
     }
   }, [currentProject, allProjects]);
-
-  // Load past run sessions from localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('qa_run_sessions');
-        if (stored) {
-          setRunSessions(JSON.parse(stored));
-        }
-      } catch (e) {
-        console.error('Failed reading past run sessions', e);
-      }
-    }
-  }, [isOpen]);
 
   // Features belonging to selected project
   const projectFeatures = useMemo(() => {
@@ -161,6 +128,29 @@ export function MultiCharterRunnerModal({
       setSelectedFeatureIds(new Set());
     }
   }, [projectFeatures]);
+
+  // Fetch test runs from Database (qa_test_runs)
+  const loadDbTestRuns = useCallback(async () => {
+    if (!selectedProjectId) return;
+    setIsLoadingRuns(true);
+    try {
+      const res = await fetch(`/api/test-runs?projectId=${selectedProjectId}`);
+      const data = await res.json();
+      if (data.runs) {
+        setDbTestRuns(data.runs);
+      }
+    } catch (err) {
+      console.error('Error loading db test runs:', err);
+    } finally {
+      setIsLoadingRuns(false);
+    }
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (isOpen && selectedProjectId) {
+      loadDbTestRuns();
+    }
+  }, [isOpen, selectedProjectId, loadDbTestRuns]);
 
   // Fetch charters whenever scope is loaded or when entering setup
   const loadChartersForScope = useCallback(async () => {
@@ -330,44 +320,101 @@ export function MultiCharterRunnerModal({
     }
   }, [currentStepperScenario]);
 
-  // Update session record in localStorage
-  const persistRunSession = useCallback(() => {
-    if (!activeProject || runnableScenarios.length === 0) return;
+  // Start execution run and create a record in qa_test_runs table
+  const handleStartExecutionRun = async () => {
+    setCurrentIndex(0);
+    setPhase('running');
+
+    if (!selectedProjectId) return;
+
     try {
-      const selectedNames = projectFeatures
+      const featNames = projectFeatures
         .filter(f => selectedFeatureIds.has(f.id))
         .map(f => f.name);
 
-      const sessionId = currentSessionId || `session_${Date.now()}`;
-      if (!currentSessionId) setCurrentSessionId(sessionId);
+      const res = await fetch('/api/test-runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: selectedProjectId,
+          name: `${activeProject?.name || 'QA'} Run (${new Date().toLocaleDateString()})`,
+          feature_ids: Array.from(selectedFeatureIds),
+          total_scenarios: runnableScenarios.length,
+          metadata: {
+            featureNames: featNames,
+            platform: activeProject?.platform
+          }
+        })
+      });
 
-      const session: RunSessionRecord = {
-        id: sessionId,
-        projectId: activeProject.id,
-        projectName: activeProject.name,
-        featureNames: selectedNames,
-        startTime: new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-        totalScenarios: counters.total,
-        passedCount: counters.passed,
-        failedCount: counters.failed,
-        blockedCount: counters.blocked,
-        untestedCount: counters.untested,
-        isCompleted: counters.isCompleted
-      };
-
-      const existing: RunSessionRecord[] = JSON.parse(localStorage.getItem('qa_run_sessions') || '[]');
-      const filtered = existing.filter(s => s.id !== sessionId);
-      const updated = [session, ...filtered].slice(0, 20); // keep last 20
-
-      localStorage.setItem('qa_run_sessions', JSON.stringify(updated));
-      setRunSessions(updated);
-    } catch (e) {
-      console.error('Failed updating run session', e);
+      const data = await res.json();
+      if (data.run?.id) {
+        setActiveDbRunId(data.run.id);
+        setDbTestRuns(prev => [data.run, ...prev]);
+      }
+    } catch (err) {
+      console.error('Error creating database test run:', err);
     }
-  }, [activeProject, runnableScenarios.length, projectFeatures, selectedFeatureIds, currentSessionId, counters]);
+  };
 
-  // Update individual scenario (used in both Charter View table and Stepper)
+  // Sync test run progress in Database (qa_test_runs)
+  const syncDbRunProgress = async (
+    runId: string,
+    passed: number,
+    failed: number,
+    blocked: number,
+    untested: number,
+    total: number
+  ) => {
+    const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+    const isDone = total > 0 && untested === 0;
+
+    try {
+      await fetch('/api/test-runs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: runId,
+          passed_count: passed,
+          failed_count: failed,
+          blocked_count: blocked,
+          untested_count: untested,
+          pass_rate: passRate,
+          status: isDone ? 'completed' : 'in_progress',
+          completed_at: isDone ? new Date().toISOString() : null
+        })
+      });
+
+      // Update local dbTestRuns state
+      setDbTestRuns(prev => prev.map(r => r.id === runId ? {
+        ...r,
+        passed_count: passed,
+        failed_count: failed,
+        blocked_count: blocked,
+        untested_count: untested,
+        pass_rate: passRate,
+        status: isDone ? 'completed' : 'in_progress',
+        completed_at: isDone ? new Date().toISOString() : r.completed_at,
+        updated_at: new Date().toISOString()
+      } : r));
+    } catch (err) {
+      console.error('Failed syncing test run progress to DB:', err);
+    }
+  };
+
+  // Delete a test run from database
+  const handleDeleteDbRun = async (runId: string) => {
+    if (!confirm('Are you sure you want to delete this test run record from the database?')) return;
+    try {
+      await fetch(`/api/test-runs?id=${runId}`, { method: 'DELETE' });
+      setDbTestRuns(prev => prev.filter(r => r.id !== runId));
+      if (activeDbRunId === runId) setActiveDbRunId(null);
+    } catch (err) {
+      console.error('Error deleting test run:', err);
+    }
+  };
+
+  // Update individual scenario (persisted in qa_charter_scenarios and synced to qa_test_runs)
   const handleUpdateScenario = async (
     scenarioId: string,
     updates: Partial<CharterScenario>,
@@ -376,7 +423,8 @@ export function MultiCharterRunnerModal({
     setSavingScenarioId(scenarioId);
 
     // 1. Optimistic update in runnableScenarios
-    setRunnableScenarios(prev => prev.map(s => s.id === scenarioId ? { ...s, ...updates } : s));
+    const updatedRunnable = runnableScenarios.map(s => s.id === scenarioId ? { ...s, ...updates } : s);
+    setRunnableScenarios(updatedRunnable);
 
     // 2. Optimistic update in loadedCharters
     setLoadedCharters(prev => prev.map(c => {
@@ -387,7 +435,20 @@ export function MultiCharterRunnerModal({
       };
     }));
 
+    // Calculate updated metrics
+    let newPassed = 0;
+    let newFailed = 0;
+    let newBlocked = 0;
+    let newUntested = 0;
+    updatedRunnable.forEach(s => {
+      if (s.status === 'Pass') newPassed++;
+      else if (s.status === 'Fail') newFailed++;
+      else if (s.status === 'Blocked') newBlocked++;
+      else newUntested++;
+    });
+
     try {
+      // 1. Save scenario in PostgreSQL (qa_charter_scenarios)
       await fetch('/api/charters', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -398,8 +459,10 @@ export function MultiCharterRunnerModal({
         })
       });
 
-      // Save to localStorage session
-      persistRunSession();
+      // 2. Sync run progress to PostgreSQL (qa_test_runs)
+      if (activeDbRunId) {
+        syncDbRunProgress(activeDbRunId, newPassed, newFailed, newBlocked, newUntested, updatedRunnable.length);
+      }
     } catch (err) {
       console.error('Failed saving scenario:', err);
     } finally {
@@ -508,18 +571,6 @@ export function MultiCharterRunnerModal({
     setShowExportMenu(false);
   };
 
-  // Copy Summary to Clipboard
-  const handleCopySummary = () => {
-    const meta = getDefectReportMetadata();
-    const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
-    const defects = extractDefects(loadedCharters, featMap);
-    const md = exportDefectReportMarkdown(meta, defects);
-    navigator.clipboard.writeText(md);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    setShowExportMenu(false);
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -611,16 +662,6 @@ export function MultiCharterRunnerModal({
                           <span className="text-[10px] text-txt-muted">Tabular format for spreadsheets</span>
                         </div>
                       </button>
-
-                      <div className="pt-1 mt-1 border-t border-qa-border">
-                        <button
-                          onClick={handleCopySummary}
-                          className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-qa-warm flex items-center gap-2 text-[11px] text-dark-secondary"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copy Markdown to Clipboard</span>
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -786,11 +827,7 @@ export function MultiCharterRunnerModal({
               <button
                 type="button"
                 disabled={isLoadingCharters || runnableScenarios.length === 0}
-                onClick={() => {
-                  setCurrentIndex(0);
-                  setPhase('running');
-                  persistRunSession();
-                }}
+                onClick={handleStartExecutionRun}
                 className="px-6 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition shadow-card flex items-center gap-2 active:scale-95 disabled:opacity-50"
               >
                 <Play className="w-4 h-4 fill-dark-chassis" />
@@ -877,7 +914,10 @@ export function MultiCharterRunnerModal({
                 </button>
 
                 <button
-                  onClick={() => setViewMode('history')}
+                  onClick={() => {
+                    setViewMode('history');
+                    loadDbTestRuns();
+                  }}
                   className={`px-3 py-1 rounded-pill text-xs font-semibold transition flex items-center gap-1.5 ${
                     viewMode === 'history'
                       ? 'bg-dark-chassis text-white shadow-2xs'
@@ -885,7 +925,7 @@ export function MultiCharterRunnerModal({
                   }`}
                 >
                   <History className="w-3.5 h-3.5" />
-                  <span>Run History ({runSessions.length})</span>
+                  <span>DB Run History ({dbTestRuns.length})</span>
                 </button>
               </div>
             </div>
@@ -1007,7 +1047,7 @@ export function MultiCharterRunnerModal({
                   {activeCharter ? (
                     <div className="bg-white rounded-[20px] border border-clinical-border shadow-xs overflow-hidden">
                       
-                      {/* Charter Context Header (Exact format requested: 4 Pillars & 360° coverage) */}
+                      {/* Charter Context Header (Exact format: 4 Pillars & 360° coverage) */}
                       <div className="p-5 border-b border-clinical-border bg-gradient-to-r from-slate-50/90 to-white">
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div>
@@ -1459,69 +1499,81 @@ export function MultiCharterRunnerModal({
               </div>
             )}
 
-            {/* VIEW 3: RUN HISTORY & SAVED SESSIONS */}
+            {/* VIEW 3: RUN HISTORY & SAVED SESSIONS FROM SUPABASE DATABASE */}
             {viewMode === 'history' && (
               <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-dark-chassis">Test Run Sessions History</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-dark-chassis">Database Test Run History</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                        <Database className="w-3 h-3" />
+                        Supabase PostgreSQL
+                      </span>
+                    </div>
                     <p className="text-xs text-txt-muted">
-                      Inspect completed runs, track pending runs, and re-download developer defect reports.
+                      Shared across all team members in `qa_test_runs`. Inspect progress, re-download defect reports, or delete old runs.
                     </p>
                   </div>
 
                   <button
-                    onClick={persistRunSession}
-                    className="px-3 py-1.5 rounded-pill bg-dark-chassis text-white text-xs font-semibold hover:bg-dark-secondary transition flex items-center gap-1.5"
+                    onClick={loadDbTestRuns}
+                    disabled={isLoadingRuns}
+                    className="px-3 py-1.5 rounded-pill bg-dark-chassis text-white text-xs font-semibold hover:bg-dark-secondary transition flex items-center gap-1.5 shadow-2xs"
                   >
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Save Current Checkpoint</span>
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRuns ? 'animate-spin' : ''}`} />
+                    <span>Refresh History</span>
                   </button>
                 </div>
 
-                {runSessions.length === 0 ? (
+                {isLoadingRuns && dbTestRuns.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-txt-muted">
+                    Loading test run history from database...
+                  </div>
+                ) : dbTestRuns.length === 0 ? (
                   <div className="p-8 text-center bg-qa-surface rounded-2xl border border-qa-border text-xs text-txt-muted">
-                    No past sessions saved yet. Run executions are automatically recorded here.
+                    No test runs recorded in PostgreSQL yet. When you run a test cycle, it will be automatically preserved here.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {runSessions.map((sess) => {
-                      const passRate = sess.totalScenarios > 0 
-                        ? Math.round((sess.passedCount / sess.totalScenarios) * 100) 
-                        : 0;
+                    {dbTestRuns.map((run) => {
+                      const isCompleted = run.status === 'completed';
+                      const featureNames = run.metadata?.featureNames || [];
 
                       return (
                         <div
-                          key={sess.id}
+                          key={run.id}
                           className="p-4 rounded-2xl bg-white border border-qa-border shadow-xs flex flex-wrap items-center justify-between gap-4 hover:border-dark-chassis transition"
                         >
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-xs text-dark-chassis">{sess.projectName}</span>
+                              <span className="font-bold text-xs text-dark-chassis">{run.name}</span>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                                sess.isCompleted 
+                                isCompleted 
                                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                   : 'bg-amber-100 text-amber-800 border border-amber-300'
                               }`}>
-                                {sess.isCompleted ? '✓ Completed' : 'Pending Run'}
+                                {isCompleted ? '✓ Completed' : 'In Progress'}
                               </span>
                               <span className="text-[11px] text-txt-muted">
-                                {new Date(sess.startTime).toLocaleString()}
+                                {new Date(run.started_at || run.created_at).toLocaleString()}
                               </span>
                             </div>
 
-                            <p className="text-[11px] text-txt-secondary">
-                              Features: {sess.featureNames.join(', ') || 'All Features'}
-                            </p>
+                            {featureNames.length > 0 && (
+                              <p className="text-[11px] text-txt-secondary">
+                                Features: {featureNames.join(', ')}
+                              </p>
+                            )}
 
                             <div className="flex items-center gap-2 text-[10px] font-mono pt-1">
-                              <span className="text-emerald-700 font-bold">{sess.passedCount} Passed ({passRate}%)</span>
+                              <span className="text-emerald-700 font-bold">{run.passed_count} Passed ({run.pass_rate}%)</span>
                               <span>•</span>
-                              <span className="text-rose-700 font-bold">{sess.failedCount} Failed</span>
+                              <span className="text-rose-700 font-bold">{run.failed_count} Failed</span>
                               <span>•</span>
-                              <span className="text-amber-700 font-bold">{sess.blockedCount} Blocked</span>
+                              <span className="text-amber-700 font-bold">{run.blocked_count} Blocked</span>
                               <span>•</span>
-                              <span className="text-txt-muted">{sess.untestedCount} Untested</span>
+                              <span className="text-txt-muted">{run.untested_count} Untested</span>
                             </div>
                           </div>
 
@@ -1540,7 +1592,15 @@ export function MultiCharterRunnerModal({
                               className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              <span>View Run</span>
+                              <span>Resume / View</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteDbRun(run.id)}
+                              className="p-1.5 rounded-full hover:bg-rose-50 text-txt-muted hover:text-rose-600 transition"
+                              title="Delete test run record from database"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
