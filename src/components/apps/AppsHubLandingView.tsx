@@ -37,6 +37,7 @@ interface AppsHubLandingViewProps {
   scenariosCountByProject?: Record<string, number>;
   onSelectProject: (projectId: string) => void;
   onRunAppCharters?: (project: Project) => void;
+  onResumeRun?: (run: QATestRun) => void;
   onRefreshProjects: () => Promise<void>;
   onOpenSettings?: () => void;
 }
@@ -48,6 +49,7 @@ export function AppsHubLandingView({
   scenariosCountByProject = {},
   onSelectProject,
   onRunAppCharters,
+  onResumeRun,
   onRefreshProjects,
   onOpenSettings
 }: AppsHubLandingViewProps) {
@@ -616,7 +618,16 @@ export function AppsHubLandingView({
                       </div>
 
                       <div className="flex items-center gap-2.5">
-                        {targetProj && onRunAppCharters && (
+                        {onResumeRun ? (
+                          <button
+                            type="button"
+                            onClick={() => onResumeRun(run)}
+                            className="px-4 py-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs active:scale-95"
+                          >
+                            <Play className="w-3.5 h-3.5 text-neon fill-neon" />
+                            <span>{isCompleted ? 'View Run' : 'Resume Run'}</span>
+                          </button>
+                        ) : (targetProj && onRunAppCharters && (
                           <button
                             type="button"
                             onClick={() => onRunAppCharters(targetProj)}
@@ -625,7 +636,7 @@ export function AppsHubLandingView({
                             <Play className="w-3.5 h-3.5 text-neon fill-neon" />
                             <span>Open in Studio</span>
                           </button>
-                        )}
+                        ))}
 
                         <button
                           onClick={() => handleDeleteRun(run.id)}

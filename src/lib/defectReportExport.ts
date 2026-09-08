@@ -29,6 +29,7 @@ export interface DefectItem {
 
 export interface DefectReportMetadata {
   projectName: string;
+  runName?: string;
   platform?: string;
   featureNames: string[];
   totalScenarios: number;
@@ -92,6 +93,57 @@ export function extractDefects(
 }
 
 /**
+ * Extracts defect items from a specific test run snapshot, using run.metadata.scenario_results if present.
+ */
+export function extractDefectsFromRunSnapshot(
+  run: { metadata?: any },
+  charters: QACharter[],
+  featMap: Map<string, string> = new Map()
+): DefectItem[] {
+  const scenarioResults = run.metadata?.scenario_results || {};
+  const hasSnapshot = Object.keys(scenarioResults).length > 0;
+
+  if (!hasSnapshot) {
+    return extractDefects(charters, featMap);
+  }
+
+  const defects: DefectItem[] = [];
+
+  charters.forEach(c => {
+    const featureName = (c.feature_id ? featMap.get(c.feature_id) : undefined) || 'Feature';
+    (c.scenarios || []).forEach(s => {
+      const snap = scenarioResults[s.id];
+      const status = snap ? snap.status : s.status;
+      const observations = snap?.observations !== undefined ? snap.observations : s.observations;
+      const media_url = snap?.media_url !== undefined ? snap.media_url : s.media_url;
+
+      if (status === 'Fail' || status === 'Blocked') {
+        defects.push({
+          id: s.id,
+          prompt_id: s.prompt_id,
+          featureName,
+          charterCode: c.charter_code,
+          charterTitle: c.title,
+          charterMission: c.mission,
+          userPersona: c.user_persona,
+          startingCondition: c.starting_condition,
+          expectedOutcome: c.expected_outcome,
+          category: s.category || 'Exploratory',
+          prompt_text: s.prompt_text,
+          status: status as 'Fail' | 'Blocked',
+          observations: observations || 'No specific notes recorded by tester.',
+          media_url: media_url,
+          traceability: s.traceability,
+          severity: deriveSeverity(s.category, status)
+        });
+      }
+    });
+  });
+
+  return defects;
+}
+
+/**
  * 1. Export Developer Defect Report as PDF (jsPDF)
  */
 export function exportDefectReportPdf(
@@ -138,7 +190,7 @@ export function exportDefectReportPdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(203, 213, 225);
-  const subtitle = `Project: ${metadata.projectName} | Scope: ${metadata.featureNames.join(', ') || 'All Features'} | Date: ${metadata.generatedDate || new Date().toLocaleDateString()}`;
+  const subtitle = `${metadata.runName ? `Run: ${metadata.runName} | ` : ''}Project: ${metadata.projectName} | Scope: ${metadata.featureNames.join(', ') || 'All Features'} | Date: ${metadata.generatedDate || new Date().toLocaleDateString()}`;
   doc.text(subtitle, margin + 6, y + 17);
 
   y += 30;
@@ -357,6 +409,7 @@ export function exportDefectReportMarkdown(
 ): string {
   const dateStr = metadata.generatedDate || new Date().toISOString().split('T')[0];
   let md = `# 🐞 QA Defect & Bug Resolution Report\n\n`;
+  if (metadata.runName) md += `**Test Run:** ${metadata.runName}  \n`;
   md += `**Target Application:** ${metadata.projectName}  \n`;
   if (metadata.platform) md += `**Platform:** ${metadata.platform}  \n`;
   md += `**Features Tested:** ${metadata.featureNames.join(', ') || 'All Features'}  \n`;

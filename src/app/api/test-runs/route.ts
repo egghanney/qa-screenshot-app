@@ -103,6 +103,30 @@ export async function PATCH(req: Request) {
       payload.completed_at = new Date().toISOString();
     }
 
+    if (updates.metadata) {
+      try {
+        const { data: currentRun } = await supabase
+          .from('qa_test_runs')
+          .select('metadata')
+          .eq('id', id)
+          .single();
+
+        const existingMeta = currentRun?.metadata || {};
+        const mergedScenarioResults = {
+          ...(existingMeta.scenario_results || {}),
+          ...(updates.metadata.scenario_results || {})
+        };
+
+        payload.metadata = {
+          ...existingMeta,
+          ...updates.metadata,
+          scenario_results: mergedScenarioResults
+        };
+      } catch (metaErr) {
+        console.warn('Could not merge metadata, using raw updates.metadata:', metaErr);
+      }
+    }
+
     const { data, error } = await supabase
       .from('qa_test_runs')
       .update(payload)

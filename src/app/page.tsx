@@ -12,7 +12,8 @@ import {
   QACheckpoint, 
   QAObservation, 
   AIQuestion,
-  QACharter
+  QACharter,
+  QATestRun
 } from '@/lib/types';
 
 import { ApplicationShell } from '@/components/shell/ApplicationShell';
@@ -59,6 +60,7 @@ export default function Home() {
   });
   const [isMultiRunnerOpen, setIsMultiRunnerOpen] = useState(false);
   const [runnerTargetProject, setRunnerTargetProject] = useState<Project | null>(null);
+  const [activeResumeRun, setActiveResumeRun] = useState<QATestRun | null>(null);
   const [chartersCountByProject, setChartersCountByProject] = useState<Record<string, number>>({});
   const [scenariosCountByProject, setScenariosCountByProject] = useState<Record<string, number>>({});
 
@@ -519,6 +521,12 @@ export default function Home() {
           scenariosCountByProject={scenariosCountByProject}
           onSelectProject={handleSelectProjectFromHub}
           onRunAppCharters={handleRunAppChartersFromHub}
+          onResumeRun={(run) => {
+            setActiveResumeRun(run);
+            const targetProj = allProjects.find(p => p.id === run.project_id) || null;
+            if (targetProj) setRunnerTargetProject(targetProj);
+            setIsMultiRunnerOpen(true);
+          }}
           onRefreshProjects={async () => { await loadFeatureData(); }}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
@@ -526,7 +534,11 @@ export default function Home() {
         {/* Multi-Feature & App-Wide Charter Runner Modal */}
         <MultiCharterRunnerModal
           isOpen={isMultiRunnerOpen}
-          onClose={() => setIsMultiRunnerOpen(false)}
+          onClose={() => {
+            setIsMultiRunnerOpen(false);
+            setActiveResumeRun(null);
+          }}
+          initialRun={activeResumeRun}
           currentProject={runnerTargetProject || project}
           allProjects={allProjects}
           allFeatures={allFeatures}
@@ -763,7 +775,11 @@ export default function Home() {
       {/* Multi-Feature & App-Wide Charter Runner Modal */}
       <MultiCharterRunnerModal
         isOpen={isMultiRunnerOpen}
-        onClose={() => setIsMultiRunnerOpen(false)}
+        onClose={() => {
+          setIsMultiRunnerOpen(false);
+          setActiveResumeRun(null);
+        }}
+        initialRun={activeResumeRun}
         currentProject={runnerTargetProject || project}
         allProjects={allProjects}
         allFeatures={allFeatures}

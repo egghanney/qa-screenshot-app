@@ -29,7 +29,8 @@ import {
   Database,
   ArrowLeft,
   Settings2,
-  Calendar
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import { Project, Feature, QACharter, CharterScenario, ScenarioStatus, QATestRun } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
@@ -38,7 +39,8 @@ import {
   exportDefectReportMarkdown, 
   exportDefectReportCsv, 
   triggerFileDownload, 
-  extractDefects, 
+  extractDefects,
+  extractDefectsFromRunSnapshot,
   DefectReportMetadata 
 } from '@/lib/defectReportExport';
 
@@ -50,6 +52,7 @@ interface MultiCharterRunnerModalProps {
   allFeatures: Feature[];
   currentFeature?: Feature | null;
   onRefreshData?: () => Promise<void>;
+  initialRun?: QATestRun | null;
 }
 
 interface RunnableScenario extends CharterScenario {
@@ -69,7 +72,8 @@ export function MultiCharterRunnerModal({
   allProjects,
   allFeatures,
   currentFeature,
-  onRefreshData
+  onRefreshData,
+  initialRun
 }: MultiCharterRunnerModalProps) {
   // Phase: 'setup' (scope selection) or 'running' (active execution)
   const [phase, setPhase] = useState<'setup' | 'running'>('setup');
@@ -82,6 +86,13 @@ export function MultiCharterRunnerModal({
   const [selectedFeatureIds, setSelectedFeatureIds] = useState<Set<string>>(new Set());
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('All');
   const [isLoadingCharters, setIsLoadingCharters] = useState(false);
+
+  // Custom Run Title & Environment state
+  const [runTitleInput, setRunTitleInput] = useState<string>('');
+  const [runEnvironmentInput, setRunEnvironmentInput] = useState<string>('');
+  const [isUserEditedTitle, setIsUserEditedTitle] = useState<boolean>(false);
+  const [activeRunName, setActiveRunName] = useState<string>('');
+  const [activeRunSnapshot, setActiveRunSnapshot] = useState<Record<string, any> | null>(null);
 
   // Loaded Charters for the chosen scope
   const [loadedCharters, setLoadedCharters] = useState<QACharter[]>([]);
@@ -134,6 +145,15 @@ export function MultiCharterRunnerModal({
       setSelectedFeatureIds(new Set());
     }
   }, [projectFeatures]);
+
+  // Auto-generate sensible default run title if user hasn't explicitly customized it
+  useEffect(() => {
+    if (!isUserEditedTitle && activeProject) {
+      const featCount = selectedFeatureIds.size;
+      const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      setRunTitleInput(`${activeProject.name} Run — ${featCount} Feature${featCount === 1 ? '' : 's'} (${dateStr})`);
+    }
+  }, [activeProject, selectedFeatureIds.size, isUserEditedTitle]);
 
   // Fetch test runs from Database (qa_test_runs)
   const loadDbTestRuns = useCallback(async () => {
@@ -200,14 +220,29 @@ export function MultiCharterRunnerModal({
         return acc;
       }, {});
 
+      const snapshot = activeRunSnapshot || {};
       const enrichedCharters: QACharter[] = (chartersData || []).map(c => ({
         ...c,
-        scenarios: scenariosByCharter[c.id] || []
+        scenarios: (scenariosByCharter[c.id] || []).map(s => {
+          if (snapshot[s.id]) {
+            return {
+              ...s,
+              status: snapshot[s.id].status || s.status,
+              observations: snapshot[s.id].observations !== undefined ? snapshot[s.id].observations : s.observations,
+              media_url: snapshot[s.id].media_url !== undefined ? snapshot[s.id].media_url : s.media_url
+            };
+          }
+          return s;
+        })
       }));
 
       setLoadedCharters(enrichedCharters);
 
-      if (enrichedCharters.length > 0 && !selectedCharterId) {
+      // Auto-select the first charter with pending/untested scenarios when resuming or loading
+      const pendingCharter = enrichedCharters.find(c => c.scenarios?.some(s => s.status === 'Untested'));
+      if (pendingCharter) {
+        setSelectedCharterId(pendingCharter.id);
+      } else if (enrichedCharters.length > 0 && !selectedCharterId) {
         setSelectedCharterId(enrichedCharters[0].id);
       }
 
@@ -236,7 +271,31 @@ export function MultiCharterRunnerModal({
     } finally {
       setIsLoadingCharters(false);
     }
-  }, [selectedFeatureIds, allFeatures, selectedCharterId]);
+  }, [selectedFeatureIds, allFeatures, selectedCharterId, activeRunSnapshot]);
+
+  // Resume an existing test run from DB without creating a duplicate run
+  const handleResumeRun = useCallback((run: QATestRun) => {
+    setActiveDbRunId(run.id);
+    setActiveRunName(run.name);
+    setRunTitleInput(run.name);
+    setIsUserEditedTitle(true);
+    if (run.metadata?.environment) {
+      setRunEnvironmentInput(run.metadata.environment);
+    }
+    setSelectedProjectId(run.project_id);
+    setSelectedFeatureIds(new Set(run.feature_ids || []));
+    setActiveRunSnapshot(run.metadata?.scenario_results || {});
+    setPhase('running');
+    setViewMode('charter');
+    setRunFilter('pending');
+  }, []);
+
+  // Automatically activate resume mode when initialRun is supplied
+  useEffect(() => {
+    if (isOpen && initialRun) {
+      handleResumeRun(initialRun);
+    }
+  }, [isOpen, initialRun, handleResumeRun]);
 
   useEffect(() => {
     if (isOpen) {
@@ -334,22 +393,31 @@ export function MultiCharterRunnerModal({
 
     if (!selectedProjectId) return;
 
+    // If already attached to an active DB run (e.g. from resume), do not create duplicate!
+    if (activeDbRunId) {
+      return;
+    }
+
     try {
       const featNames = projectFeatures
         .filter(f => selectedFeatureIds.has(f.id))
         .map(f => f.name);
+
+      const title = runTitleInput.trim() || `${activeProject?.name || 'QA'} Run (${new Date().toLocaleDateString()})`;
 
       const res = await fetch('/api/test-runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_id: selectedProjectId,
-          name: `${activeProject?.name || 'QA'} Run (${new Date().toLocaleDateString()})`,
+          name: title,
           feature_ids: Array.from(selectedFeatureIds),
           total_scenarios: runnableScenarios.length,
           metadata: {
             featureNames: featNames,
-            platform: activeProject?.platform
+            platform: activeProject?.platform,
+            environment: runEnvironmentInput.trim() || undefined,
+            scenario_results: {}
           }
         })
       });
@@ -357,6 +425,8 @@ export function MultiCharterRunnerModal({
       const data = await res.json();
       if (data.run?.id) {
         setActiveDbRunId(data.run.id);
+        setActiveRunName(data.run.name);
+        setActiveRunSnapshot({});
         setDbTestRuns(prev => [data.run, ...prev]);
       }
     } catch (err) {
@@ -371,39 +441,60 @@ export function MultiCharterRunnerModal({
     failed: number,
     blocked: number,
     untested: number,
-    total: number
+    total: number,
+    scenarioResultUpdate?: Record<string, any>
   ) => {
     const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
     const isDone = total > 0 && untested === 0;
 
     try {
-      await fetch('/api/test-runs', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: runId,
-          passed_count: passed,
-          failed_count: failed,
-          blocked_count: blocked,
-          untested_count: untested,
-          pass_rate: passRate,
-          status: isDone ? 'completed' : 'in_progress',
-          completed_at: isDone ? new Date().toISOString() : null
-        })
-      });
-
-      // Update local dbTestRuns state
-      setDbTestRuns(prev => prev.map(r => r.id === runId ? {
-        ...r,
+      const payload: Record<string, any> = {
+        id: runId,
         passed_count: passed,
         failed_count: failed,
         blocked_count: blocked,
         untested_count: untested,
         pass_rate: passRate,
         status: isDone ? 'completed' : 'in_progress',
-        completed_at: isDone ? new Date().toISOString() : r.completed_at,
-        updated_at: new Date().toISOString()
-      } : r));
+        completed_at: isDone ? new Date().toISOString() : null
+      };
+
+      if (scenarioResultUpdate) {
+        payload.metadata = {
+          scenario_results: scenarioResultUpdate
+        };
+      }
+
+      await fetch('/api/test-runs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      // Update local dbTestRuns state
+      setDbTestRuns(prev => prev.map(r => {
+        if (r.id !== runId) return r;
+        const existingMeta = r.metadata || {};
+        const mergedResults = {
+          ...(existingMeta.scenario_results || {}),
+          ...(scenarioResultUpdate || {})
+        };
+        return {
+          ...r,
+          passed_count: passed,
+          failed_count: failed,
+          blocked_count: blocked,
+          untested_count: untested,
+          pass_rate: passRate,
+          status: isDone ? 'completed' : 'in_progress',
+          completed_at: isDone ? new Date().toISOString() : r.completed_at,
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...existingMeta,
+            scenario_results: mergedResults
+          }
+        };
+      }));
     } catch (err) {
       console.error('Failed syncing test run progress to DB:', err);
     }
@@ -415,7 +506,11 @@ export function MultiCharterRunnerModal({
     try {
       await fetch(`/api/test-runs?id=${runId}`, { method: 'DELETE' });
       setDbTestRuns(prev => prev.filter(r => r.id !== runId));
-      if (activeDbRunId === runId) setActiveDbRunId(null);
+      if (activeDbRunId === runId) {
+        setActiveDbRunId(null);
+        setActiveRunName('');
+        setActiveRunSnapshot(null);
+      }
     } catch (err) {
       console.error('Error deleting test run:', err);
     }
@@ -466,9 +561,29 @@ export function MultiCharterRunnerModal({
         })
       });
 
-      // 2. Sync run progress to PostgreSQL (qa_test_runs)
+      // 2. Sync run progress & scenario snapshot to PostgreSQL (qa_test_runs)
       if (activeDbRunId) {
-        syncDbRunProgress(activeDbRunId, newPassed, newFailed, newBlocked, newUntested, updatedRunnable.length);
+        const scenarioUpdate = {
+          status: updates.status || 'Untested',
+          observations: updates.observations,
+          media_url: updates.media_url,
+          executed_at: new Date().toISOString()
+        };
+
+        setActiveRunSnapshot(prev => ({
+          ...(prev || {}),
+          [scenarioId]: scenarioUpdate
+        }));
+
+        syncDbRunProgress(
+          activeDbRunId, 
+          newPassed, 
+          newFailed, 
+          newBlocked, 
+          newUntested, 
+          updatedRunnable.length,
+          { [scenarioId]: scenarioUpdate }
+        );
       }
     } catch (err) {
       console.error('Failed saving scenario:', err);
@@ -529,29 +644,39 @@ export function MultiCharterRunnerModal({
   }, [isOpen, phase, viewMode, currentIndex, filteredStepperRunnable.length, currentStepperScenario, activeNotes, activeMediaUrl]);
 
   // Defect Report Metadata Builder
-  const getDefectReportMetadata = (): DefectReportMetadata => {
+  const getDefectReportMetadata = (customRun?: QATestRun): DefectReportMetadata => {
     const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
-    const featureNames = Array.from(selectedFeatureIds).map(id => featMap.get(id) || 'Feature');
+    const featureNames = customRun?.metadata?.featureNames || 
+      Array.from(selectedFeatureIds).map(id => featMap.get(id) || 'Feature');
 
     return {
       projectName: activeProject?.name || 'QA Test Studio',
+      runName: customRun ? customRun.name : (activeRunName || runTitleInput || undefined),
       platform: activeProject?.platform || 'General',
       featureNames,
-      totalScenarios: counters.total,
-      passedCount: counters.passed,
-      failedCount: counters.failed,
-      blockedCount: counters.blocked,
-      untestedCount: counters.untested,
-      passRate: counters.percent,
-      generatedDate: new Date().toLocaleDateString()
+      totalScenarios: customRun ? customRun.total_scenarios : counters.total,
+      passedCount: customRun ? customRun.passed_count : counters.passed,
+      failedCount: customRun ? customRun.failed_count : counters.failed,
+      blockedCount: customRun ? customRun.blocked_count : counters.blocked,
+      untestedCount: customRun ? customRun.untested_count : counters.untested,
+      passRate: customRun ? customRun.pass_rate : counters.percent,
+      environment: customRun?.metadata?.environment || runEnvironmentInput || undefined,
+      generatedDate: customRun 
+        ? new Date(customRun.started_at || customRun.created_at).toLocaleDateString()
+        : new Date().toLocaleDateString()
     };
   };
 
   // Export PDF Defect Report
-  const handleDownloadDefectPdf = () => {
-    const meta = getDefectReportMetadata();
+  const handleDownloadDefectPdf = (customRun?: QATestRun | React.MouseEvent | unknown) => {
+    const run = (customRun && typeof customRun === 'object' && 'id' in customRun && !('nativeEvent' in customRun)) 
+      ? (customRun as QATestRun) 
+      : undefined;
+    const meta = getDefectReportMetadata(run);
     const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
-    const defects = extractDefects(loadedCharters, featMap);
+    const defects = run
+      ? extractDefectsFromRunSnapshot(run, loadedCharters, featMap)
+      : extractDefects(loadedCharters, featMap);
     exportDefectReportPdf(meta, defects);
     setShowExportMenu(false);
   };
@@ -608,8 +733,13 @@ export function MultiCharterRunnerModal({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-bold tracking-tight text-white">
-                  {phase === 'setup' ? 'Test Run Setup' : `Test Run Studio: ${activeProject?.name || 'QA App'}`}
+                  {phase === 'setup' ? 'Test Run Setup' : (activeRunName || runTitleInput || `Test Run Studio: ${activeProject?.name || 'QA App'}`)}
                 </h1>
+                {activeDbRunId && phase === 'running' && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+                    <span>● DB Synced</span>
+                  </span>
+                )}
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-dark-secondary text-neon border border-dark-tertiary">
                   {phase === 'setup' ? 'SCOPE CONFIGURATION' : 'FULL-PAGE STUDIO'}
                 </span>
@@ -623,7 +753,7 @@ export function MultiCharterRunnerModal({
               <p className="text-[11px] text-txt-muted">
                 {phase === 'setup'
                   ? 'Configure applications and feature charters to bundle into this test cycle'
-                  : `Active execution across ${selectedFeatureIds.size} feature${selectedFeatureIds.size === 1 ? '' : 's'} (${loadedCharters.length} charters, ${counters.total} scenarios)`}
+                  : `${activeProject?.name || 'App'} • ${selectedFeatureIds.size} feature${selectedFeatureIds.size === 1 ? '' : 's'} (${counters.total} scenarios)${runEnvironmentInput ? ` • Env: ${runEnvironmentInput}` : ''}`}
               </p>
             </div>
           </div>
@@ -759,6 +889,76 @@ export function MultiCharterRunnerModal({
           {/* TAB 1: CONFIGURE NEW RUN */}
           {setupTab === 'config' && (
             <div className="p-6 md:p-8 space-y-6 overflow-y-auto flex-1 max-w-6xl w-full mx-auto">
+              
+              {/* Test Run Title & Cycle Configuration */}
+              <div className="p-5 rounded-2xl bg-white border border-qa-border shadow-2xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    <span className="text-xs font-bold text-dark-chassis uppercase tracking-wider">
+                      Test Run Title & Cycle Configuration
+                    </span>
+                  </div>
+                  {activeDbRunId && (
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 text-amber-700" />
+                        Resuming: {activeRunName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveDbRunId(null);
+                          setActiveRunSnapshot(null);
+                          setActiveRunName('');
+                          setIsUserEditedTitle(false);
+                        }}
+                        className="text-[10px] text-txt-muted hover:text-rose-600 underline font-semibold transition"
+                      >
+                        Start Fresh Run Instead
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-[11px] font-bold text-dark-chassis block">
+                      Test Run Title / Cycle Name
+                    </label>
+                    <input
+                      type="text"
+                      value={runTitleInput}
+                      onChange={(e) => {
+                        setRunTitleInput(e.target.value);
+                        setIsUserEditedTitle(true);
+                      }}
+                      placeholder="e.g. Release 2.4 - Checkout & KYC Regression"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-qa-border text-xs text-dark-chassis focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium transition"
+                    />
+                    <span className="text-[10px] text-txt-muted block">
+                      Custom name saved to database and displayed on defect reports & team summaries.
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-dark-chassis block">
+                      Environment / Target (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={runEnvironmentInput}
+                      onChange={(e) => setRunEnvironmentInput(e.target.value)}
+                      placeholder="e.g. Staging / iOS 17.4"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-qa-border text-xs text-dark-chassis focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium transition"
+                    />
+                    <span className="text-[10px] text-txt-muted block">
+                      Build target, sprint number, or tester name.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Target Application Picker */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-dark-chassis uppercase tracking-wider block">
@@ -887,7 +1087,9 @@ export function MultiCharterRunnerModal({
                     </span>
                   </div>
                   <p className="text-[11px] text-txt-muted mt-0.5">
-                    360° coverage: Golden Path, Alternative Flows, Boundary checks, and Failure/Recovery
+                    {activeDbRunId 
+                      ? `Resuming: "${activeRunName || runTitleInput}" • Continuing from where you left off`
+                      : '360° coverage: Golden Path, Alternative Flows, Boundary checks, and Failure/Recovery'}
                   </p>
                 </div>
 
@@ -898,7 +1100,7 @@ export function MultiCharterRunnerModal({
                   className="px-6 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition shadow-card flex items-center gap-2 active:scale-95 disabled:opacity-50"
                 >
                   <Play className="w-4 h-4 fill-dark-chassis" />
-                  <span>Launch Full-Page Test Run</span>
+                  <span>{activeDbRunId ? 'Continue Run Studio' : 'Launch Full-Page Test Run'}</span>
                 </button>
               </div>
             </div>
@@ -978,24 +1180,20 @@ export function MultiCharterRunnerModal({
 
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={handleDownloadDefectPdf}
+                            onClick={() => handleDownloadDefectPdf(run)}
                             className="px-3 py-1.5 rounded-pill bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition"
-                            title="Download PDF defect report"
+                            title="Download PDF defect report for this test run"
                           >
                             <FileDown className="w-3.5 h-3.5" />
                             <span>Defect PDF</span>
                           </button>
 
                           <button
-                            onClick={() => {
-                              setActiveDbRunId(run.id);
-                              setPhase('running');
-                              setViewMode('charter');
-                            }}
-                            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs"
+                            onClick={() => handleResumeRun(run)}
+                            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs active:scale-95"
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Resume / View</span>
+                            <Play className="w-3.5 h-3.5 text-neon fill-neon" />
+                            <span>{isCompleted ? 'View Run' : 'Resume Run'}</span>
                           </button>
 
                           <button
@@ -1753,20 +1951,20 @@ export function MultiCharterRunnerModal({
 
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={handleDownloadDefectPdf}
+                            onClick={() => handleDownloadDefectPdf(run)}
                             className="px-3 py-1.5 rounded-pill bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition"
-                            title="Download PDF defect report"
+                            title="Download PDF defect report for this test run"
                           >
                             <FileDown className="w-3.5 h-3.5" />
                             <span>Defect PDF</span>
                           </button>
 
                           <button
-                            onClick={() => setViewMode('charter')}
-                            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs"
+                            onClick={() => handleResumeRun(run)}
+                            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs active:scale-95"
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Resume / View</span>
+                            <Play className="w-3.5 h-3.5 text-neon fill-neon" />
+                            <span>{run.status === 'completed' ? 'View Run' : 'Resume Run'}</span>
                           </button>
 
                           <button

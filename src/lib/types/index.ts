@@ -393,6 +393,14 @@ export interface QATestRun {
     featureNames?: string[];
     testerName?: string;
     environment?: string;
+    platform?: string;
+    scenario_results?: Record<string, {
+      status: 'Untested' | 'Pass' | 'Fail' | 'Blocked';
+      observations?: string;
+      media_url?: string;
+      executed_at?: string;
+    }>;
+    [key: string]: any;
   };
   started_at: string;
   completed_at?: string | null;
