@@ -487,6 +487,7 @@ export default function Home() {
   };
 
   const handleRunAppChartersFromHub = (targetProj: Project) => {
+    setActiveResumeRun(null);
     setRunnerTargetProject(targetProj);
     setIsMultiRunnerOpen(true);
   };
@@ -707,6 +708,7 @@ export default function Home() {
                 charters={charters}
                 onRefreshCharters={() => loadFeatureData(feature.id)}
                 onOpenRunner={() => {
+                  setActiveResumeRun(null);
                   setRunnerTargetProject(project);
                   setIsMultiRunnerOpen(true);
                 }}

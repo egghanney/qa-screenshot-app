@@ -220,16 +220,17 @@ export function MultiCharterRunnerModal({
         return acc;
       }, {});
 
-      const snapshot = activeRunSnapshot || {};
+      const snapshot = activeRunSnapshot;
       const enrichedCharters: QACharter[] = (chartersData || []).map(c => ({
         ...c,
         scenarios: (scenariosByCharter[c.id] || []).map(s => {
-          if (snapshot[s.id]) {
+          if (snapshot !== null) {
+            const snap = snapshot[s.id];
             return {
               ...s,
-              status: snapshot[s.id].status || s.status,
-              observations: snapshot[s.id].observations !== undefined ? snapshot[s.id].observations : s.observations,
-              media_url: snapshot[s.id].media_url !== undefined ? snapshot[s.id].media_url : s.media_url
+              status: snap?.status || ('Untested' as const),
+              observations: snap?.observations !== undefined ? snap.observations : '',
+              media_url: snap?.media_url !== undefined ? snap.media_url : ''
             };
           }
           return s;
@@ -291,10 +292,23 @@ export function MultiCharterRunnerModal({
     setRunFilter('pending');
   }, []);
 
-  // Automatically activate resume mode when initialRun is supplied
+  // Handle opening modal: either resume initialRun or initialize a clean new run setup
   useEffect(() => {
-    if (isOpen && initialRun) {
-      handleResumeRun(initialRun);
+    if (isOpen) {
+      if (initialRun) {
+        handleResumeRun(initialRun);
+      } else {
+        // Fresh run: ensure clean state
+        setActiveDbRunId(null);
+        setActiveRunSnapshot(null);
+        setActiveRunName('');
+        setIsUserEditedTitle(false);
+        setPhase('setup');
+        setSetupTab('config');
+        setViewMode('charter');
+        setRunFilter('all');
+        setCurrentIndex(0);
+      }
     }
   }, [isOpen, initialRun, handleResumeRun]);
 
@@ -470,6 +484,24 @@ export function MultiCharterRunnerModal({
         setActiveRunName(data.run.name);
         setActiveRunSnapshot({});
         setDbTestRuns(prev => [data.run, ...prev]);
+
+        // Reset all in-memory scenarios to Untested for this fresh execution run
+        setLoadedCharters(prev => prev.map(c => ({
+          ...c,
+          scenarios: (c.scenarios || []).map(s => ({
+            ...s,
+            status: 'Untested' as const,
+            observations: '',
+            media_url: ''
+          }))
+        })));
+
+        setRunnableScenarios(prev => prev.map(s => ({
+          ...s,
+          status: 'Untested' as const,
+          observations: '',
+          media_url: ''
+        })));
       }
     } catch (err) {
       console.error('Error creating database test run:', err);
