@@ -16,7 +16,9 @@ import {
   Settings,
   Grid,
   Filter,
-  ExternalLink
+  ExternalLink,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { Project, Feature } from '@/lib/types';
 import { CreateAppModal } from './CreateAppModal';
@@ -45,6 +47,20 @@ export function AppsHubLandingView({
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'All' | 'Mobile' | 'Web'>('All');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('qa_apps_view_mode');
+      if (saved === 'list' || saved === 'grid') return saved;
+    }
+    return 'grid';
+  });
+
+  const handleSetViewMode = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('qa_apps_view_mode', mode);
+    }
+  };
 
   // Group features by project
   const featuresByProject = useMemo(() => {
@@ -189,26 +205,57 @@ export function AppsHubLandingView({
             />
           </div>
 
-          {/* Platform Filter Buttons */}
-          <div className="flex items-center gap-1.5 self-start sm:self-auto">
-            <span className="text-[11px] text-txt-muted font-mono mr-1">Filter:</span>
-            {(['All', 'Mobile', 'Web'] as const).map(tab => (
+          {/* Controls Right: Platform Filter & Layout View Mode */}
+          <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
+            {/* Platform Filter Buttons */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-txt-muted font-mono mr-1">Filter:</span>
+              {(['All', 'Mobile', 'Web'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setPlatformFilter(tab)}
+                  className={`px-3 py-1 rounded-pill text-xs font-medium transition ${
+                    platformFilter === tab
+                      ? 'bg-dark-chassis text-white font-bold shadow-xs'
+                      : 'bg-qa-surface text-txt-secondary hover:bg-qa-warm border border-qa-border'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* View Mode Toggle: Grid vs List */}
+            <div className="flex items-center gap-1 bg-qa-surface p-1 rounded-xl border border-qa-border">
               <button
-                key={tab}
-                onClick={() => setPlatformFilter(tab)}
-                className={`px-3 py-1 rounded-pill text-xs font-medium transition ${
-                  platformFilter === tab
-                    ? 'bg-dark-chassis text-white font-bold shadow-xs'
-                    : 'bg-qa-surface text-txt-secondary hover:bg-qa-warm border border-qa-border'
+                type="button"
+                onClick={() => handleSetViewMode('grid')}
+                className={`p-1.5 rounded-lg transition ${
+                  viewMode === 'grid'
+                    ? 'bg-dark-chassis text-white shadow-xs'
+                    : 'text-txt-muted hover:text-dark-chassis'
                 }`}
+                title="Grid View"
               >
-                {tab}
+                <LayoutGrid className="w-3.5 h-3.5" />
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => handleSetViewMode('list')}
+                className={`p-1.5 rounded-lg transition ${
+                  viewMode === 'list'
+                    ? 'bg-dark-chassis text-white shadow-xs'
+                    : 'text-txt-muted hover:text-dark-chassis'
+                }`}
+                title="List View"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Applications Grid */}
+        {/* Applications List / Grid */}
         {filteredProjects.length === 0 ? (
           <div className="p-12 text-center bg-qa-white rounded-3xl border border-qa-border shadow-card space-y-4 max-w-md mx-auto">
             <div className="w-12 h-12 rounded-full bg-dark-chassis text-neon flex items-center justify-center mx-auto">
@@ -231,6 +278,104 @@ export function AppsHubLandingView({
                 Register First Application
               </button>
             )}
+          </div>
+        ) : viewMode === 'list' ? (
+          <div className="space-y-3">
+            {filteredProjects.map(proj => {
+              const projFeatures = featuresByProject[proj.id] || [];
+              const charterCount = chartersCountByProject[proj.id] || 0;
+              const scenarioCount = scenariosCountByProject[proj.id] || 0;
+
+              return (
+                <div 
+                  key={proj.id}
+                  className="bg-qa-white rounded-2xl border border-qa-border shadow-xs hover:shadow-card hover:border-dark-chassis/40 transition-all p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group"
+                >
+                  {/* Left: App Identity & Platform */}
+                  <div className="flex items-center gap-3.5 min-w-[240px] max-w-sm">
+                    <div className="w-11 h-11 rounded-2xl bg-dark-chassis text-white flex items-center justify-center shrink-0 shadow-xs group-hover:bg-dark-secondary transition">
+                      {getPlatformIcon(proj.platform)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-dark-chassis group-hover:text-black transition truncate">
+                          {proj.name}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-qa-surface text-txt-secondary border border-qa-border shrink-0">
+                          {proj.platform || 'General'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-txt-secondary truncate mt-0.5">
+                        {proj.description || 'Application workspace ready for QA testing.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Middle: Feature tags preview */}
+                  <div className="flex-1 min-w-0 hidden lg:flex items-center gap-1.5 flex-wrap">
+                    {projFeatures.length > 0 ? (
+                      <>
+                        {projFeatures.slice(0, 3).map(f => (
+                          <span 
+                            key={f.id}
+                            className="px-2.5 py-1 rounded-pill bg-qa-warm text-dark-chassis text-[11px] font-medium border border-qa-border truncate max-w-[150px]"
+                          >
+                            {f.name}
+                          </span>
+                        ))}
+                        {projFeatures.length > 3 && (
+                          <span className="px-2 py-1 rounded-pill bg-qa-surface text-txt-muted text-[10px] font-mono border border-qa-border">
+                            +{projFeatures.length - 3} more
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-txt-muted font-mono italic">
+                        No features mapped yet
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Right: Metrics & Actions */}
+                  <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-qa-border/60">
+                    {/* Metrics */}
+                    <div className="flex items-center gap-2.5">
+                      <span className="px-2.5 py-1 rounded-pill bg-qa-surface text-dark-chassis text-xs font-semibold font-mono border border-qa-border flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-txt-muted" />
+                        {projFeatures.length} {projFeatures.length === 1 ? 'Feature' : 'Features'}
+                      </span>
+
+                      <span className="px-2.5 py-1 rounded-pill bg-qa-surface text-dark-chassis text-xs font-semibold font-mono border border-qa-border flex items-center gap-1.5">
+                        <ClipboardList className="w-3.5 h-3.5 text-indigo-600" />
+                        {charterCount} Charters
+                      </span>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                      {charterCount > 0 && onRunAppCharters && (
+                        <button
+                          onClick={() => onRunAppCharters(proj)}
+                          className="px-3 py-1.5 rounded-pill bg-dark-chassis hover:bg-dark-secondary text-neon text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95"
+                          title="Run all charters under this application"
+                        >
+                          <Play className="w-3 h-3 fill-neon" />
+                          <span>Run Suite</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => onSelectProject(proj.id)}
+                        className="px-3.5 py-1.5 rounded-pill bg-qa-warm group-hover:bg-neon text-dark-chassis text-xs font-bold transition flex items-center gap-1.5 border border-qa-border group-hover:border-neon shadow-2xs active:scale-95"
+                      >
+                        <span>Open</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -67,6 +67,7 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
 
   // Load active feature data from Supabase
   const loadFeatureData = useCallback(async (featureId?: string, targetProjId?: string) => {
@@ -163,6 +164,13 @@ export default function Home() {
         setCheckpoints([]);
         setCharters([]);
         setObservations([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // If we are currently in Apps Hub mode and no specific feature or project was requested,
+      // only retain project/feature lists and charter metrics. Do not eagerly fetch screens for a random feature.
+      if (!featureId && !targetProjId && isAppsHubView) {
         setIsLoading(false);
         return;
       }
@@ -370,34 +378,69 @@ export default function Home() {
   const handleSelectProject = (projId: string) => {
     setSelectedProjectId(projId);
     if (projId === 'all') {
-      if (!feature && allFeatures.length > 0) {
-        loadFeatureData(allFeatures[0].id, 'all');
-      }
-    } else {
-      const projFeatures = allFeatures.filter(f => f.project_id === projId);
-      const currentProj = allProjects.find(p => p.id === projId) || null;
-      setProject(currentProj);
-      if (projFeatures.length > 0) {
-        loadFeatureData(projFeatures[0].id, projId);
-      } else {
-        setFeature(null);
+      if (allFeatures.length > 0) {
+        setFeature(allFeatures[0]);
         setScreens([]);
         setNodes([]);
         setEdges([]);
         setKnowledge([]);
         setQuestions([]);
         setCheckpoints([]);
+        setCharters([]);
         setObservations([]);
+        setIsWorkspaceLoading(true);
+        loadFeatureData(allFeatures[0].id, 'all').finally(() => {
+          setIsWorkspaceLoading(false);
+        });
+      }
+    } else {
+      const projFeatures = allFeatures.filter(f => f.project_id === projId);
+      const currentProj = allProjects.find(p => p.id === projId) || null;
+      setProject(currentProj);
+
+      // Immediately clear stale artifacts to prevent flashing previous workspace
+      setScreens([]);
+      setNodes([]);
+      setEdges([]);
+      setKnowledge([]);
+      setQuestions([]);
+      setCheckpoints([]);
+      setCharters([]);
+      setObservations([]);
+
+      if (projFeatures.length > 0) {
+        setFeature(projFeatures[0]);
+        setIsWorkspaceLoading(true);
+        loadFeatureData(projFeatures[0].id, projId).finally(() => {
+          setIsWorkspaceLoading(false);
+        });
+      } else {
+        setFeature(null);
+        setIsWorkspaceLoading(false);
       }
     }
   };
 
   const handleSelectFeature = (id: string) => {
     const target = allFeatures.find(f => f.id === id);
-    if (target && target.project_id && selectedProjectId !== 'all' && target.project_id !== selectedProjectId) {
-      setSelectedProjectId(target.project_id);
+    if (target) {
+      setFeature(target);
+      if (target.project_id && selectedProjectId !== 'all' && target.project_id !== selectedProjectId) {
+        setSelectedProjectId(target.project_id);
+      }
+      setScreens([]);
+      setNodes([]);
+      setEdges([]);
+      setKnowledge([]);
+      setQuestions([]);
+      setCheckpoints([]);
+      setCharters([]);
+      setObservations([]);
+      setIsWorkspaceLoading(true);
+      loadFeatureData(id).finally(() => {
+        setIsWorkspaceLoading(false);
+      });
     }
-    loadFeatureData(id);
   };
 
   const handleOpenAppsHub = () => {
@@ -408,11 +451,37 @@ export default function Home() {
   };
 
   const handleSelectProjectFromHub = (projId: string) => {
+    const targetProj = allProjects.find(p => p.id === projId) || null;
+    const projFeatures = allFeatures.filter(f => f.project_id === projId);
+
+    // 1. Immediately synchronize project & purge old workspace state
+    setProject(targetProj);
+    setSelectedProjectId(projId);
+    setScreens([]);
+    setNodes([]);
+    setEdges([]);
+    setKnowledge([]);
+    setQuestions([]);
+    setCheckpoints([]);
+    setCharters([]);
+    setObservations([]);
+
+    if (projFeatures.length > 0) {
+      setFeature(projFeatures[0]);
+      setIsWorkspaceLoading(true);
+      loadFeatureData(projFeatures[0].id, projId).finally(() => {
+        setIsWorkspaceLoading(false);
+      });
+    } else {
+      setFeature(null);
+      setIsWorkspaceLoading(false);
+    }
+
+    // 2. Switch view to workspace
     setIsAppsHubView(false);
     if (typeof window !== 'undefined') {
       localStorage.setItem('qa_active_view', 'workspace');
     }
-    handleSelectProject(projId);
   };
 
   const handleRunAppChartersFromHub = (targetProj: Project) => {
@@ -531,7 +600,18 @@ export default function Home() {
           observations: observations.length
         }}
       >
-        {!feature ? (
+        {isWorkspaceLoading ? (
+          <div className="flex-1 flex items-center justify-center p-8 bg-qa-warm">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-dark-chassis text-neon flex items-center justify-center font-bold text-xs animate-spin">
+                QA
+              </div>
+              <span className="text-xs font-mono font-semibold text-dark-chassis tracking-wider">
+                LOADING WORKSPACE INTELLIGENCE...
+              </span>
+            </div>
+          </div>
+        ) : !feature ? (
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="bg-qa-white p-8 rounded-[28px] border border-qa-border shadow-card max-w-md text-center space-y-4">
               <div className="w-12 h-12 rounded-full bg-dark-chassis text-neon flex items-center justify-center mx-auto font-bold">
