@@ -332,18 +332,19 @@ export function AppsHubLandingView({
         </div>
 
         {/* Hub Navigation Tabs: Applications vs Run History */}
-        <div className="flex items-center justify-between gap-4 border-b border-qa-border pb-3">
-          <div className="flex items-center gap-2 bg-qa-white p-1 rounded-pill border border-qa-border shadow-2xs">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-4 border-b border-qa-border pb-3">
+          <div className="flex items-center gap-1 sm:gap-2 bg-qa-white p-1 rounded-pill border border-qa-border shadow-2xs shrink-0">
             <button
               onClick={() => setHubTab('apps')}
-              className={`px-4 py-1.5 rounded-pill text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3 sm:px-4 py-1.5 rounded-pill text-xs font-bold transition flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                 hubTab === 'apps'
                   ? 'bg-dark-chassis text-white shadow-2xs'
                   : 'text-txt-muted hover:text-dark-chassis'
               }`}
             >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Applications ({projects.length})</span>
+              <Smartphone className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Applications ({projects.length})</span>
+              <span className="sm:hidden">Apps ({projects.length})</span>
             </button>
 
             <button
@@ -351,14 +352,15 @@ export function AppsHubLandingView({
                 setHubTab('runs');
                 loadDbRuns();
               }}
-              className={`px-4 py-1.5 rounded-pill text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3 sm:px-4 py-1.5 rounded-pill text-xs font-bold transition flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                 hubTab === 'runs'
                   ? 'bg-dark-chassis text-white shadow-2xs'
                   : 'text-txt-muted hover:text-dark-chassis'
               }`}
             >
-              <History className="w-3.5 h-3.5" />
-              <span>Run History ({dbRuns.length})</span>
+              <History className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Run History ({dbRuns.length})</span>
+              <span className="sm:hidden">Runs ({dbRuns.length})</span>
             </button>
           </div>
 
@@ -366,10 +368,12 @@ export function AppsHubLandingView({
             <button
               onClick={loadDbRuns}
               disabled={isLoadingDbRuns}
-              className="px-3.5 py-1.5 rounded-pill bg-qa-white hover:bg-qa-warm text-dark-chassis text-xs font-semibold border border-qa-border transition flex items-center gap-1.5 shadow-2xs"
+              className="px-3 sm:px-3.5 py-1.5 rounded-pill bg-qa-white hover:bg-qa-warm text-dark-chassis text-xs font-semibold border border-qa-border transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap active:scale-95 disabled:opacity-60 ml-auto sm:ml-0 shrink-0"
+              title="Refresh test run history"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingDbRuns ? 'animate-spin' : ''}`} />
-              <span>Refresh History</span>
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isLoadingDbRuns ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh History</span>
+              <span className="sm:hidden">Refresh</span>
             </button>
           )}
         </div>
@@ -726,17 +730,17 @@ export function AppsHubLandingView({
             {/* Product Filter Bar */}
             {dbRuns.length > 0 && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 p-3 sm:p-3.5 bg-qa-white rounded-2xl border border-qa-border shadow-xs">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
                   <label htmlFor="run-product-filter" className="text-xs font-semibold text-txt-secondary flex items-center gap-1.5 shrink-0">
                     <Filter className="w-3.5 h-3.5 text-txt-muted" />
                     <span>Product:</span>
                   </label>
-                  <div className="relative inline-block min-w-[200px] sm:min-w-[240px]">
+                  <div className="relative flex-1 sm:flex-initial min-w-0 sm:min-w-[240px] w-full">
                     <select
                       id="run-product-filter"
                       value={selectedRunProductFilter}
                       onChange={(e) => setSelectedRunProductFilter(e.target.value)}
-                      className="w-full appearance-none bg-qa-warm/80 hover:bg-qa-warm text-dark-chassis font-semibold text-xs py-2 pl-3.5 pr-8 rounded-pill border border-qa-border focus:outline-none focus:border-dark-chassis transition cursor-pointer shadow-2xs"
+                      className="w-full appearance-none bg-qa-warm/80 hover:bg-qa-warm text-dark-chassis font-semibold text-xs py-2 pl-3.5 pr-8 rounded-pill border border-qa-border focus:outline-none focus:border-dark-chassis transition cursor-pointer shadow-2xs truncate"
                     >
                       <option value="All">All Products ({runsCountByProject['All'] || 0} runs)</option>
                       {projects.map(proj => (
