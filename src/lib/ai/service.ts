@@ -1096,7 +1096,7 @@ CRITICAL ANTI-HALLUCINATION RULES:
 - Only answer based on the facts provided above.
 - If information is not confirmed or unknown, state explicitly: "This is not confirmed from the available evidence / requires confirmation."
 - Prioritize factual accuracy over assumptions.
-- Provide structured, professional, clinical-grade QA answers.
+- Provide structured, professional, high-standard QA answers.
 `;
 
   const prompt = `${context}\n\nUser Question: ${query}\n\nCopilot Response:`;

@@ -29,6 +29,8 @@ import { ExportStudio } from '@/components/export/ExportStudio';
 import { AskAICopilotDrawer } from '@/components/chat/AskAICopilotDrawer';
 import { FeatureWizardModal } from '@/components/wizard/FeatureWizardModal';
 import { SettingsModal } from '@/components/shell/SettingsModal';
+import { AppsHubLandingView } from '@/components/apps/AppsHubLandingView';
+import { MultiCharterRunnerModal } from '@/components/charters/MultiCharterRunnerModal';
 import { BrainCircuit, Smartphone } from 'lucide-react';
 
 export default function Home() {
@@ -45,6 +47,20 @@ export default function Home() {
   const [checkpoints, setCheckpoints] = useState<QACheckpoint[]>([]);
   const [charters, setCharters] = useState<QACharter[]>([]);
   const [observations, setObservations] = useState<QAObservation[]>([]);
+
+  // Apps Hub & Runner Navigation State
+  const [isAppsHubView, setIsAppsHubView] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('qa_active_view');
+      if (saved === 'workspace') return false;
+      if (saved === 'hub') return true;
+    }
+    return true; // Default to Apps Hub landing page
+  });
+  const [isMultiRunnerOpen, setIsMultiRunnerOpen] = useState(false);
+  const [runnerTargetProject, setRunnerTargetProject] = useState<Project | null>(null);
+  const [chartersCountByProject, setChartersCountByProject] = useState<Record<string, number>>({});
+  const [scenariosCountByProject, setScenariosCountByProject] = useState<Record<string, number>>({});
 
   const [activeTab, setActiveTab] = useState('overview');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -71,6 +87,46 @@ export default function Home() {
 
       const featureList = (allFeats || []) as Feature[];
       setAllFeatures(featureList);
+
+      // Fetch charter and scenario metrics for all projects
+      try {
+        const { data: allProjectCharters } = await supabase
+          .from('qa_charters')
+          .select('id, feature_id, project_id');
+        
+        const charterList = allProjectCharters || [];
+        const featProjMap = new Map(featureList.map(f => [f.id, f.project_id]));
+        const cCounts: Record<string, number> = {};
+        const charterProjMap = new Map<string, string>();
+
+        charterList.forEach(c => {
+          const pId = c.project_id || featProjMap.get(c.feature_id);
+          if (pId) {
+            cCounts[pId] = (cCounts[pId] || 0) + 1;
+            charterProjMap.set(c.id, pId);
+          }
+        });
+        setChartersCountByProject(cCounts);
+
+        if (charterList.length > 0) {
+          const { data: allScenarios } = await supabase
+            .from('qa_charter_scenarios')
+            .select('id, charter_id');
+
+          const sCounts: Record<string, number> = {};
+          (allScenarios || []).forEach(s => {
+            const pId = charterProjMap.get(s.charter_id);
+            if (pId) {
+              sCounts[pId] = (sCounts[pId] || 0) + 1;
+            }
+          });
+          setScenariosCountByProject(sCounts);
+        } else {
+          setScenariosCountByProject({});
+        }
+      } catch (metricsErr) {
+        console.warn('Could not aggregate project charter metrics:', metricsErr);
+      }
 
       const activeProjId = targetProjId !== undefined ? targetProjId : selectedProjectId;
 
@@ -344,29 +400,87 @@ export default function Home() {
     loadFeatureData(id);
   };
 
+  const handleOpenAppsHub = () => {
+    setIsAppsHubView(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('qa_active_view', 'hub');
+    }
+  };
+
+  const handleSelectProjectFromHub = (projId: string) => {
+    setIsAppsHubView(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('qa_active_view', 'workspace');
+    }
+    handleSelectProject(projId);
+  };
+
+  const handleRunAppChartersFromHub = (targetProj: Project) => {
+    setRunnerTargetProject(targetProj);
+    setIsMultiRunnerOpen(true);
+  };
+
   const visibleFeatures = (selectedProjectId === 'all' || !selectedProjectId)
     ? allFeatures
     : allFeatures.filter(f => f.project_id === selectedProjectId);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-clinical-bg flex items-center justify-center">
+      <div className="min-h-screen bg-qa-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-dark-chassis text-neon flex items-center justify-center font-bold text-sm animate-spin">
             QA
           </div>
           <span className="text-xs font-mono font-semibold text-dark-chassis tracking-wider">
-            INITIALIZING AETHER CLINICAL WORKSPACE...
+            INITIALIZING AETHER QA TEST STUDIO...
           </span>
         </div>
       </div>
     );
   }
 
+  // Standalone Apps Hub Landing Page
+  if (isAppsHubView) {
+    return (
+      <>
+        <AppsHubLandingView
+          projects={allProjects}
+          features={allFeatures}
+          chartersCountByProject={chartersCountByProject}
+          scenariosCountByProject={scenariosCountByProject}
+          onSelectProject={handleSelectProjectFromHub}
+          onRunAppCharters={handleRunAppChartersFromHub}
+          onRefreshProjects={async () => { await loadFeatureData(); }}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+        />
+
+        {/* Multi-Feature & App-Wide Charter Runner Modal */}
+        <MultiCharterRunnerModal
+          isOpen={isMultiRunnerOpen}
+          onClose={() => setIsMultiRunnerOpen(false)}
+          currentProject={runnerTargetProject || project}
+          allProjects={allProjects}
+          allFeatures={allFeatures}
+          currentFeature={feature}
+          onRefreshData={async () => {
+            if (feature) await loadFeatureData(feature.id);
+            else await loadFeatureData();
+          }}
+        />
+
+        {/* Settings Modal */}
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      </>
+    );
+  }
+
   if (allFeatures.length === 0 && allProjects.length === 0) {
     return (
-      <div className="min-h-screen bg-clinical-bg flex items-center justify-center p-4">
-        <div className="bg-clinical-white p-8 rounded-[28px] border border-clinical-border shadow-modal max-w-md text-center space-y-4">
+      <div className="min-h-screen bg-qa-bg flex items-center justify-center p-4">
+        <div className="bg-qa-white p-8 rounded-[28px] border border-qa-border shadow-modal max-w-md text-center space-y-4">
           <div className="w-12 h-12 rounded-full bg-neon/30 text-dark-chassis flex items-center justify-center mx-auto font-bold">
             <BrainCircuit className="w-6 h-6" />
           </div>
@@ -400,6 +514,7 @@ export default function Home() {
         allProjects={allProjects}
         selectedProjectId={selectedProjectId}
         onSelectProject={handleSelectProject}
+        onOpenAppsHub={handleOpenAppsHub}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenWizard={() => setIsWizardOpen(true)}
@@ -418,7 +533,7 @@ export default function Home() {
       >
         {!feature ? (
           <div className="flex-1 flex items-center justify-center p-6">
-            <div className="bg-clinical-white p-8 rounded-[28px] border border-clinical-border shadow-card max-w-md text-center space-y-4">
+            <div className="bg-qa-white p-8 rounded-[28px] border border-qa-border shadow-card max-w-md text-center space-y-4">
               <div className="w-12 h-12 rounded-full bg-dark-chassis text-neon flex items-center justify-center mx-auto font-bold">
                 <Smartphone className="w-6 h-6" />
               </div>
@@ -427,7 +542,7 @@ export default function Home() {
               </h2>
               <p className="text-xs text-txt-secondary leading-relaxed">
                 {project
-                  ? `This application workspace is configured for ${project.platform || 'General'}. Upload screenshots of your first user journey flow to synthesize clinical QA intelligence.`
+                  ? `This application workspace is configured for ${project.platform || 'General'}. Upload screenshots of your first user journey flow to synthesize comprehensive QA testing intelligence.`
                   : 'Select an application workspace above or create a new feature journey to begin.'}
               </p>
               <button
@@ -495,8 +610,14 @@ export default function Home() {
               <ExploratoryChartersView
                 currentFeature={feature}
                 currentProject={project}
+                allProjects={allProjects}
+                allFeatures={allFeatures}
                 charters={charters}
                 onRefreshCharters={() => loadFeatureData(feature.id)}
+                onOpenRunner={() => {
+                  setRunnerTargetProject(project);
+                  setIsMultiRunnerOpen(true);
+                }}
               />
             )}
 
@@ -557,6 +678,20 @@ export default function Home() {
         onClose={() => setIsWizardOpen(false)}
         onFeatureCreated={(id) => loadFeatureData(id)}
         defaultProjectId={selectedProjectId !== 'all' ? selectedProjectId : undefined}
+      />
+
+      {/* Multi-Feature & App-Wide Charter Runner Modal */}
+      <MultiCharterRunnerModal
+        isOpen={isMultiRunnerOpen}
+        onClose={() => setIsMultiRunnerOpen(false)}
+        currentProject={runnerTargetProject || project}
+        allProjects={allProjects}
+        allFeatures={allFeatures}
+        currentFeature={feature}
+        onRefreshData={async () => {
+          if (feature) await loadFeatureData(feature.id);
+          else await loadFeatureData();
+        }}
       />
 
       {/* Settings Modal */}

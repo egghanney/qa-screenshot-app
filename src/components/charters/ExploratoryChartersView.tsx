@@ -11,6 +11,7 @@ import {
   ValidationReport
 } from '@/lib/types';
 import { ContextPackModal } from './ContextPackModal';
+import { MultiCharterRunnerModal } from './MultiCharterRunnerModal';
 import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
   BrainCircuit, 
@@ -34,21 +35,28 @@ import {
   Shield,
   Info,
   ShieldCheck,
-  Box
+  Box,
+  Play
 } from 'lucide-react';
 
 interface ExploratoryChartersViewProps {
   currentFeature: Feature | null;
   currentProject: Project | null;
+  allProjects?: Project[];
+  allFeatures?: Feature[];
   charters: QACharter[];
   onRefreshCharters: () => Promise<void>;
+  onOpenRunner?: () => void;
 }
 
 export function ExploratoryChartersView({
   currentFeature,
   currentProject,
+  allProjects,
+  allFeatures,
   charters,
-  onRefreshCharters
+  onRefreshCharters,
+  onOpenRunner
 }: ExploratoryChartersViewProps) {
   const [selectedCharterId, setSelectedCharterId] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -60,6 +68,7 @@ export function ExploratoryChartersView({
   const [isContextPackModalOpen, setIsContextPackModalOpen] = useState(false);
   const [contextPack, setContextPack] = useState<ContextPack | null>(null);
   const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const [isLocalRunnerOpen, setIsLocalRunnerOpen] = useState(false);
 
   // Local state for instant editing responsiveness
   const [localCharters, setLocalCharters] = useState<QACharter[]>(charters);
@@ -322,7 +331,7 @@ export function ExploratoryChartersView({
               Live Gemini Key Connected
             </span>
           ) : (
-            <span className="text-[10px] text-txt-muted font-mono hidden md:flex items-center gap-1 px-2.5 py-1 bg-clinical-warm rounded-full border border-clinical-border" title="No Gemini API Key found in Settings. Click Settings icon to add key for live multimodal vision.">
+            <span className="text-[10px] text-txt-muted font-mono hidden md:flex items-center gap-1 px-2.5 py-1 bg-qa-warm rounded-full border border-qa-border" title="No Gemini API Key found in Settings. Click Settings icon to add key for live multimodal vision.">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
               Offline Engine Active
             </span>
@@ -345,6 +354,21 @@ export function ExploratoryChartersView({
                 <span>Copy as Table</span>
               </>
             )}
+          </button>
+
+          <button
+            onClick={() => {
+              if (onOpenRunner) {
+                onOpenRunner();
+              } else {
+                setIsLocalRunnerOpen(true);
+              }
+            }}
+            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm active:scale-95 border border-dark-secondary"
+            title="Run all charters across this app or select multiple features"
+          >
+            <Play className="w-3.5 h-3.5 text-neon fill-neon" />
+            <span>Run Suite</span>
           </button>
 
           <button
@@ -718,6 +742,19 @@ export function ExploratoryChartersView({
         validationReport={activeValidationReport}
         featureName={currentFeature?.name}
       />
+
+      {/* Fallback Multi-Feature & App-Wide Charter Runner Modal */}
+      {!onOpenRunner && (
+        <MultiCharterRunnerModal
+          isOpen={isLocalRunnerOpen}
+          onClose={() => setIsLocalRunnerOpen(false)}
+          currentProject={currentProject}
+          allProjects={allProjects || (currentProject ? [currentProject] : [])}
+          allFeatures={allFeatures || (currentFeature ? [currentFeature] : [])}
+          currentFeature={currentFeature}
+          onRefreshData={onRefreshCharters}
+        />
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
   Settings, 
   Smartphone,
   ChevronRight,
+  ChevronLeft,
   ChevronDown,
   ClipboardList
 } from 'lucide-react';
@@ -30,6 +31,7 @@ interface ApplicationShellProps {
   allProjects?: Project[];
   selectedProjectId?: string;
   onSelectProject?: (projectId: string) => void;
+  onOpenAppsHub?: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenWizard: () => void;
@@ -57,6 +59,7 @@ export function ApplicationShell({
   allProjects = [],
   selectedProjectId = 'all',
   onSelectProject,
+  onOpenAppsHub,
   activeTab,
   setActiveTab,
   onOpenWizard,
@@ -83,23 +86,34 @@ export function ApplicationShell({
   ];
 
   return (
-    <div className="min-h-screen h-screen max-h-screen p-2 sm:p-4 bg-clinical-bg flex flex-col overflow-hidden">
+    <div className="min-h-screen h-screen max-h-screen p-2 sm:p-4 bg-qa-bg flex flex-col overflow-hidden">
       {/* Outer Charcoal Framing with Rounded 32px */}
       <div className="w-full bg-dark-chassis rounded-[32px] p-2 sm:p-3 shadow-2xl flex flex-col flex-1 border border-dark-secondary/60 min-h-0 overflow-hidden">
         
         {/* Top Header Bar */}
         <header className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-white border-b border-dark-secondary/80">
           
-          {/* Left: Brand + Clinical Status + Breadcrumbs */}
-          <div className="flex items-center gap-3">
+          {/* Left: Brand + Breadcrumbs */}
+          <div className="flex items-center gap-2.5">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-neon flex items-center justify-center text-dark-chassis font-bold text-xs shadow-sm shadow-neon/40">
                 QA
               </div>
               <span className="font-semibold tracking-tight text-sm text-white">
-                AETHER <span className="text-neon">//</span> OS
+                AETHER <span className="text-neon">//</span> QA
               </span>
             </div>
+
+            {onOpenAppsHub && (
+              <button
+                onClick={onOpenAppsHub}
+                className="px-2.5 py-1 rounded-pill bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white font-medium text-xs border border-dark-tertiary flex items-center gap-1 transition active:scale-95"
+                title="Return to Apps Hub"
+              >
+                <ChevronLeft className="w-3.5 h-3.5 text-neon" />
+                <span>Apps Hub</span>
+              </button>
+            )}
 
             <div className="h-4 w-px bg-dark-tertiary hidden sm:block" />
 
@@ -109,11 +123,17 @@ export function ApplicationShell({
                 <div className="relative flex items-center">
                   <select
                     value={selectedProjectId || currentProject?.id || 'all'}
-                    onChange={(e) => onSelectProject(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === 'hub' && onOpenAppsHub) {
+                        onOpenAppsHub();
+                      } else {
+                        onSelectProject(e.target.value);
+                      }
+                    }}
                     className="px-2.5 py-1 rounded-pill bg-dark-secondary text-white font-medium text-xs border border-dark-tertiary focus:outline-none focus:border-neon cursor-pointer appearance-none pr-6 hover:bg-dark-tertiary transition"
                   >
-                    <option value="all" className="bg-dark-chassis text-white">
-                      🌐 All Apps ({allProjects.length})
+                    <option value="hub" className="bg-dark-chassis text-neon font-semibold">
+                      🏠 All Applications (Apps Hub)
                     </option>
                     {allProjects.map(p => (
                       <option key={p.id} value={p.id} className="bg-dark-chassis text-white">

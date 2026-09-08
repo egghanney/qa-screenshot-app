@@ -23,7 +23,7 @@ body {
   font-family: Inter, system-ui, -apple-system, sans-serif;
 }
 
-/* Custom clinical scrollbar */
+/* Custom QA Studio scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -51,7 +51,7 @@ body {
   scrollbar-width: none;
 }
 
-/* React Flow custom clinical node overrides */
+/* React Flow custom QA node overrides */
 .react-flow__attribution {
   display: none !important;
 }

@@ -32,7 +32,7 @@ export function AskAICopilotDrawer({ isOpen, onClose, feature }: AskAICopilotDra
     {
       id: 'welcome',
       sender: 'assistant',
-      text: `Hello! I am your clinical QA & Product Copilot grounded in **${feature.name}**.\n\nI have loaded the empirical screenshots, reconstructed journey DAG, 7 knowledge pillars, and test checkpoints. I will only provide verified answers and explicitly label unknowns.`,
+      text: `Hello! I am your QA & Product Testing Copilot grounded in **${feature.name}**.\n\nI have loaded the empirical screenshots, reconstructed journey DAG, 7 knowledge pillars, and test checkpoints. I will only provide verified answers and explicitly label unknowns.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);

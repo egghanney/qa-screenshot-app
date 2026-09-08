@@ -9,6 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        qa: {
+          bg: "#EDEDEB",
+          warm: "#F4F3EE",
+          surface: "#F8F8F5",
+          white: "#FFFFFF",
+          muted: "#E5E5E0",
+          border: "#DCDDD6",
+          borderSubtle: "#EAEAE5",
+        },
         clinical: {
           bg: "#EDEDEB",
           warm: "#F4F3EE",

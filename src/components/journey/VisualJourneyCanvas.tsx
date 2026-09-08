@@ -47,8 +47,8 @@ interface VisualJourneyCanvasProps {
   onGenerateJourney: () => void;
 }
 
-// 1. Custom Clinical Screen Node
-function ClinicalScreenNodeComponent({ data }: { data: any }) {
+// 1. Custom QA Screen Node
+function QAScreenNodeComponent({ data }: { data: any }) {
   return (
     <div className="w-64 bg-clinical-white rounded-2xl border-2 border-dark-chassis shadow-card overflow-hidden text-xs">
       <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-dark-chassis" />
@@ -169,7 +169,7 @@ export function VisualJourneyCanvas({
 }: VisualJourneyCanvasProps) {
 
   const nodeTypes = useMemo(() => ({
-    screen: ClinicalScreenNodeComponent,
+    screen: QAScreenNodeComponent,
     decision: DecisionNodeComponent,
     error_state: ErrorStateNodeComponent,
     entry: BoundaryNodeComponent,
