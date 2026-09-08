@@ -27,7 +27,13 @@ import {
   Clock,
   Database
 } from 'lucide-react';
-import { Project, Feature, QATestRun } from '@/lib/types';
+import { Project, Feature, QATestRun, QACharter, CharterScenario } from '@/lib/types';
+import { supabase } from '@/lib/supabase/client';
+import { 
+  exportDefectReportPdf, 
+  extractDefectsFromRunSnapshot, 
+  DefectReportMetadata 
+} from '@/lib/defectReportExport';
 import { CreateAppModal } from './CreateAppModal';
 
 interface AppsHubLandingViewProps {
@@ -61,6 +67,8 @@ export function AppsHubLandingView({
   // Database-backed Test Runs
   const [dbRuns, setDbRuns] = useState<QATestRun[]>([]);
   const [isLoadingDbRuns, setIsLoadingDbRuns] = useState(false);
+  const [selectedRunProductFilter, setSelectedRunProductFilter] = useState<string>('All');
+  const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     if (typeof window !== 'undefined') {
@@ -104,6 +112,92 @@ export function AppsHubLandingView({
       setDbRuns(prev => prev.filter(r => r.id !== runId));
     } catch (err) {
       console.error('Failed deleting run:', err);
+    }
+  };
+
+  // Product filter counts for Test Runs
+  const runsCountByProject = useMemo(() => {
+    const counts: Record<string, number> = { All: dbRuns.length };
+    projects.forEach(p => {
+      counts[p.id] = 0;
+    });
+    dbRuns.forEach(r => {
+      if (r.project_id && counts[r.project_id] !== undefined) {
+        counts[r.project_id] = (counts[r.project_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [dbRuns, projects]);
+
+  const filteredDbRuns = useMemo(() => {
+    if (selectedRunProductFilter === 'All') return dbRuns;
+    return dbRuns.filter(r => r.project_id === selectedRunProductFilter);
+  }, [dbRuns, selectedRunProductFilter]);
+
+  // Download Defect Report PDF for a specific test run record
+  const handleDownloadRunReport = async (run: QATestRun) => {
+    try {
+      setDownloadingRunId(run.id);
+
+      const featureIds: string[] = (run.metadata?.featureIds && run.metadata.featureIds.length > 0)
+        ? run.metadata.featureIds
+        : features.filter(f => f.project_id === run.project_id).map(f => f.id);
+
+      let enrichedCharters: QACharter[] = [];
+      if (featureIds.length > 0) {
+        const { data: chartersData, error: cErr } = await supabase
+          .from('qa_charters')
+          .select('*')
+          .in('feature_id', featureIds);
+
+        if (!cErr && chartersData) {
+          const charterIds = chartersData.map((c: any) => c.id);
+          let scenariosData: any[] = [];
+          if (charterIds.length > 0) {
+            const { data: sData } = await supabase
+              .from('qa_charter_scenarios')
+              .select('*')
+              .in('charter_id', charterIds);
+            scenariosData = sData || [];
+          }
+
+          enrichedCharters = chartersData.map((c: any) => ({
+            ...c,
+            scenarios: scenariosData.filter((s: any) => s.charter_id === c.id)
+          }));
+        }
+      }
+
+      const featMap = new Map(features.map(f => [f.id, f.name]));
+      const defects = extractDefectsFromRunSnapshot(run, enrichedCharters, featMap);
+
+      const proj = projects.find(p => p.id === run.project_id);
+      const projectName = proj?.name || 'QA Test Studio';
+      const featureNames = run.metadata?.featureNames || 
+        featureIds.map(id => featMap.get(id) || 'Feature');
+
+      const metadata: DefectReportMetadata = {
+        projectName,
+        runName: run.name,
+        platform: proj?.platform || 'General',
+        featureNames,
+        totalScenarios: run.total_scenarios,
+        passedCount: run.passed_count,
+        failedCount: run.failed_count,
+        blockedCount: run.blocked_count,
+        untestedCount: run.untested_count,
+        passRate: run.pass_rate,
+        environment: run.metadata?.environment || 'Exploratory QA Session',
+        testerName: run.metadata?.testerName || 'QA Engineer',
+        generatedDate: new Date(run.started_at || run.created_at).toLocaleDateString()
+      };
+
+      exportDefectReportPdf(metadata, defects);
+    } catch (err) {
+      console.error('Failed to export defect PDF report:', err);
+      alert('Unable to generate defect PDF report. Please try again.');
+    } finally {
+      setDownloadingRunId(null);
     }
   };
 
@@ -558,6 +652,56 @@ export function AppsHubLandingView({
         {/* VIEW 2: TEAM TEST RUN HISTORY ON HOME PAGE */}
         {hubTab === 'runs' && (
           <div className="space-y-4">
+            {/* Product Filter Bar */}
+            {dbRuns.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-qa-white rounded-2xl border border-qa-border shadow-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-txt-secondary flex items-center gap-1.5 mr-1">
+                    <Filter className="w-3.5 h-3.5 text-txt-muted" />
+                    Product:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRunProductFilter('All')}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                      selectedRunProductFilter === 'All'
+                        ? 'bg-dark-chassis text-neon shadow-xs'
+                        : 'bg-qa-warm/60 text-txt-secondary hover:text-dark-chassis hover:bg-qa-warm'
+                    }`}
+                  >
+                    All Products ({runsCountByProject['All'] || 0})
+                  </button>
+                  {projects.map(proj => {
+                    const count = runsCountByProject[proj.id] || 0;
+                    const isSelected = selectedRunProductFilter === proj.id;
+                    return (
+                      <button
+                        key={proj.id}
+                        type="button"
+                        onClick={() => setSelectedRunProductFilter(proj.id)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-dark-chassis text-neon shadow-xs'
+                            : 'bg-qa-warm/60 text-txt-secondary hover:text-dark-chassis hover:bg-qa-warm'
+                        }`}
+                      >
+                        <span>{proj.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          isSelected ? 'bg-neon/20 text-neon' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="text-xs text-txt-muted font-mono">
+                  Showing {filteredDbRuns.length} of {dbRuns.length} runs
+                </div>
+              </div>
+            )}
+
             {isLoadingDbRuns && dbRuns.length === 0 ? (
               <div className="p-12 text-center bg-qa-white rounded-3xl border border-qa-border text-xs text-txt-muted">
                 Loading test run history from database...
@@ -572,9 +716,20 @@ export function AppsHubLandingView({
                   When you execute exploratory test cycles in the Test Run Studio, every run session and pass rate is saved here for team review.
                 </p>
               </div>
+            ) : filteredDbRuns.length === 0 ? (
+              <div className="p-12 text-center bg-qa-white rounded-3xl border border-qa-border space-y-2">
+                <p className="text-sm font-semibold text-dark-chassis">No test runs found for this product.</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRunProductFilter('All')}
+                  className="text-xs text-neon-dark underline font-medium hover:text-dark-chassis"
+                >
+                  View all test runs ({dbRuns.length})
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
-                {dbRuns.map((run) => {
+                {filteredDbRuns.map((run) => {
                   const isCompleted = run.status === 'completed';
                   const featureNames = run.metadata?.featureNames || [];
                   const targetProj = projects.find(p => p.id === run.project_id);
@@ -600,7 +755,16 @@ export function AppsHubLandingView({
                           </span>
                         </div>
 
-                        {featureNames.length > 0 && (
+                        {targetProj && (
+                          <div className="text-xs text-txt-secondary flex items-center gap-2">
+                            <span>Product: <strong className="text-dark-chassis">{targetProj.name}</strong></span>
+                            {featureNames.length > 0 && <span>•</span>}
+                            {featureNames.length > 0 && (
+                              <span>Features Tested: <strong className="text-dark-chassis">{featureNames.join(', ')}</strong></span>
+                            )}
+                          </div>
+                        )}
+                        {!targetProj && featureNames.length > 0 && (
                           <p className="text-xs text-txt-secondary">
                             Features Tested: <strong className="text-dark-chassis">{featureNames.join(', ')}</strong>
                           </p>
@@ -618,6 +782,17 @@ export function AppsHubLandingView({
                       </div>
 
                       <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadRunReport(run)}
+                          disabled={downloadingRunId === run.id}
+                          className="px-3.5 py-2 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis border border-slate-300 text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs active:scale-95 disabled:opacity-60 cursor-pointer"
+                          title="Download PDF Defect Report"
+                        >
+                          <FileDown className={`w-3.5 h-3.5 text-rose-600 ${downloadingRunId === run.id ? 'animate-bounce' : ''}`} />
+                          <span>{downloadingRunId === run.id ? 'Generating...' : 'Defect PDF'}</span>
+                        </button>
+
                         {onResumeRun ? (
                           <button
                             type="button"

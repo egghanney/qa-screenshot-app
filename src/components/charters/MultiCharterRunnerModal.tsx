@@ -238,13 +238,14 @@ export function MultiCharterRunnerModal({
 
       setLoadedCharters(enrichedCharters);
 
-      // Auto-select the first charter with pending/untested scenarios when resuming or loading
-      const pendingCharter = enrichedCharters.find(c => c.scenarios?.some(s => s.status === 'Untested'));
-      if (pendingCharter) {
-        setSelectedCharterId(pendingCharter.id);
-      } else if (enrichedCharters.length > 0 && !selectedCharterId) {
-        setSelectedCharterId(enrichedCharters[0].id);
-      }
+      // Preserve active charter if already selected and valid; otherwise auto-select first pending or first charter
+      setSelectedCharterId(current => {
+        if (current && enrichedCharters.some(c => c.id === current)) {
+          return current;
+        }
+        const pendingCharter = enrichedCharters.find(c => c.scenarios?.some(s => s.status === 'Untested'));
+        return pendingCharter ? pendingCharter.id : (enrichedCharters[0]?.id || '');
+      });
 
       // Flatten into runnable scenarios list
       const flattened: RunnableScenario[] = [];
@@ -271,7 +272,7 @@ export function MultiCharterRunnerModal({
     } finally {
       setIsLoadingCharters(false);
     }
-  }, [selectedFeatureIds, allFeatures, selectedCharterId, activeRunSnapshot]);
+  }, [selectedFeatureIds, allFeatures, activeRunSnapshot]);
 
   // Resume an existing test run from DB without creating a duplicate run
   const handleResumeRun = useCallback((run: QATestRun) => {
