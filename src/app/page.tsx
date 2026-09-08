@@ -34,12 +34,12 @@ import { AppsHubLandingView } from '@/components/apps/AppsHubLandingView';
 import { MultiCharterRunnerModal } from '@/components/charters/MultiCharterRunnerModal';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { LoginView } from '@/components/auth/LoginView';
-import { AdminControlPanelModal } from '@/components/admin/AdminControlPanelModal';
+import { AdminGovernanceView } from '@/components/admin/AdminGovernanceView';
 import { BrainCircuit, Smartphone } from 'lucide-react';
 
 function MainAppContent() {
   const { user, profile, loading: authLoading, isAdmin, signOut } = useAuth();
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isAdminView, setIsAdminView] = useState(false);
 
   const [project, setProject] = useState<Project | null>(null);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -572,6 +572,17 @@ function MainAppContent() {
     );
   }
 
+  if (isAdminView) {
+    return (
+      <AdminGovernanceView
+        onBack={() => setIsAdminView(false)}
+        userEmail={user.email}
+        userRole={profile?.role}
+        onSignOut={signOut}
+      />
+    );
+  }
+
   // Standalone Apps Hub Landing Page
   if (isAppsHubView) {
     return (
@@ -594,7 +605,7 @@ function MainAppContent() {
           userEmail={user.email}
           userRole={profile?.role}
           isAdmin={isAdmin}
-          onOpenAdminPanel={() => setIsAdminModalOpen(true)}
+          onOpenAdminPanel={() => setIsAdminView(true)}
           onSignOut={signOut}
         />
 
@@ -627,12 +638,6 @@ function MainAppContent() {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
-        />
-
-        {/* Admin Control Panel Modal */}
-        <AdminControlPanelModal
-          isOpen={isAdminModalOpen}
-          onClose={() => setIsAdminModalOpen(false)}
         />
       </>
     );
@@ -685,7 +690,7 @@ function MainAppContent() {
         userEmail={user.email}
         userRole={profile?.role}
         isAdmin={isAdmin}
-        onOpenAdminPanel={() => setIsAdminModalOpen(true)}
+        onOpenAdminPanel={() => setIsAdminView(true)}
         onSignOut={signOut}
         counts={{
           screens: screens.length,
@@ -887,12 +892,6 @@ function MainAppContent() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-      />
-
-      {/* Admin Control Panel Modal */}
-      <AdminControlPanelModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
       />
     </>
   );
