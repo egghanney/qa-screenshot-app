@@ -20,10 +20,28 @@ import {
   Sparkles,
   Search,
   Sliders,
-  ExternalLink
+  ExternalLink,
+  FileText,
+  FileSpreadsheet,
+  History,
+  Eye,
+  ArrowRight,
+  Clock,
+  ShieldCheck,
+  ChevronDown,
+  FileDown,
+  CheckCheck
 } from 'lucide-react';
 import { Project, Feature, QACharter, CharterScenario, ScenarioStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
+import { 
+  exportDefectReportPdf, 
+  exportDefectReportMarkdown, 
+  exportDefectReportCsv, 
+  triggerFileDownload, 
+  extractDefects, 
+  DefectReportMetadata 
+} from '@/lib/defectReportExport';
 
 interface MultiCharterRunnerModalProps {
   isOpen: boolean;
@@ -40,6 +58,24 @@ interface RunnableScenario extends CharterScenario {
   charterCode: string;
   charterTitle: string;
   charterMission: string;
+  userPersona?: string;
+  startingCondition?: string;
+  expectedOutcome?: string;
+}
+
+interface RunSessionRecord {
+  id: string;
+  projectId: string;
+  projectName: string;
+  featureNames: string[];
+  startTime: string;
+  lastUpdated: string;
+  totalScenarios: number;
+  passedCount: number;
+  failedCount: number;
+  blockedCount: number;
+  untestedCount: number;
+  isCompleted: boolean;
 }
 
 export function MultiCharterRunnerModal({
@@ -64,13 +100,25 @@ export function MultiCharterRunnerModal({
   const [loadedCharters, setLoadedCharters] = useState<QACharter[]>([]);
   const [runnableScenarios, setRunnableScenarios] = useState<RunnableScenario[]>([]);
 
+  // Execution Views: 'charter' (default workspace-like view), 'stepper' (card mode), 'history' (run sessions)
+  const [viewMode, setViewMode] = useState<'charter' | 'stepper' | 'history'>('charter');
+  
+  // Quick Filters for Completed vs Pending Charters
+  const [runFilter, setRunFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [selectedCharterId, setSelectedCharterId] = useState<string>('');
+  const [scenarioStatusFilter, setScenarioStatusFilter] = useState<string>('All');
+
   // Stepper execution state
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [copied, setCopied] = useState(false);
   const [activeNotes, setActiveNotes] = useState('');
   const [activeMediaUrl, setActiveMediaUrl] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingScenarioId, setSavingScenarioId] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Run Session Records stored in localStorage
+  const [runSessions, setRunSessions] = useState<RunSessionRecord[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
 
   // Initialize selected project
   useEffect(() => {
@@ -81,25 +129,38 @@ export function MultiCharterRunnerModal({
     }
   }, [currentProject, allProjects]);
 
+  // Load past run sessions from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('qa_run_sessions');
+        if (stored) {
+          setRunSessions(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error('Failed reading past run sessions', e);
+      }
+    }
+  }, [isOpen]);
+
   // Features belonging to selected project
   const projectFeatures = useMemo(() => {
     if (!selectedProjectId || selectedProjectId === 'all') return allFeatures;
     return allFeatures.filter(f => f.project_id === selectedProjectId);
   }, [allFeatures, selectedProjectId]);
 
+  const activeProject = useMemo(() => {
+    return allProjects.find(p => p.id === selectedProjectId) || currentProject;
+  }, [allProjects, selectedProjectId, currentProject]);
+
   // Default: select all features under the project when project changes
   useEffect(() => {
     if (projectFeatures.length > 0) {
-      if (currentFeature && projectFeatures.some(f => f.id === currentFeature.id)) {
-        // If currentFeature is present, default to all features in this app
-        setSelectedFeatureIds(new Set(projectFeatures.map(f => f.id)));
-      } else {
-        setSelectedFeatureIds(new Set(projectFeatures.map(f => f.id)));
-      }
+      setSelectedFeatureIds(new Set(projectFeatures.map(f => f.id)));
     } else {
       setSelectedFeatureIds(new Set());
     }
-  }, [projectFeatures, currentFeature]);
+  }, [projectFeatures]);
 
   // Fetch charters whenever scope is loaded or when entering setup
   const loadChartersForScope = useCallback(async () => {
@@ -113,7 +174,6 @@ export function MultiCharterRunnerModal({
     try {
       const featIds = Array.from(selectedFeatureIds);
       
-      // Fetch charters for all selected features
       const { data: chartersData, error: cErr } = await supabase
         .from('qa_charters')
         .select('*')
@@ -136,10 +196,8 @@ export function MultiCharterRunnerModal({
         scenariosData = sData || [];
       }
 
-      // Feature map for quick lookup
       const featMap = new Map(allFeatures.map(f => [f.id, f]));
 
-      // Group scenarios by charter
       const scenariosByCharter = scenariosData.reduce((acc: Record<string, CharterScenario[]>, s) => {
         if (!acc[s.charter_id]) acc[s.charter_id] = [];
         acc[s.charter_id].push(s);
@@ -153,6 +211,10 @@ export function MultiCharterRunnerModal({
 
       setLoadedCharters(enrichedCharters);
 
+      if (enrichedCharters.length > 0 && !selectedCharterId) {
+        setSelectedCharterId(enrichedCharters[0].id);
+      }
+
       // Flatten into runnable scenarios list
       const flattened: RunnableScenario[] = [];
       enrichedCharters.forEach(c => {
@@ -164,7 +226,10 @@ export function MultiCharterRunnerModal({
             featureName: featName,
             charterCode: c.charter_code,
             charterTitle: c.title,
-            charterMission: c.mission
+            charterMission: c.mission,
+            userPersona: c.user_persona,
+            startingCondition: c.starting_condition,
+            expectedOutcome: c.expected_outcome
           });
         });
       });
@@ -175,7 +240,7 @@ export function MultiCharterRunnerModal({
     } finally {
       setIsLoadingCharters(false);
     }
-  }, [selectedFeatureIds, allFeatures]);
+  }, [selectedFeatureIds, allFeatures, selectedCharterId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -183,59 +248,145 @@ export function MultiCharterRunnerModal({
     }
   }, [isOpen, loadChartersForScope]);
 
-  // Filtered runnable scenarios
-  const filteredRunnable = useMemo(() => {
-    if (selectedCategoryFilter === 'All') return runnableScenarios;
-    return runnableScenarios.filter(s => s.category === selectedCategoryFilter);
-  }, [runnableScenarios, selectedCategoryFilter]);
-
-  // Current active scenario in stepper
-  const currentScenario = filteredRunnable[currentIndex] || filteredRunnable[0];
-
-  // Sync active scenario notes
-  useEffect(() => {
-    if (currentScenario) {
-      setActiveNotes(currentScenario.observations || '');
-      setActiveMediaUrl(currentScenario.media_url || '');
-    }
-  }, [currentScenario]);
-
-  // Metric counters
+  // Overall metric counters
   const counters = useMemo(() => {
     let passed = 0;
     let failed = 0;
     let blocked = 0;
     let untested = 0;
 
-    filteredRunnable.forEach(s => {
+    runnableScenarios.forEach(s => {
       if (s.status === 'Pass') passed++;
       else if (s.status === 'Fail') failed++;
       else if (s.status === 'Blocked') blocked++;
       else untested++;
     });
 
-    const total = filteredRunnable.length;
+    const total = runnableScenarios.length;
     const executed = passed + failed + blocked;
     const percent = total > 0 ? Math.round((executed / total) * 100) : 0;
+    const isCompleted = total > 0 && untested === 0;
 
-    return { total, passed, failed, blocked, untested, executed, percent };
-  }, [filteredRunnable]);
+    return { total, passed, failed, blocked, untested, executed, percent, isCompleted };
+  }, [runnableScenarios]);
 
-  // Status update handler
-  const handleUpdateStatus = async (status: ScenarioStatus) => {
-    if (!currentScenario) return;
+  // Categorize charters into Completed vs Pending
+  const charterRunStatus = useMemo(() => {
+    const completed: QACharter[] = [];
+    const pending: QACharter[] = [];
 
-    const scenarioId = currentScenario.id;
-    const updates = {
-      status,
-      observations: activeNotes,
-      media_url: activeMediaUrl
-    };
+    loadedCharters.forEach(c => {
+      const sc = c.scenarios || [];
+      const hasUntested = sc.some(s => s.status === 'Untested');
+      if (sc.length > 0 && !hasUntested) {
+        completed.push(c);
+      } else {
+        pending.push(c);
+      }
+    });
 
-    // Optimistic UI update
+    return { completed, pending };
+  }, [loadedCharters]);
+
+  // Charters visible based on runFilter ('all' | 'pending' | 'completed')
+  const visibleCharters = useMemo(() => {
+    if (runFilter === 'completed') return charterRunStatus.completed;
+    if (runFilter === 'pending') return charterRunStatus.pending;
+    return loadedCharters;
+  }, [loadedCharters, charterRunStatus, runFilter]);
+
+  // Sync selectedCharterId if current one is filtered out
+  useEffect(() => {
+    if (visibleCharters.length > 0) {
+      if (!visibleCharters.some(c => c.id === selectedCharterId)) {
+        setSelectedCharterId(visibleCharters[0].id);
+      }
+    }
+  }, [visibleCharters, selectedCharterId]);
+
+  const activeCharter = useMemo(() => {
+    return loadedCharters.find(c => c.id === selectedCharterId) || loadedCharters[0];
+  }, [loadedCharters, selectedCharterId]);
+
+  // Scenarios for active charter in Charter View
+  const activeCharterScenarios = useMemo(() => {
+    if (!activeCharter?.scenarios) return [];
+    if (scenarioStatusFilter === 'All') return activeCharter.scenarios;
+    return activeCharter.scenarios.filter(s => s.status === scenarioStatusFilter);
+  }, [activeCharter, scenarioStatusFilter]);
+
+  // Active scenario for Guided Stepper mode
+  const filteredStepperRunnable = useMemo(() => {
+    if (selectedCategoryFilter === 'All') return runnableScenarios;
+    return runnableScenarios.filter(s => s.category === selectedCategoryFilter);
+  }, [runnableScenarios, selectedCategoryFilter]);
+
+  const currentStepperScenario = filteredStepperRunnable[currentIndex] || filteredStepperRunnable[0];
+
+  useEffect(() => {
+    if (currentStepperScenario) {
+      setActiveNotes(currentStepperScenario.observations || '');
+      setActiveMediaUrl(currentStepperScenario.media_url || '');
+    }
+  }, [currentStepperScenario]);
+
+  // Update session record in localStorage
+  const persistRunSession = useCallback(() => {
+    if (!activeProject || runnableScenarios.length === 0) return;
+    try {
+      const selectedNames = projectFeatures
+        .filter(f => selectedFeatureIds.has(f.id))
+        .map(f => f.name);
+
+      const sessionId = currentSessionId || `session_${Date.now()}`;
+      if (!currentSessionId) setCurrentSessionId(sessionId);
+
+      const session: RunSessionRecord = {
+        id: sessionId,
+        projectId: activeProject.id,
+        projectName: activeProject.name,
+        featureNames: selectedNames,
+        startTime: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        totalScenarios: counters.total,
+        passedCount: counters.passed,
+        failedCount: counters.failed,
+        blockedCount: counters.blocked,
+        untestedCount: counters.untested,
+        isCompleted: counters.isCompleted
+      };
+
+      const existing: RunSessionRecord[] = JSON.parse(localStorage.getItem('qa_run_sessions') || '[]');
+      const filtered = existing.filter(s => s.id !== sessionId);
+      const updated = [session, ...filtered].slice(0, 20); // keep last 20
+
+      localStorage.setItem('qa_run_sessions', JSON.stringify(updated));
+      setRunSessions(updated);
+    } catch (e) {
+      console.error('Failed updating run session', e);
+    }
+  }, [activeProject, runnableScenarios.length, projectFeatures, selectedFeatureIds, currentSessionId, counters]);
+
+  // Update individual scenario (used in both Charter View table and Stepper)
+  const handleUpdateScenario = async (
+    scenarioId: string,
+    updates: Partial<CharterScenario>,
+    advanceStepper = false
+  ) => {
+    setSavingScenarioId(scenarioId);
+
+    // 1. Optimistic update in runnableScenarios
     setRunnableScenarios(prev => prev.map(s => s.id === scenarioId ? { ...s, ...updates } : s));
 
-    setIsSaving(true);
+    // 2. Optimistic update in loadedCharters
+    setLoadedCharters(prev => prev.map(c => {
+      if (!c.scenarios?.some(s => s.id === scenarioId)) return c;
+      return {
+        ...c,
+        scenarios: c.scenarios.map(s => s.id === scenarioId ? { ...s, ...updates } : s)
+      };
+    }));
+
     try {
       await fetch('/api/charters', {
         method: 'PATCH',
@@ -246,40 +397,57 @@ export function MultiCharterRunnerModal({
           ...updates
         })
       });
+
+      // Save to localStorage session
+      persistRunSession();
     } catch (err) {
-      console.error('Failed saving scenario in runner:', err);
+      console.error('Failed saving scenario:', err);
     } finally {
-      setIsSaving(false);
+      setSavingScenarioId(null);
     }
 
-    // Auto-advance to next scenario if not at end
-    if (currentIndex < filteredRunnable.length - 1) {
+    if (advanceStepper && currentIndex < filteredStepperRunnable.length - 1) {
       setCurrentIndex(prev => prev + 1);
     }
   };
 
-  // Keyboard navigation & quick status hotkeys
+  // Keyboard navigation for Stepper
   useEffect(() => {
-    if (!isOpen || phase !== 'running') return;
+    if (!isOpen || phase !== 'running' || viewMode !== 'stepper') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if typing in an input/textarea
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
-        return;
-      }
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
       if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
-        handleUpdateStatus('Pass');
+        if (currentStepperScenario) {
+          handleUpdateScenario(currentStepperScenario.id, { 
+            status: 'Pass', 
+            observations: activeNotes, 
+            media_url: activeMediaUrl 
+          }, true);
+        }
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
-        handleUpdateStatus('Fail');
+        if (currentStepperScenario) {
+          handleUpdateScenario(currentStepperScenario.id, { 
+            status: 'Fail', 
+            observations: activeNotes, 
+            media_url: activeMediaUrl 
+          }, true);
+        }
       } else if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
-        handleUpdateStatus('Blocked');
+        if (currentStepperScenario) {
+          handleUpdateScenario(currentStepperScenario.id, { 
+            status: 'Blocked', 
+            observations: activeNotes, 
+            media_url: activeMediaUrl 
+          }, true);
+        }
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        if (currentIndex < filteredRunnable.length - 1) setCurrentIndex(prev => prev + 1);
+        if (currentIndex < filteredStepperRunnable.length - 1) setCurrentIndex(prev => prev + 1);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         if (currentIndex > 0) setCurrentIndex(prev => prev - 1);
@@ -288,34 +456,78 @@ export function MultiCharterRunnerModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, phase, currentIndex, filteredRunnable.length, currentScenario, activeNotes, activeMediaUrl]);
+  }, [isOpen, phase, viewMode, currentIndex, filteredStepperRunnable.length, currentStepperScenario, activeNotes, activeMediaUrl]);
 
-  // Copy Formatted Test Run Summary Report
-  const handleCopyReport = () => {
-    const proj = allProjects.find(p => p.id === selectedProjectId);
-    let text = `# Test Run Report: ${proj?.name || 'QA Test Run'}\n`;
-    text += `Date: ${new Date().toLocaleDateString()}\n`;
-    text += `Progress: ${counters.executed}/${counters.total} (${counters.percent}%)\n`;
-    text += `Passed: ${counters.passed} | Failed: ${counters.failed} | Blocked: ${counters.blocked} | Untested: ${counters.untested}\n\n`;
-    text += `Feature\tCharter Code\tPrompt ID\tCategory\tScenario Prompt\tStatus\tObservations\n`;
+  // Defect Report Metadata Builder
+  const getDefectReportMetadata = (): DefectReportMetadata => {
+    const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
+    const featureNames = Array.from(selectedFeatureIds).map(id => featMap.get(id) || 'Feature');
 
-    filteredRunnable.forEach(s => {
-      text += `${s.featureName}\t${s.charterCode}\t${s.prompt_id}\t${s.category || 'Exploratory'}\t${s.prompt_text}\t${s.status}\t${s.observations || ''}\n`;
-    });
+    return {
+      projectName: activeProject?.name || 'QA Test Studio',
+      platform: activeProject?.platform || 'General',
+      featureNames,
+      totalScenarios: counters.total,
+      passedCount: counters.passed,
+      failedCount: counters.failed,
+      blockedCount: counters.blocked,
+      untestedCount: counters.untested,
+      passRate: counters.percent,
+      generatedDate: new Date().toLocaleDateString()
+    };
+  };
 
-    navigator.clipboard.writeText(text);
+  // Export PDF Defect Report
+  const handleDownloadDefectPdf = () => {
+    const meta = getDefectReportMetadata();
+    const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
+    const defects = extractDefects(loadedCharters, featMap);
+    exportDefectReportPdf(meta, defects);
+    setShowExportMenu(false);
+  };
+
+  // Export Markdown Defect Report
+  const handleDownloadDefectMarkdown = () => {
+    const meta = getDefectReportMetadata();
+    const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
+    const defects = extractDefects(loadedCharters, featMap);
+    const md = exportDefectReportMarkdown(meta, defects);
+    const filename = `${meta.projectName.replace(/\s+/g, '_')}_Defect_Report.md`;
+    triggerFileDownload(md, filename, 'text/markdown;charset=utf-8;');
+    setShowExportMenu(false);
+  };
+
+  // Export CSV Defect Report
+  const handleDownloadDefectCsv = () => {
+    const meta = getDefectReportMetadata();
+    const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
+    const defects = extractDefects(loadedCharters, featMap);
+    const csv = exportDefectReportCsv(meta, defects);
+    const filename = `${meta.projectName.replace(/\s+/g, '_')}_Defects.csv`;
+    triggerFileDownload(csv, filename, 'text/csv;charset=utf-8;');
+    setShowExportMenu(false);
+  };
+
+  // Copy Summary to Clipboard
+  const handleCopySummary = () => {
+    const meta = getDefectReportMetadata();
+    const featMap = new Map(allFeatures.map(f => [f.id, f.name]));
+    const defects = extractDefects(loadedCharters, featMap);
+    const md = exportDefectReportMarkdown(meta, defects);
+    navigator.clipboard.writeText(md);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    setShowExportMenu(false);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-dark-chassis/85 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-qa-white rounded-[28px] border border-qa-border shadow-modal max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden text-txt-primary">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-dark-chassis/85 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-qa-white rounded-[26px] border border-qa-border shadow-modal max-w-6xl w-full max-h-[95vh] flex flex-col overflow-hidden text-txt-primary">
         
         {/* Modal Top Bar */}
-        <div className="bg-dark-chassis text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-dark-secondary">
+        <div className="bg-dark-chassis text-white px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-dark-secondary shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-neon text-dark-chassis flex items-center justify-center font-bold text-xs shadow-sm">
               <Play className="w-4 h-4 fill-dark-chassis" />
@@ -323,29 +535,105 @@ export function MultiCharterRunnerModal({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold tracking-tight text-white">
-                  Multi-Feature Charter Test Runner
+                  {phase === 'setup' ? 'Test Run Setup' : `Test Run Studio: ${activeProject?.name || 'QA App'}`}
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-dark-secondary text-neon border border-dark-tertiary">
                   {phase === 'setup' ? 'SCOPE CONFIGURATION' : 'ACTIVE EXECUTION'}
                 </span>
+                {counters.isCompleted && phase === 'running' && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <CheckCheck className="w-3 h-3" />
+                    RUN 100% COMPLETE
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-txt-muted">
                 {phase === 'setup'
-                  ? 'Select the application and features to include in this test execution cycle'
-                  : `Running suite across ${selectedFeatureIds.size} feature${selectedFeatureIds.size === 1 ? '' : 's'}`}
+                  ? 'Select application and feature flows to bundle into this test execution cycle'
+                  : `Running suite across ${selectedFeatureIds.size} feature${selectedFeatureIds.size === 1 ? '' : 's'} (${loadedCharters.length} charters, ${counters.total} scenarios)`}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {phase === 'running' && (
-              <button
-                onClick={() => setPhase('setup')}
-                className="px-3 py-1.5 rounded-pill text-xs font-semibold bg-dark-secondary hover:bg-dark-tertiary text-white transition flex items-center gap-1.5 border border-dark-tertiary"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                Change Scope
-              </button>
+              <>
+                {/* Defect Report Export Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="px-3 py-1.5 rounded-pill text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1.5 shadow-sm active:scale-95"
+                    title="Export failure defect report for developers to fix bugs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Defect Report</span>
+                    <ChevronDown className="w-3 h-3 opacity-80" />
+                  </button>
+
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-qa-border shadow-xl p-2 z-50 animate-in fade-in-50 zoom-in-95 text-xs text-dark-chassis">
+                      <div className="px-3 py-2 border-b border-qa-border mb-1">
+                        <span className="font-bold block">Developer Defect Report</span>
+                        <span className="text-[10px] text-txt-muted">
+                          {counters.failed} Failures &amp; {counters.blocked} Blockers detected
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={handleDownloadDefectPdf}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-qa-warm flex items-center gap-2 transition"
+                      >
+                        <FileDown className="w-4 h-4 text-rose-600" />
+                        <div>
+                          <span className="font-semibold block">Download as PDF</span>
+                          <span className="text-[10px] text-txt-muted">Executive summary &amp; bug tickets</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={handleDownloadDefectMarkdown}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-qa-warm flex items-center gap-2 transition"
+                      >
+                        <FileText className="w-4 h-4 text-indigo-600" />
+                        <div>
+                          <span className="font-semibold block">Download Markdown (.md)</span>
+                          <span className="text-[10px] text-txt-muted">Formatted for Jira, Linear, GitHub</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={handleDownloadDefectCsv}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-qa-warm flex items-center gap-2 transition"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                        <div>
+                          <span className="font-semibold block">Download CSV (.csv)</span>
+                          <span className="text-[10px] text-txt-muted">Tabular format for spreadsheets</span>
+                        </div>
+                      </button>
+
+                      <div className="pt-1 mt-1 border-t border-qa-border">
+                        <button
+                          onClick={handleCopySummary}
+                          className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-qa-warm flex items-center gap-2 text-[11px] text-dark-secondary"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Markdown to Clipboard</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scope Switcher */}
+                <button
+                  onClick={() => setPhase('setup')}
+                  className="px-3 py-1.5 rounded-pill text-xs font-semibold bg-dark-secondary hover:bg-dark-tertiary text-white transition flex items-center gap-1.5 border border-dark-tertiary"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Scope</span>
+                </button>
+              </>
             )}
 
             <button
@@ -363,7 +651,7 @@ export function MultiCharterRunnerModal({
         {/* PHASE 1: SCOPE CONFIGURATION */}
         {phase === 'setup' && (
           <div className="p-6 space-y-6 overflow-y-auto flex-1">
-            {/* Project Picker */}
+            {/* Target Application Picker */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-dark-chassis uppercase tracking-wider block">
                 1. Select Target Application
@@ -406,10 +694,10 @@ export function MultiCharterRunnerModal({
               <div className="flex items-center justify-between">
                 <div>
                   <label className="text-xs font-bold text-dark-chassis uppercase tracking-wider block">
-                    2. Select Features to Test
+                    2. Select Features to Include in This Run
                   </label>
                   <span className="text-[11px] text-txt-secondary">
-                    Check the feature flows to bundle into this testing cycle
+                    Run tests for a single feature or bundle multiple features together
                   </span>
                 </div>
 
@@ -465,7 +753,7 @@ export function MultiCharterRunnerModal({
                               {feat.name}
                             </span>
                             <span className="text-[10px] text-txt-secondary line-clamp-1">
-                              {feat.purpose || feat.description || 'Core service flow'}
+                              {feat.purpose || feat.description || 'Core flow'}
                             </span>
                           </div>
                         </div>
@@ -479,19 +767,19 @@ export function MultiCharterRunnerModal({
               )}
             </div>
 
-            {/* Scope Summary & Launch Bar */}
+            {/* Launch Banner */}
             <div className="p-4 rounded-2xl bg-dark-chassis text-white flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-neon">
-                    {runnableScenarios.length} Total Test Scenarios Ready
+                    {runnableScenarios.length} Scenarios Ready for Execution
                   </span>
                   <span className="text-[11px] text-txt-muted">
                     across {loadedCharters.length} charters in {selectedFeatureIds.size} feature(s)
                   </span>
                 </div>
                 <p className="text-[11px] text-txt-muted mt-0.5">
-                  Includes Golden Path, Alternative Flows, Boundary checks, and Recovery scenarios
+                  Full 360° coverage: Golden Path, Alternative Flows, Boundary checks, and Failure/Recovery
                 </p>
               </div>
 
@@ -501,6 +789,7 @@ export function MultiCharterRunnerModal({
                 onClick={() => {
                   setCurrentIndex(0);
                   setPhase('running');
+                  persistRunSession();
                 }}
                 className="px-6 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition shadow-card flex items-center gap-2 active:scale-95 disabled:opacity-50"
               >
@@ -514,10 +803,10 @@ export function MultiCharterRunnerModal({
         {/* PHASE 2: ACTIVE EXECUTION RUNNER */}
         {phase === 'running' && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Runner Progress & Counter Header */}
-            <div className="bg-qa-surface p-4 border-b border-qa-border flex flex-wrap items-center justify-between gap-3">
-              {/* Progress Counters */}
-              <div className="flex items-center gap-3">
+            
+            {/* Run Progress & Metrics Bar */}
+            <div className="bg-qa-surface p-4 border-b border-qa-border flex flex-wrap items-center justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-dark-chassis">
@@ -527,7 +816,7 @@ export function MultiCharterRunnerModal({
                       ({counters.percent}%)
                     </span>
                   </div>
-                  {/* Progress Bar */}
+                  {/* Multi-color Progress Bar */}
                   <div className="w-48 sm:w-64 h-2 bg-qa-border rounded-full overflow-hidden flex">
                     <div 
                       className="bg-emerald-500 h-full transition-all duration-300"
@@ -544,6 +833,7 @@ export function MultiCharterRunnerModal({
                   </div>
                 </div>
 
+                {/* Counters */}
                 <div className="flex items-center gap-1.5 text-[11px] font-mono">
                   <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
                     PASS: {counters.passed}
@@ -560,63 +850,490 @@ export function MultiCharterRunnerModal({
                 </div>
               </div>
 
-              {/* View Mode & Export Tools */}
-              <div className="flex items-center gap-2">
+              {/* View Switcher: Charter View (Default) vs Guided Stepper vs Run History */}
+              <div className="flex items-center gap-1.5 bg-qa-warm p-1 rounded-pill border border-qa-border">
                 <button
-                  onClick={() => setViewMode(viewMode === 'card' ? 'table' : 'card')}
-                  className="px-3 py-1 rounded-pill bg-qa-white border border-qa-border text-dark-chassis text-xs font-semibold hover:bg-qa-warm transition flex items-center gap-1.5 shadow-2xs"
+                  onClick={() => setViewMode('charter')}
+                  className={`px-3 py-1 rounded-pill text-xs font-semibold transition flex items-center gap-1.5 ${
+                    viewMode === 'charter'
+                      ? 'bg-dark-chassis text-white shadow-2xs'
+                      : 'text-txt-muted hover:text-dark-chassis'
+                  }`}
                 >
-                  {viewMode === 'card' ? 'View Grid Mode' : 'Guided Card Mode'}
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Charter View</span>
                 </button>
 
                 <button
-                  onClick={handleCopyReport}
-                  className="px-3 py-1 rounded-pill bg-dark-chassis text-white text-xs font-semibold hover:bg-dark-secondary transition flex items-center gap-1.5 shadow-xs"
+                  onClick={() => setViewMode('stepper')}
+                  className={`px-3 py-1 rounded-pill text-xs font-semibold transition flex items-center gap-1.5 ${
+                    viewMode === 'stepper'
+                      ? 'bg-dark-chassis text-white shadow-2xs'
+                      : 'text-txt-muted hover:text-dark-chassis'
+                  }`}
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 text-neon" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied Report' : 'Copy Report'}</span>
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Guided Stepper</span>
+                </button>
+
+                <button
+                  onClick={() => setViewMode('history')}
+                  className={`px-3 py-1 rounded-pill text-xs font-semibold transition flex items-center gap-1.5 ${
+                    viewMode === 'history'
+                      ? 'bg-dark-chassis text-white shadow-2xs'
+                      : 'text-txt-muted hover:text-dark-chassis'
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Run History ({runSessions.length})</span>
                 </button>
               </div>
             </div>
 
-            {/* Runner Body: Guided Card Mode */}
-            {viewMode === 'card' && currentScenario && (
+            {/* VIEW 1: CHARTER-CENTRIC VIEW (MATCHING WORKSPACE CHARTERS VIEW) */}
+            {viewMode === 'charter' && (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                
+                {/* Secondary Sub-Bar: Quick Filter for Completed / Pending Charters + Charter Tabs */}
+                <div className="px-6 py-2.5 bg-clinical-warm/80 border-b border-clinical-border flex flex-wrap items-center justify-between gap-3 shrink-0">
+                  {/* Filter: All vs Pending Runs vs Completed Runs */}
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-full border border-clinical-border shadow-2xs text-xs">
+                    <span className="text-[10px] font-mono text-txt-muted px-2 uppercase font-bold">Scope:</span>
+                    <button
+                      onClick={() => setRunFilter('all')}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition ${
+                        runFilter === 'all'
+                          ? 'bg-dark-chassis text-white shadow-xs'
+                          : 'text-txt-secondary hover:text-dark-chassis'
+                      }`}
+                    >
+                      All Charters ({loadedCharters.length})
+                    </button>
+                    <button
+                      onClick={() => setRunFilter('pending')}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition flex items-center gap-1 ${
+                        runFilter === 'pending'
+                          ? 'bg-amber-500 text-white shadow-xs'
+                          : 'text-amber-800 hover:bg-amber-50'
+                      }`}
+                    >
+                      <span>Pending Runs ({charterRunStatus.pending.length})</span>
+                    </button>
+                    <button
+                      onClick={() => setRunFilter('completed')}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition flex items-center gap-1 ${
+                        runFilter === 'completed'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-emerald-800 hover:bg-emerald-50'
+                      }`}
+                    >
+                      <span>Completed Runs ({charterRunStatus.completed.length})</span>
+                    </button>
+                  </div>
+
+                  {/* Scenario Status Filter */}
+                  <div className="flex items-center gap-1 text-xs">
+                    <span className="text-[11px] text-txt-muted font-medium mr-1">Status:</span>
+                    {(['All', 'Pass', 'Fail', 'Blocked', 'Untested'] as const).map(st => {
+                      const isActive = scenarioStatusFilter === st;
+                      return (
+                        <button
+                          key={st}
+                          onClick={() => setScenarioStatusFilter(st)}
+                          className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition ${
+                            isActive
+                              ? 'bg-dark-chassis text-white font-semibold'
+                              : 'bg-white text-txt-muted hover:text-dark-chassis border border-clinical-border/60'
+                          }`}
+                        >
+                          {st}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Charter Navigation Tabs */}
+                <div className="px-6 py-2 bg-white border-b border-clinical-border flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+                  {visibleCharters.length === 0 ? (
+                    <span className="text-xs text-txt-muted italic py-1">
+                      No charters in &quot;{runFilter}&quot; filter.
+                    </span>
+                  ) : (
+                    visibleCharters.map((charter) => {
+                      const isSelected = charter.id === activeCharter?.id;
+                      const sc = charter.scenarios || [];
+                      const passCount = sc.filter(s => s.status === 'Pass').length;
+                      const failCount = sc.filter(s => s.status === 'Fail').length;
+                      const totalCount = sc.length;
+                      const isCharterDone = totalCount > 0 && !sc.some(s => s.status === 'Untested');
+
+                      return (
+                        <button
+                          key={charter.id}
+                          onClick={() => setSelectedCharterId(charter.id)}
+                          className={`px-3 py-1.5 rounded-pill text-xs font-medium flex items-center gap-2 whitespace-nowrap transition border ${
+                            isSelected
+                              ? 'bg-dark-chassis text-white border-dark-chassis shadow-xs font-semibold'
+                              : 'bg-qa-warm hover:bg-clinical-border text-dark-secondary border-clinical-border'
+                          }`}
+                        >
+                          <span className="font-mono">{charter.charter_code}</span>
+                          <span className="truncate max-w-[130px] text-[11px] opacity-90">
+                            {charter.title.replace(/^[A-Z0-9-]+\s*\|\s*/, '').trim()}
+                          </span>
+
+                          {totalCount > 0 && (
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                              isSelected 
+                                ? (isCharterDone ? 'bg-neon text-dark-chassis' : 'bg-dark-secondary text-white')
+                                : (isCharterDone ? 'bg-emerald-100 text-emerald-800' : 'bg-dark-secondary/10 text-txt-muted')
+                            }`}>
+                              {isCharterDone ? `✓ ${passCount}/${totalCount}` : `${passCount}/${totalCount}`}
+                            </span>
+                          )}
+
+                          {failCount > 0 && (
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title={`${failCount} failures in this charter`} />
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Active Charter Workspace Body */}
+                <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
+                  {activeCharter ? (
+                    <div className="bg-white rounded-[20px] border border-clinical-border shadow-xs overflow-hidden">
+                      
+                      {/* Charter Context Header (Exact format requested: 4 Pillars & 360° coverage) */}
+                      <div className="p-5 border-b border-clinical-border bg-gradient-to-r from-slate-50/90 to-white">
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <div>
+                            <h1 className="text-base sm:text-lg font-extrabold text-dark-chassis tracking-tight font-sans">
+                              {activeCharter.charter_code} <span className="text-txt-muted font-normal">|</span> {activeCharter.title.replace(/^[A-Z0-9-]+\s*\|\s*/, '')}
+                            </h1>
+                            {activeCharter.feature_id && (
+                              <span className="text-[11px] text-indigo-700 font-semibold font-mono">
+                                Feature: {allFeatures.find(f => f.id === activeCharter.feature_id)?.name || 'Feature Flow'}
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-neon/20 text-dark-chassis border border-neon/30">
+                            {activeCharter.status || 'ACTIVE_RUN'}
+                          </span>
+                        </div>
+
+                        {/* 4 Core Mission Pillars */}
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex items-start gap-1.5">
+                            <span className="font-bold text-dark-chassis shrink-0 w-32">Mission:</span>
+                            <span className="text-dark-secondary leading-relaxed">{activeCharter.mission}</span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <span className="font-bold text-dark-chassis shrink-0 w-32">User Persona:</span>
+                            <span className="text-dark-secondary leading-relaxed">{activeCharter.user_persona}</span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <span className="font-bold text-dark-chassis shrink-0 w-32">Starting Condition:</span>
+                            <span className="text-dark-secondary leading-relaxed">{activeCharter.starting_condition}</span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <span className="font-bold text-dark-chassis shrink-0 w-32">Expected Outcome:</span>
+                            <span className="text-dark-secondary leading-relaxed">{activeCharter.expected_outcome}</span>
+                          </div>
+                        </div>
+
+                        {/* 360° Coverage Breakdown Chips */}
+                        {activeCharter.scenarios && activeCharter.scenarios.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-slate-200/70 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-txt-muted font-bold text-[10px] uppercase tracking-wider">360° Coverage:</span>
+                            {(() => {
+                              const goldenCount = activeCharter.scenarios.filter(s => s.category === 'Golden Path').length;
+                              const altCount = activeCharter.scenarios.filter(s => s.category === 'Alternative Flow').length;
+                              const boundCount = activeCharter.scenarios.filter(s => s.category === 'Boundary & Edge').length;
+                              const failCount = activeCharter.scenarios.filter(s => s.category === 'Failure & Recovery').length;
+
+                              return (
+                                <>
+                                  {goldenCount > 0 && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                      {goldenCount} Golden Path
+                                    </span>
+                                  )}
+                                  {altCount > 0 && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-300">
+                                      <span className="w-2 h-2 rounded-full bg-sky-500" />
+                                      {altCount} Alternative Flow
+                                    </span>
+                                  )}
+                                  {boundCount > 0 && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-300">
+                                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                      {boundCount} Boundary &amp; Edge
+                                    </span>
+                                  )}
+                                  {failCount > 0 && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-300">
+                                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                      {failCount} Failure &amp; Recovery
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Interactive Scenario Execution Table (Exact Dark Header #1E293B) */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-[#1E293B] text-white text-[11px] font-bold tracking-wider uppercase border-b border-slate-700">
+                              <th className="py-3 px-4 w-24 shrink-0 font-mono">Prompt ID</th>
+                              <th className="py-3 px-4 min-w-[280px]">Exploration Prompts &amp; Investigative Scenarios</th>
+                              <th className="py-3 px-4 w-44">Status &amp; Quick Action</th>
+                              <th className="py-3 px-4 min-w-[260px]">Observations &amp; Notes</th>
+                              <th className="py-3 px-4 w-36">Media URL</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-clinical-border text-xs">
+                            {activeCharterScenarios.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="py-8 text-center text-txt-muted italic">
+                                  No scenarios matching filter &quot;{scenarioStatusFilter}&quot;.
+                                </td>
+                              </tr>
+                            ) : (
+                              activeCharterScenarios.map((scenario) => {
+                                return (
+                                  <tr key={scenario.id} className="hover:bg-slate-50/60 transition-colors group">
+                                    {/* Prompt ID */}
+                                    <td className="py-3.5 px-4 font-mono font-bold text-dark-chassis align-top">
+                                      {scenario.prompt_id}
+                                    </td>
+
+                                    {/* Exploration Prompts & Scenarios */}
+                                    <td className="py-3.5 px-4 text-dark-secondary align-top leading-relaxed">
+                                      {scenario.category && (
+                                        <div className="mb-1.5">
+                                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                            scenario.category === 'Golden Path'
+                                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                              : scenario.category === 'Alternative Flow'
+                                              ? 'bg-sky-50 text-sky-800 border-sky-300'
+                                              : scenario.category === 'Boundary & Edge'
+                                              ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                              : 'bg-rose-50 text-rose-800 border-rose-300'
+                                          }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${
+                                              scenario.category === 'Golden Path'
+                                                ? 'bg-emerald-500 animate-pulse'
+                                                : scenario.category === 'Alternative Flow'
+                                                ? 'bg-sky-500'
+                                                : scenario.category === 'Boundary & Edge'
+                                                ? 'bg-amber-500'
+                                                : 'bg-rose-500'
+                                            }`} />
+                                            {scenario.category}
+                                          </span>
+                                        </div>
+                                      )}
+
+                                      <div className="text-dark-chassis font-medium">{scenario.prompt_text}</div>
+
+                                      {scenario.traceability && (
+                                        <div className="mt-2 space-y-1.5 pt-1.5 border-t border-slate-100">
+                                          <div className="flex flex-wrap items-center gap-1">
+                                            {scenario.traceability.exploration_dimensions?.map((dim, dIdx) => (
+                                              <span key={dIdx} className="px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                                {dim}
+                                              </span>
+                                            ))}
+                                          </div>
+                                          {scenario.traceability.derived_from && (
+                                            <details className="text-[10px] text-txt-muted group/trace">
+                                              <summary className="cursor-pointer hover:text-dark-chassis font-medium inline-flex items-center gap-1 text-[10px]">
+                                                Traceability Reason
+                                              </summary>
+                                              <div className="mt-1 p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-0.5 text-[10px] text-slate-700">
+                                                {scenario.traceability.derived_from.failure_state && (
+                                                  <div><strong className="text-rose-700">Failure State:</strong> {scenario.traceability.derived_from.failure_state.join('; ')}</div>
+                                                )}
+                                                {scenario.traceability.derived_from.risk && (
+                                                  <div><strong className="text-amber-700">Testing Risk:</strong> {scenario.traceability.derived_from.risk.join('; ')}</div>
+                                                )}
+                                                {scenario.traceability.derived_from.feature && (
+                                                  <div><strong className="text-blue-700">Feature Scope:</strong> {scenario.traceability.derived_from.feature.join('; ')}</div>
+                                                )}
+                                              </div>
+                                            </details>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+
+                                    {/* Status & 1-Click Action Buttons */}
+                                    <td className="py-3.5 px-4 align-top">
+                                      <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleUpdateScenario(scenario.id, { status: 'Pass' })}
+                                            className={`px-2.5 py-1 rounded-pill text-[10px] font-bold transition border flex items-center gap-1 ${
+                                              scenario.status === 'Pass'
+                                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+                                            }`}
+                                          >
+                                            <CheckCircle2 className="w-3 h-3" />
+                                            Pass
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => handleUpdateScenario(scenario.id, { status: 'Fail' })}
+                                            className={`px-2.5 py-1 rounded-pill text-[10px] font-bold transition border flex items-center gap-1 ${
+                                              scenario.status === 'Fail'
+                                                ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                                                : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200'
+                                            }`}
+                                          >
+                                            <XCircle className="w-3 h-3" />
+                                            Fail
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => handleUpdateScenario(scenario.id, { status: 'Blocked' })}
+                                            className={`px-2 py-1 rounded-pill text-[10px] font-bold transition border flex items-center gap-1 ${
+                                              scenario.status === 'Blocked'
+                                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                                            }`}
+                                          >
+                                            <AlertTriangle className="w-3 h-3" />
+                                            Block
+                                          </button>
+                                        </div>
+
+                                        {scenario.status !== 'Untested' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleUpdateScenario(scenario.id, { status: 'Untested' })}
+                                            className="text-[10px] text-txt-muted hover:text-dark-chassis flex items-center gap-1 self-start pt-0.5"
+                                          >
+                                            <RotateCcw className="w-2.5 h-2.5" />
+                                            Reset to Untested
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+
+                                    {/* Observations & Notes (Live editable field with autosave) */}
+                                    <td className="py-3 px-4 align-top">
+                                      <textarea
+                                        defaultValue={scenario.observations || ''}
+                                        placeholder="Record empirical tester observations, replies received, or unexpected bugs..."
+                                        onBlur={(e) => {
+                                          if (e.target.value !== scenario.observations) {
+                                            handleUpdateScenario(scenario.id, { observations: e.target.value });
+                                          }
+                                        }}
+                                        rows={3}
+                                        className="w-full text-xs p-2 rounded-lg border border-clinical-border bg-white text-dark-chassis placeholder:text-txt-muted/70 focus:outline-none focus:border-dark-chassis transition resize-y leading-relaxed font-sans"
+                                      />
+                                      {savingScenarioId === scenario.id && (
+                                        <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
+                                          <Check className="w-3 h-3" /> Autosaved
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Media URL */}
+                                    <td className="py-3 px-4 align-top">
+                                      <div className="space-y-1">
+                                        <input
+                                          type="text"
+                                          defaultValue={scenario.media_url || ''}
+                                          placeholder="https://..."
+                                          onBlur={(e) => {
+                                            if (e.target.value !== scenario.media_url) {
+                                              handleUpdateScenario(scenario.id, { media_url: e.target.value });
+                                            }
+                                          }}
+                                          className="w-full text-[11px] p-1.5 rounded border border-clinical-border bg-white text-dark-secondary placeholder:text-txt-muted/60 focus:outline-none focus:border-dark-chassis font-mono"
+                                        />
+                                        {scenario.media_url && (
+                                          <a
+                                            href={scenario.media_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-[10px] text-indigo-600 hover:underline font-mono"
+                                          >
+                                            <ExternalLink className="w-2.5 h-2.5" /> Open Media
+                                          </a>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-white rounded-2xl border border-clinical-border text-xs text-txt-muted">
+                      No charter selected. Pick a charter tab from above to begin.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 2: GUIDED STEPPER CARD MODE */}
+            {viewMode === 'stepper' && currentStepperScenario && (
               <div className="p-6 overflow-y-auto flex-1 space-y-6">
-                {/* Stepper Status & Category Header */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 rounded-lg bg-dark-chassis text-white text-xs font-mono font-bold">
-                      {currentIndex + 1} / {filteredRunnable.length}
+                      {currentIndex + 1} / {filteredStepperRunnable.length}
                     </span>
                     <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-900 border border-indigo-300 text-xs font-bold">
-                      {currentScenario.featureName}
+                      {currentStepperScenario.featureName}
                     </span>
                     <span className="px-2 py-0.5 rounded-md bg-qa-surface text-txt-secondary border border-qa-border text-xs font-mono">
-                      {currentScenario.charterCode}
+                      {currentStepperScenario.charterCode}
                     </span>
                   </div>
 
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold border font-mono ${
-                    currentScenario.category === 'Golden Path'
+                    currentStepperScenario.category === 'Golden Path'
                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      : currentScenario.category === 'Alternative Flow'
+                      : currentStepperScenario.category === 'Alternative Flow'
                       ? 'bg-blue-100 text-blue-800 border-blue-300'
-                      : currentScenario.category === 'Failure & Recovery'
+                      : currentStepperScenario.category === 'Failure & Recovery'
                       ? 'bg-rose-100 text-rose-800 border-rose-300'
                       : 'bg-amber-100 text-amber-800 border-amber-300'
                   }`}>
-                    {currentScenario.category || 'Exploratory'}
+                    {currentStepperScenario.category || 'Exploratory'}
                   </span>
                 </div>
 
-                {/* Scenario Mission & Prompt Card */}
+                {/* Scenario Mission Card */}
                 <div className="p-6 rounded-3xl bg-qa-surface border-2 border-qa-border shadow-card space-y-4">
                   <div>
                     <span className="text-[10px] font-mono uppercase tracking-wider text-txt-muted block mb-1">
                       Charter Mission:
                     </span>
                     <p className="text-xs text-txt-secondary font-medium italic">
-                      &quot;{currentScenario.charterMission}&quot;
+                      &quot;{currentStepperScenario.charterMission}&quot;
                     </p>
                   </div>
 
@@ -625,26 +1342,12 @@ export function MultiCharterRunnerModal({
                       Exploration Prompt / Investigative Mission:
                     </span>
                     <p className="text-sm sm:text-base font-semibold text-dark-chassis leading-relaxed">
-                      {currentScenario.prompt_text}
+                      {currentStepperScenario.prompt_text}
                     </p>
                   </div>
-
-                  {currentScenario.traceability && (
-                    <div className="pt-2 text-[11px] text-slate-600 flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-dark-chassis">Grounded In:</span>
-                      <span>
-                        {currentScenario.traceability.derived_from
-                          ? Object.entries(currentScenario.traceability.derived_from)
-                              .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : !!v))
-                              .map(([k, v]) => `${k.replace('_', ' ')}: ${Array.isArray(v) ? v.join(', ') : v}`)
-                              .join(' • ') || 'Empirical Screen Evidence'
-                          : 'Empirical Screen Evidence'}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
-                {/* Observations & Evidence Input */}
+                {/* Observations & Evidence */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-dark-chassis block">
@@ -652,7 +1355,7 @@ export function MultiCharterRunnerModal({
                     </label>
                     <textarea
                       rows={3}
-                      placeholder="Record what happened during exploration (e.g. app froze, button remained disabled, balance deducted instantly)..."
+                      placeholder="Record what happened during exploration..."
                       value={activeNotes}
                       onChange={(e) => setActiveNotes(e.target.value)}
                       className="w-full p-3 bg-qa-white border border-qa-border rounded-2xl text-xs focus:outline-none focus:border-dark-chassis placeholder:text-txt-muted shadow-2xs resize-none"
@@ -665,7 +1368,7 @@ export function MultiCharterRunnerModal({
                     </label>
                     <input
                       type="text"
-                      placeholder="Paste image URL, Loom link, or defect screenshot..."
+                      placeholder="Paste image URL or Loom link..."
                       value={activeMediaUrl}
                       onChange={(e) => setActiveMediaUrl(e.target.value)}
                       className="w-full px-3 py-2 bg-qa-white border border-qa-border rounded-xl text-xs focus:outline-none focus:border-dark-chassis placeholder:text-txt-muted shadow-2xs"
@@ -676,7 +1379,7 @@ export function MultiCharterRunnerModal({
                   </div>
                 </div>
 
-                {/* Rapid Decision Action Bar */}
+                {/* Outcome Buttons */}
                 <div className="pt-4 border-t border-qa-border flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <button
@@ -691,7 +1394,7 @@ export function MultiCharterRunnerModal({
 
                     <button
                       type="button"
-                      disabled={currentIndex === filteredRunnable.length - 1}
+                      disabled={currentIndex === filteredStepperRunnable.length - 1}
                       onClick={() => setCurrentIndex(prev => prev + 1)}
                       className="px-3.5 py-2 rounded-pill bg-qa-surface hover:bg-qa-warm text-dark-chassis text-xs font-bold border border-qa-border transition flex items-center gap-1 disabled:opacity-40"
                     >
@@ -700,13 +1403,16 @@ export function MultiCharterRunnerModal({
                     </button>
                   </div>
 
-                  {/* 3 Outcome Buttons */}
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => handleUpdateStatus('Blocked')}
+                      onClick={() => handleUpdateScenario(currentStepperScenario.id, { 
+                        status: 'Blocked', 
+                        observations: activeNotes, 
+                        media_url: activeMediaUrl 
+                      }, true)}
                       className={`px-4 py-2 rounded-pill text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 border ${
-                        currentScenario.status === 'Blocked'
+                        currentStepperScenario.status === 'Blocked'
                           ? 'bg-amber-500 text-white border-amber-600'
                           : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
                       }`}
@@ -717,9 +1423,13 @@ export function MultiCharterRunnerModal({
 
                     <button
                       type="button"
-                      onClick={() => handleUpdateStatus('Fail')}
+                      onClick={() => handleUpdateScenario(currentStepperScenario.id, { 
+                        status: 'Fail', 
+                        observations: activeNotes, 
+                        media_url: activeMediaUrl 
+                      }, true)}
                       className={`px-4 py-2 rounded-pill text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 border ${
-                        currentScenario.status === 'Fail'
+                        currentStepperScenario.status === 'Fail'
                           ? 'bg-rose-600 text-white border-rose-700'
                           : 'bg-rose-100 hover:bg-rose-200 text-rose-900 border-rose-300'
                       }`}
@@ -730,9 +1440,13 @@ export function MultiCharterRunnerModal({
 
                     <button
                       type="button"
-                      onClick={() => handleUpdateStatus('Pass')}
+                      onClick={() => handleUpdateScenario(currentStepperScenario.id, { 
+                        status: 'Pass', 
+                        observations: activeNotes, 
+                        media_url: activeMediaUrl 
+                      }, true)}
                       className={`px-5 py-2 rounded-pill text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 border ${
-                        currentScenario.status === 'Pass'
+                        currentStepperScenario.status === 'Pass'
                           ? 'bg-emerald-600 text-white border-emerald-700'
                           : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-emerald-300'
                       }`}
@@ -745,65 +1459,98 @@ export function MultiCharterRunnerModal({
               </div>
             )}
 
-            {/* Runner Body: Consolidated Table Mode */}
-            {viewMode === 'table' && (
-              <div className="p-4 overflow-auto flex-1">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-qa-surface border-b border-qa-border text-txt-muted uppercase font-mono text-[10px]">
-                      <th className="p-3">#</th>
-                      <th className="p-3">Feature</th>
-                      <th className="p-3">Charter</th>
-                      <th className="p-3">Category</th>
-                      <th className="p-3 w-1/2">Scenario Prompt</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-qa-border/70">
-                    {filteredRunnable.map((s, idx) => (
-                      <tr 
-                        key={s.id}
-                        className={`hover:bg-qa-warm/60 transition ${
-                          idx === currentIndex ? 'bg-indigo-50/70 font-medium' : ''
-                        }`}
-                      >
-                        <td className="p-3 font-mono text-txt-muted">{idx + 1}</td>
-                        <td className="p-3 font-bold text-dark-chassis">{s.featureName}</td>
-                        <td className="p-3 font-mono text-txt-secondary">{s.charterCode}</td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-qa-surface border border-qa-border">
-                            {s.category || 'Exploratory'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-800 leading-relaxed">{s.prompt_text}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                            s.status === 'Pass' ? 'bg-emerald-100 text-emerald-800' :
-                            s.status === 'Fail' ? 'bg-rose-100 text-rose-800' :
-                            s.status === 'Blocked' ? 'bg-amber-100 text-amber-800' :
-                            'bg-qa-surface text-slate-500'
-                          }`}>
-                            {s.status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <button
-                            onClick={() => {
-                              setCurrentIndex(idx);
-                              setViewMode('card');
-                            }}
-                            className="px-2.5 py-1 rounded-pill bg-qa-warm hover:bg-dark-chassis hover:text-white text-[11px] font-medium border border-qa-border transition"
-                          >
-                            Execute
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* VIEW 3: RUN HISTORY & SAVED SESSIONS */}
+            {viewMode === 'history' && (
+              <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-dark-chassis">Test Run Sessions History</h3>
+                    <p className="text-xs text-txt-muted">
+                      Inspect completed runs, track pending runs, and re-download developer defect reports.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={persistRunSession}
+                    className="px-3 py-1.5 rounded-pill bg-dark-chassis text-white text-xs font-semibold hover:bg-dark-secondary transition flex items-center gap-1.5"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Save Current Checkpoint</span>
+                  </button>
+                </div>
+
+                {runSessions.length === 0 ? (
+                  <div className="p-8 text-center bg-qa-surface rounded-2xl border border-qa-border text-xs text-txt-muted">
+                    No past sessions saved yet. Run executions are automatically recorded here.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {runSessions.map((sess) => {
+                      const passRate = sess.totalScenarios > 0 
+                        ? Math.round((sess.passedCount / sess.totalScenarios) * 100) 
+                        : 0;
+
+                      return (
+                        <div
+                          key={sess.id}
+                          className="p-4 rounded-2xl bg-white border border-qa-border shadow-xs flex flex-wrap items-center justify-between gap-4 hover:border-dark-chassis transition"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-dark-chassis">{sess.projectName}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                                sess.isCompleted 
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}>
+                                {sess.isCompleted ? '✓ Completed' : 'Pending Run'}
+                              </span>
+                              <span className="text-[11px] text-txt-muted">
+                                {new Date(sess.startTime).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-txt-secondary">
+                              Features: {sess.featureNames.join(', ') || 'All Features'}
+                            </p>
+
+                            <div className="flex items-center gap-2 text-[10px] font-mono pt-1">
+                              <span className="text-emerald-700 font-bold">{sess.passedCount} Passed ({passRate}%)</span>
+                              <span>•</span>
+                              <span className="text-rose-700 font-bold">{sess.failedCount} Failed</span>
+                              <span>•</span>
+                              <span className="text-amber-700 font-bold">{sess.blockedCount} Blocked</span>
+                              <span>•</span>
+                              <span className="text-txt-muted">{sess.untestedCount} Untested</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleDownloadDefectPdf}
+                              className="px-3 py-1.5 rounded-pill bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition"
+                              title="Download PDF defect report for developers"
+                            >
+                              <FileDown className="w-3.5 h-3.5" />
+                              <span>Defect PDF</span>
+                            </button>
+
+                            <button
+                              onClick={() => setViewMode('charter')}
+                              className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View Run</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
+
           </div>
         )}
       </div>

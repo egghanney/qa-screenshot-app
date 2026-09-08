@@ -36,8 +36,19 @@ import {
   Info,
   ShieldCheck,
   Box,
-  Play
+  Play,
+  Download,
+  FileDown,
+  FileText
 } from 'lucide-react';
+import { 
+  exportDefectReportPdf, 
+  exportDefectReportMarkdown, 
+  exportDefectReportCsv, 
+  triggerFileDownload, 
+  extractDefects, 
+  DefectReportMetadata 
+} from '@/lib/defectReportExport';
 
 interface ExploratoryChartersViewProps {
   currentFeature: Feature | null;
@@ -69,6 +80,7 @@ export function ExploratoryChartersView({
   const [contextPack, setContextPack] = useState<ContextPack | null>(null);
   const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
   const [isLocalRunnerOpen, setIsLocalRunnerOpen] = useState(false);
+  const [showDefectMenu, setShowDefectMenu] = useState(false);
 
   // Local state for instant editing responsiveness
   const [localCharters, setLocalCharters] = useState<QACharter[]>(charters);
@@ -268,6 +280,53 @@ export function ExploratoryChartersView({
   const blockedScenarios = localCharters.reduce((acc, c) => acc + (c.scenarios?.filter(s => s.status === 'Blocked').length || 0), 0);
   const untestedScenarios = totalScenarios - (passedScenarios + failedScenarios + blockedScenarios);
 
+  // Defect Report Metadata Builder
+  const getDefectReportMetadata = (): DefectReportMetadata => {
+    return {
+      projectName: currentProject?.name || 'QA App',
+      platform: currentProject?.platform || 'General',
+      featureNames: currentFeature ? [currentFeature.name] : ['All Features'],
+      totalScenarios,
+      passedCount: passedScenarios,
+      failedCount: failedScenarios,
+      blockedCount: blockedScenarios,
+      untestedCount: untestedScenarios,
+      passRate: totalScenarios > 0 ? Math.round((passedScenarios / totalScenarios) * 100) : 0,
+      generatedDate: new Date().toLocaleDateString()
+    };
+  };
+
+  const handleDownloadDefectPdf = () => {
+    const meta = getDefectReportMetadata();
+    const featMap = new Map((allFeatures || []).map(f => [f.id, f.name]));
+    if (currentFeature) featMap.set(currentFeature.id, currentFeature.name);
+    const defects = extractDefects(localCharters, featMap);
+    exportDefectReportPdf(meta, defects);
+    setShowDefectMenu(false);
+  };
+
+  const handleDownloadDefectMarkdown = () => {
+    const meta = getDefectReportMetadata();
+    const featMap = new Map((allFeatures || []).map(f => [f.id, f.name]));
+    if (currentFeature) featMap.set(currentFeature.id, currentFeature.name);
+    const defects = extractDefects(localCharters, featMap);
+    const md = exportDefectReportMarkdown(meta, defects);
+    const filename = `${meta.projectName.replace(/\s+/g, '_')}_Defects.md`;
+    triggerFileDownload(md, filename, 'text/markdown;charset=utf-8;');
+    setShowDefectMenu(false);
+  };
+
+  const handleDownloadDefectCsv = () => {
+    const meta = getDefectReportMetadata();
+    const featMap = new Map((allFeatures || []).map(f => [f.id, f.name]));
+    if (currentFeature) featMap.set(currentFeature.id, currentFeature.name);
+    const defects = extractDefects(localCharters, featMap);
+    const csv = exportDefectReportCsv(meta, defects);
+    const filename = `${meta.projectName.replace(/\s+/g, '_')}_Defects.csv`;
+    triggerFileDownload(csv, filename, 'text/csv;charset=utf-8;');
+    setShowDefectMenu(false);
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-clinical-warm overflow-hidden">
       {/* Top Header Bar */}
@@ -336,6 +395,68 @@ export function ExploratoryChartersView({
               Offline Engine Active
             </span>
           )}
+
+          {/* Defect Report Export Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowDefectMenu(!showDefectMenu)}
+              className="px-3 py-1.5 rounded-pill bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
+              title="Download defect report for developers"
+            >
+              <FileDown className="w-3.5 h-3.5 text-rose-600" />
+              <span>Defect Report</span>
+              {(failedScenarios > 0 || blockedScenarios > 0) && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-600 text-white">
+                  {failedScenarios + blockedScenarios}
+                </span>
+              )}
+              <ChevronDown className="w-3 h-3 opacity-70" />
+            </button>
+
+            {showDefectMenu && (
+              <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-clinical-border shadow-xl p-2 z-50 animate-in fade-in-50 zoom-in-95 text-xs text-dark-chassis">
+                <div className="px-3 py-1.5 border-b border-clinical-border mb-1">
+                  <span className="font-bold block">Developer Defect Report</span>
+                  <span className="text-[10px] text-txt-muted">
+                    {failedScenarios} Failed, {blockedScenarios} Blocked
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleDownloadDefectPdf}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 flex items-center gap-2 transition"
+                >
+                  <FileDown className="w-4 h-4 text-rose-600" />
+                  <div>
+                    <span className="font-semibold block">Download PDF</span>
+                    <span className="text-[10px] text-txt-muted">Executive metrics &amp; bug tickets</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleDownloadDefectMarkdown}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 flex items-center gap-2 transition"
+                >
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  <div>
+                    <span className="font-semibold block">Download Markdown (.md)</span>
+                    <span className="text-[10px] text-txt-muted">Ready for Jira, Linear, GitHub</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleDownloadDefectCsv}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 flex items-center gap-2 transition"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <div>
+                    <span className="font-semibold block">Download CSV (.csv)</span>
+                    <span className="text-[10px] text-txt-muted">Tabular defect data</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             onClick={handleCopyFormattedTable}
