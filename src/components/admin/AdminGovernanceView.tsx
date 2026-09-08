@@ -22,9 +22,11 @@ import {
   UserCheck,
   Mail,
   User as UserIcon,
-  Lock
+  Lock,
+  Copy
 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { ProfileMenu } from '@/components/shell/ProfileMenu';
 
 export interface AdminUserItem {
   id: string;
@@ -41,13 +43,62 @@ interface AdminGovernanceViewProps {
   onBack: () => void;
   userEmail?: string;
   userRole?: string;
+  onOpenSettings?: () => void;
   onSignOut?: () => void;
+}
+
+export interface CreatedCredentials {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+}
+
+// Cryptographically secure password generator for team provisioning
+function generateSecurePassword(length = 14): string {
+  const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lowers = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const specials = '!@#$%^&*';
+  const all = uppers + lowers + digits + specials;
+
+  const guaranteed = [
+    uppers[Math.floor(Math.random() * uppers.length)],
+    lowers[Math.floor(Math.random() * lowers.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+    specials[Math.floor(Math.random() * specials.length)],
+  ];
+
+  const remainingLength = Math.max(0, length - guaranteed.length);
+  const remaining: string[] = [];
+
+  const cryptoObj = typeof window !== 'undefined' ? window.crypto : null;
+  if (cryptoObj?.getRandomValues) {
+    const randomBuffer = new Uint32Array(remainingLength);
+    cryptoObj.getRandomValues(randomBuffer);
+    for (let i = 0; i < remainingLength; i++) {
+      remaining.push(all[randomBuffer[i] % all.length]);
+    }
+  } else {
+    for (let i = 0; i < remainingLength; i++) {
+      remaining.push(all[Math.floor(Math.random() * all.length)]);
+    }
+  }
+
+  const combined = [...guaranteed, ...remaining];
+  for (let i = combined.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [combined[i], combined[j]] = [combined[j], combined[i]];
+  }
+
+  return combined.join('');
 }
 
 export function AdminGovernanceView({
   onBack,
   userEmail,
   userRole,
+  onOpenSettings,
   onSignOut
 }: AdminGovernanceViewProps) {
   const [users, setUsers] = useState<AdminUserItem[]>([]);
@@ -64,12 +115,18 @@ export function AdminGovernanceView({
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'admin' | 'tester' | 'viewer'>('tester');
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isCopiedPassword, setIsCopiedPassword] = useState(false);
   const [isSubmittingNewUser, setIsSubmittingNewUser] = useState(false);
+
+  // Post-Creation Credentials Modal
+  const [createdUserCredentials, setCreatedUserCredentials] = useState<CreatedCredentials | null>(null);
+  const [isCopiedFullCredentials, setIsCopiedFullCredentials] = useState(false);
 
   // Password Reset Modal State
   const [resetTargetUser, setResetTargetUser] = useState<AdminUserItem | null>(null);
   const [newResetPassword, setNewResetPassword] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isCopiedResetPassword, setIsCopiedResetPassword] = useState(false);
   const [isSubmittingReset, setIsSubmittingReset] = useState(false);
 
   const fetchUsers = useCallback(async () => {
@@ -99,6 +156,25 @@ export function AdminGovernanceView({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  // Open Add User Dialog with auto-generated credentials
+  const handleOpenAddUser = () => {
+    setNewEmail('');
+    setNewName('');
+    setNewRole('tester');
+    setNewPassword(generateSecurePassword());
+    setShowNewPassword(false);
+    setIsCopiedPassword(false);
+    setIsAddUserOpen(true);
+  };
+
+  // Open Reset Password Dialog with auto-generated credentials
+  const handleOpenResetModal = (member: AdminUserItem) => {
+    setResetTargetUser(member);
+    setNewResetPassword(generateSecurePassword());
+    setShowResetPassword(false);
+    setIsCopiedResetPassword(false);
+  };
+
   // Add User Handler
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,6 +202,13 @@ export function AdminGovernanceView({
       }
 
       showToast(`User ${newEmail} successfully registered.`);
+      setCreatedUserCredentials({
+        name: newName,
+        email: newEmail,
+        password: newPassword,
+        role: newRole,
+      });
+      setIsCopiedFullCredentials(false);
       setIsAddUserOpen(false);
       setNewEmail('');
       setNewName('');
@@ -291,37 +374,24 @@ export function AdminGovernanceView({
 
         {/* Header Tools */}
         <div className="flex items-center gap-2 shrink-0">
-          {userEmail && (
-            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-pill bg-dark-secondary border border-dark-tertiary text-xs">
-              <div className="w-5 h-5 rounded-full bg-dark-tertiary flex items-center justify-center text-[10px] font-bold text-neon">
-                {userEmail.charAt(0).toUpperCase()}
-              </div>
-              <span className="max-w-[130px] truncate text-[11px] font-mono text-txt-secondary">{userEmail}</span>
-              {userRole && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider bg-dark-chassis text-txt-muted border border-dark-tertiary">
-                  {userRole}
-                </span>
-              )}
-            </div>
-          )}
-
           <button
             onClick={fetchUsers}
             disabled={isLoading}
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white flex items-center justify-center transition border border-dark-tertiary cursor-pointer"
+            className="w-8 h-8 rounded-full bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white flex items-center justify-center transition border border-dark-tertiary cursor-pointer"
             title="Refresh team data"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
 
-          {onSignOut && (
-            <button
-              onClick={onSignOut}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 flex items-center justify-center transition border border-dark-tertiary hover:border-rose-500/40 cursor-pointer"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
+          {userEmail && (
+            <ProfileMenu
+              userEmail={userEmail}
+              userRole={userRole}
+              isAdmin={false}
+              onOpenSettings={onOpenSettings}
+              onSignOut={onSignOut}
+              align="right"
+            />
           )}
         </div>
       </header>
@@ -348,7 +418,7 @@ export function AdminGovernanceView({
 
           <div className="z-10 shrink-0">
             <button
-              onClick={() => setIsAddUserOpen(true)}
+              onClick={handleOpenAddUser}
               className="px-4 sm:px-5 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs sm:text-sm font-bold transition shadow-card flex items-center gap-2 active:scale-95 cursor-pointer"
             >
               <UserPlus className="w-4 h-4 stroke-[2.5]" />
@@ -587,11 +657,7 @@ export function AdminGovernanceView({
 
                             {/* Password Reset CTA */}
                             <button
-                              onClick={() => {
-                                setResetTargetUser(member);
-                                setNewResetPassword('');
-                                setShowResetPassword(false);
-                              }}
+                              onClick={() => handleOpenResetModal(member)}
                               className="px-2.5 py-1.5 rounded-pill bg-white hover:bg-qa-warm text-dark-chassis text-xs font-semibold border border-qa-border flex items-center gap-1 transition active:scale-95 shadow-2xs cursor-pointer"
                               title="Reset Password"
                             >
@@ -661,7 +727,7 @@ export function AdminGovernanceView({
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-dark-chassis">Add Team Member</h3>
-                  <p className="text-[11px] text-txt-muted">Account is immediately active upon creation</p>
+                  <p className="text-[11px] text-txt-muted">Credentials auto-generated • Closed team system</p>
                 </div>
               </div>
               <button
@@ -707,47 +773,93 @@ export function AdminGovernanceView({
                 </div>
               </div>
 
-              <div className="space-y-1">
+              {/* Auto-Generated Password Field */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold text-txt-secondary uppercase tracking-wider block">
-                    Initial Password
+                  <label className="text-[11px] font-semibold text-txt-secondary uppercase tracking-wider flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-txt-muted" />
+                    <span>Auto-Generated Password</span>
                   </label>
-                  <span className="text-[10px] text-txt-muted font-mono">Min. 6 chars</span>
+                  <span className="text-[10px] text-emerald-600 font-mono font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> High Entropy
+                  </span>
                 </div>
-                <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 text-txt-muted absolute left-3 pointer-events-none" />
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-9 pr-9 py-2 bg-qa-warm border border-qa-border rounded-pill text-xs focus:outline-none focus:border-dark-chassis"
-                  />
+
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1 flex items-center">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      readOnly
+                      value={newPassword}
+                      className="w-full pl-3 pr-9 py-2 bg-qa-warm/90 border border-qa-border rounded-pill text-xs font-mono text-dark-chassis select-all focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="p-1 text-txt-muted hover:text-dark-chassis absolute right-2.5 cursor-pointer"
+                      title={showNewPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="p-1 text-txt-muted hover:text-dark-chassis absolute right-2.5 cursor-pointer"
+                    onClick={() => setNewPassword(generateSecurePassword())}
+                    className="px-2.5 py-2 rounded-pill bg-qa-warm hover:bg-slate-200 text-dark-chassis text-xs font-semibold border border-qa-border flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0"
+                    title="Generate another password"
                   >
-                    {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <RefreshCw className="w-3.5 h-3.5 text-txt-muted" />
+                    <span className="hidden sm:inline">Regenerate</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(newPassword);
+                      setIsCopiedPassword(true);
+                      setTimeout(() => setIsCopiedPassword(false), 2000);
+                    }}
+                    className="px-2.5 py-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0"
+                    title="Copy password to clipboard"
+                  >
+                    {isCopiedPassword ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-neon" />
+                        <span className="hidden sm:inline text-neon">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Copy</span>
+                      </>
+                    )}
                   </button>
                 </div>
+                <p className="text-[10px] text-txt-muted leading-tight">
+                  Auto-generated 14-char secure credential. A complete shareable summary will appear upon creation.
+                </p>
               </div>
 
+              {/* Workspace Role Dropdown */}
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-txt-secondary uppercase tracking-wider block">
                   Workspace Role
                 </label>
-                <select
+                <CustomSelect
                   value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as any)}
-                  className="w-full py-2 px-3 bg-qa-warm border border-qa-border rounded-pill text-xs focus:outline-none focus:border-dark-chassis font-medium cursor-pointer"
-                >
-                  <option value="tester">QA Tester (Execute charters, log defects)</option>
-                  <option value="viewer">Viewer (Read-only observation access)</option>
-                  <option value="admin">Administrator (Manage users & workspace)</option>
-                </select>
+                  onChange={(val) => setNewRole(val as any)}
+                  options={[
+                    { value: 'tester', label: 'QA Tester (Execute charters, log defects)' },
+                    { value: 'viewer', label: 'Viewer (Read-only observation access)' },
+                    { value: 'admin', label: 'Administrator (Manage users & workspace)' },
+                  ]}
+                  variant="light"
+                  size="md"
+                  className="w-full"
+                  buttonClassName="w-full justify-between text-xs"
+                  mobileTitle="Select Workspace Role"
+                />
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2">
@@ -772,6 +884,98 @@ export function AdminGovernanceView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* POST-CREATION CREDENTIALS SUCCESS MODAL */}
+      {/* ========================================================================= */}
+      {createdUserCredentials && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-qa-white rounded-[28px] border border-qa-border shadow-modal overflow-hidden text-dark-chassis animate-in zoom-in-95">
+            <div className="p-5 sm:p-6 border-b border-qa-border bg-dark-chassis text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-neon text-dark-chassis flex items-center justify-center font-bold text-sm shadow-sm shadow-neon/40 shrink-0">
+                  <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white">Account Provisioned</h3>
+                  <p className="text-[11px] text-neon font-mono">Team credentials ready to share</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCreatedUserCredentials(null)}
+                className="p-1.5 rounded-full hover:bg-dark-secondary text-txt-muted hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-4 text-xs">
+              <div className="p-4 rounded-2xl bg-qa-surface border border-qa-border space-y-2.5">
+                <div className="flex items-center justify-between pb-2 border-b border-qa-border/60">
+                  <span className="text-[11px] font-semibold text-txt-muted uppercase">Full Name</span>
+                  <span className="font-bold text-dark-chassis">{createdUserCredentials.name}</span>
+                </div>
+                <div className="flex items-center justify-between pb-2 border-b border-qa-border/60">
+                  <span className="text-[11px] font-semibold text-txt-muted uppercase">Email Address</span>
+                  <span className="font-mono font-bold text-dark-chassis">{createdUserCredentials.email}</span>
+                </div>
+                <div className="flex items-center justify-between pb-2 border-b border-qa-border/60">
+                  <span className="text-[11px] font-semibold text-txt-muted uppercase">Assigned Role</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-dark-chassis text-neon">
+                    {createdUserCredentials.role}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-txt-muted uppercase">Initial Password</span>
+                  <span className="font-mono font-bold text-dark-chassis px-2 py-1 bg-qa-warm rounded-md border border-qa-border">
+                    {createdUserCredentials.password}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-neon/10 border border-neon/30 rounded-2xl flex items-start gap-2.5 text-xs text-neon-dark">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-neon-dark" />
+                <p className="text-[11px] leading-relaxed">
+                  Provide these credentials to the user. Since this is a closed system, self-service registration and password resets are disabled.
+                </p>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setCreatedUserCredentials(null)}
+                  className="px-4 py-2.5 rounded-pill bg-qa-warm hover:bg-slate-200 text-txt-secondary text-xs font-semibold transition cursor-pointer"
+                >
+                  Done
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const loginUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                    const fullText = `QA Studio Credentials\n---------------------\nName: ${createdUserCredentials.name}\nEmail: ${createdUserCredentials.email}\nPassword: ${createdUserCredentials.password}\nRole: ${createdUserCredentials.role.toUpperCase()}\nLogin URL: ${loginUrl}`;
+                    navigator.clipboard.writeText(fullText);
+                    setIsCopiedFullCredentials(true);
+                    setTimeout(() => setIsCopiedFullCredentials(false), 2500);
+                  }}
+                  className="px-4 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm shadow-neon/40 cursor-pointer"
+                >
+                  {isCopiedFullCredentials ? (
+                    <>
+                      <Check className="w-4 h-4 stroke-[2.5]" />
+                      <span>Copied to Clipboard!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 stroke-[2.5]" />
+                      <span>Copy Full Credentials</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -803,30 +1007,69 @@ export function AdminGovernanceView({
             </div>
 
             <form onSubmit={handleResetPassword} className="p-5 space-y-4 text-xs">
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold text-txt-secondary uppercase tracking-wider block">
-                    New Password
+                  <label className="text-[11px] font-semibold text-txt-secondary uppercase tracking-wider flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-txt-muted" />
+                    <span>New Password</span>
                   </label>
-                  <span className="text-[10px] text-txt-muted font-mono">Min. 6 chars</span>
+                  <span className="text-[10px] text-emerald-600 font-mono font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> High Entropy
+                  </span>
                 </div>
-                <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 text-txt-muted absolute left-3 pointer-events-none" />
-                  <input
-                    type={showResetPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={newResetPassword}
-                    onChange={(e) => setNewResetPassword(e.target.value)}
-                    placeholder="Enter new password"
-                    className="w-full pl-9 pr-9 py-2 bg-qa-warm border border-qa-border rounded-pill text-xs focus:outline-none focus:border-dark-chassis"
-                  />
+
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1 flex items-center">
+                    <input
+                      type={showResetPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={newResetPassword}
+                      onChange={(e) => setNewResetPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="w-full pl-3 pr-9 py-2 bg-qa-warm/80 border border-qa-border rounded-pill text-xs font-mono text-dark-chassis focus:outline-none focus:border-dark-chassis"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className="p-1 text-txt-muted hover:text-dark-chassis absolute right-2.5 cursor-pointer"
+                      title={showResetPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showResetPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="p-1 text-txt-muted hover:text-dark-chassis absolute right-2.5 cursor-pointer"
+                    onClick={() => setNewResetPassword(generateSecurePassword())}
+                    className="px-2.5 py-2 rounded-pill bg-qa-warm hover:bg-slate-200 text-dark-chassis text-xs font-semibold border border-qa-border flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0"
+                    title="Generate another password"
                   >
-                    {showResetPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <RefreshCw className="w-3.5 h-3.5 text-txt-muted" />
+                    <span className="hidden sm:inline">Regen</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(newResetPassword);
+                      setIsCopiedResetPassword(true);
+                      setTimeout(() => setIsCopiedResetPassword(false), 2000);
+                    }}
+                    className="px-2.5 py-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0"
+                    title="Copy password to clipboard"
+                  >
+                    {isCopiedResetPassword ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-neon" />
+                        <span className="hidden sm:inline text-neon">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Copy</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

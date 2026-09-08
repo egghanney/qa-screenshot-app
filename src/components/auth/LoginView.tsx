@@ -12,9 +12,8 @@ export function LoginView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Setup & Reset mode detection
+  // Setup mode detection (for uninitialized database only)
   const [isSetupMode, setIsSetupMode] = useState(false);
-  const [isResetAdminMode, setIsResetAdminMode] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
 
   useEffect(() => {
@@ -48,8 +47,8 @@ export function LoginView() {
     setLoading(true);
 
     try {
-      if (isSetupMode || isResetAdminMode) {
-        // Initialize or Reset Super Admin account
+      if (isSetupMode) {
+        // Initialize Super Admin account
         const setupRes = await fetch('/api/auth/setup-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -58,7 +57,7 @@ export function LoginView() {
         const setupData = await setupRes.json();
 
         if (!setupRes.ok || setupData.error) {
-          setError(setupData.error || 'Failed to update administrator password.');
+          setError(setupData.error || 'Failed to initialize administrator password.');
           setLoading(false);
           return;
         }
@@ -66,7 +65,7 @@ export function LoginView() {
         // Now automatically sign in
         const res = await signIn('egghanney@gmail.com', password);
         if (!res.success) {
-          setError(res.error || 'Password updated, but sign-in failed. Please enter your new password to sign in.');
+          setError(res.error || 'Password configured, but sign-in failed. Please sign in with your password.');
         }
       } else {
         // Standard Sign In
@@ -100,8 +99,6 @@ export function LoginView() {
           <p className="text-xs text-txt-muted max-w-xs mx-auto">
             {isSetupMode 
               ? 'Welcome! Set up your primary administrator account to begin.' 
-              : isResetAdminMode
-              ? 'Reset the master password for egghanney@gmail.com.'
               : 'Sign in with your team credentials to access test suites and exploratory runs.'
             }
           </p>
@@ -120,40 +117,12 @@ export function LoginView() {
           </div>
         )}
 
-        {/* Reset Mode Notice */}
-        {isResetAdminMode && (
-          <div className="p-3 bg-neon/10 border border-neon/30 rounded-2xl flex items-start gap-2.5 text-xs text-neon">
-            <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <span className="font-bold block">Reset Super Admin Password</span>
-              <p className="text-[11px] text-txt-muted leading-relaxed">
-                Enter a new password for <strong className="text-white">egghanney@gmail.com</strong> to regain instant access.
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* Error Banner */}
         {error && (
           <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-2xl flex items-start gap-2 text-xs text-rose-300 animate-in fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div className="flex-1 space-y-1">
               <span>{error}</span>
-              {!isResetAdminMode && !isSetupMode && email.trim().toLowerCase() === 'egghanney@gmail.com' && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsResetAdminMode(true);
-                      setError(null);
-                      setPassword('');
-                    }}
-                    className="text-[11px] text-neon underline font-medium hover:text-white"
-                  >
-                    Click here to set or reset the password for egghanney@gmail.com
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -173,9 +142,9 @@ export function LoginView() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@company.com"
-                disabled={isSetupMode || isResetAdminMode}
+                disabled={isSetupMode}
                 className={`w-full pl-10 pr-4 py-2.5 rounded-pill bg-dark-secondary text-white text-xs border border-dark-tertiary focus:outline-none focus:border-neon placeholder:text-txt-muted transition ${
-                  isSetupMode || isResetAdminMode ? 'opacity-80 cursor-not-allowed' : ''
+                  isSetupMode ? 'opacity-80 cursor-not-allowed' : ''
                 }`}
               />
             </div>
@@ -185,9 +154,9 @@ export function LoginView() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-txt-muted uppercase tracking-wider block">
-                {isResetAdminMode ? 'New Password' : 'Password'}
+                Password
               </label>
-              {(isSetupMode || isResetAdminMode) && (
+              {isSetupMode && (
                 <span className="text-[10px] text-txt-muted font-mono">Min. 6 characters</span>
               )}
             </div>
@@ -198,7 +167,7 @@ export function LoginView() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={isSetupMode || isResetAdminMode ? 'Create new admin password' : '••••••••••••'}
+                placeholder={isSetupMode ? 'Create new admin password' : '••••••••••••'}
                 minLength={6}
                 className="w-full pl-10 pr-10 py-2.5 rounded-pill bg-dark-secondary text-white text-xs border border-dark-tertiary focus:outline-none focus:border-neon placeholder:text-txt-muted transition"
               />
@@ -211,21 +180,6 @@ export function LoginView() {
                 {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               </button>
             </div>
-            {!isSetupMode && !isResetAdminMode && email.trim().toLowerCase() === 'egghanney@gmail.com' && (
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsResetAdminMode(true);
-                    setError(null);
-                    setPassword('');
-                  }}
-                  className="text-[11px] text-neon/80 hover:text-neon transition hover:underline"
-                >
-                  Forgot or reset password?
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Submit Button */}
@@ -235,35 +189,18 @@ export function LoginView() {
             className="w-full py-2.5 px-4 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-sm shadow-neon/40 cursor-pointer disabled:opacity-60"
           >
             {loading ? (
-              <span>{isSetupMode ? 'Initializing...' : isResetAdminMode ? 'Updating password...' : 'Signing in...'}</span>
+              <span>{isSetupMode ? 'Initializing...' : 'Signing in...'}</span>
             ) : (
               <>
                 <span>
                   {isSetupMode 
                     ? 'Initialize Administrator Account' 
-                    : isResetAdminMode 
-                    ? 'Save New Password & Sign In' 
                     : 'Sign In to Workspace'}
                 </span>
                 <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
               </>
             )}
           </button>
-
-          {/* Cancel button if in reset mode */}
-          {isResetAdminMode && (
-            <button
-              type="button"
-              onClick={() => {
-                setIsResetAdminMode(false);
-                setError(null);
-                setPassword('');
-              }}
-              className="w-full py-1.5 text-center text-xs text-txt-muted hover:text-white transition"
-            >
-              Cancel and Return to Sign In
-            </button>
-          )}
         </form>
 
         {/* Footer info */}

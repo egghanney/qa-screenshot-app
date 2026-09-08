@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Project, Feature } from '@/lib/types';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { ProfileMenu } from '@/components/shell/ProfileMenu';
 
 interface ApplicationShellProps {
   currentProject: Project | null;
@@ -238,31 +239,11 @@ export function ApplicationShell({
             />
           </div>
 
-          {/* Right: Admin + User + Copilot Pill + Settings + Logout + Create Feature CTA */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {isAdmin && onOpenAdminPanel && (
-              <button
-                onClick={onOpenAdminPanel}
-                className="px-2.5 sm:px-3 py-1.5 rounded-pill bg-neon/10 hover:bg-neon/20 text-neon border border-neon/30 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
-                title="Admin Control Panel"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Admin</span>
-              </button>
-            )}
-
-            {userEmail && (
-              <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-dark-secondary border border-dark-tertiary text-xs">
-                <div className="w-4 h-4 rounded-full bg-dark-tertiary flex items-center justify-center text-[9px] font-bold text-neon">
-                  {userEmail.charAt(0).toUpperCase()}
-                </div>
-                <span className="max-w-[100px] truncate text-[10px] font-mono text-txt-secondary">{userEmail}</span>
-              </div>
-            )}
-
+          {/* Right: Copilot Pill + Create Feature CTA + Profile Menu */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={onToggleChat}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-pill text-xs font-medium flex items-center gap-1.5 transition border ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-pill text-xs font-medium flex items-center gap-1.5 transition border cursor-pointer ${
                 isChatOpen 
                   ? 'bg-neon text-dark-chassis border-neon shadow-sm shadow-neon/30 font-semibold' 
                   : 'bg-dark-secondary text-white border-dark-tertiary hover:bg-dark-tertiary'
@@ -275,31 +256,22 @@ export function ApplicationShell({
             </button>
 
             <button
-              onClick={onOpenSettings}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary border border-dark-tertiary flex items-center justify-center text-txt-muted hover:text-white transition"
-              title="System Settings & API Keys"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-
-            {onSignOut && (
-              <button
-                onClick={onSignOut}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-dark-secondary hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 flex items-center justify-center transition border border-dark-tertiary hover:border-rose-500/40"
-                title="Sign Out"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            <button
               onClick={onOpenWizard}
-              className="px-2.5 sm:px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-sm active:scale-95"
+              className="px-2.5 sm:px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-sm active:scale-95 cursor-pointer"
               title="Create New Feature"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span className="hidden sm:inline">New Feature</span>
             </button>
+
+            <ProfileMenu
+              userEmail={userEmail}
+              userRole={userRole}
+              isAdmin={isAdmin}
+              onOpenAdminPanel={onOpenAdminPanel}
+              onOpenSettings={onOpenSettings}
+              onSignOut={onSignOut}
+            />
           </div>
         </header>
 

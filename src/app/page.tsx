@@ -574,12 +574,19 @@ function MainAppContent() {
 
   if (isAdminView) {
     return (
-      <AdminGovernanceView
-        onBack={() => setIsAdminView(false)}
-        userEmail={user.email}
-        userRole={profile?.role}
-        onSignOut={signOut}
-      />
+      <>
+        <AdminGovernanceView
+          onBack={() => setIsAdminView(false)}
+          userEmail={user.email}
+          userRole={profile?.role}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onSignOut={signOut}
+        />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      </>
     );
   }
 
