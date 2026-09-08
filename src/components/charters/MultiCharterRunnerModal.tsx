@@ -345,23 +345,64 @@ export function MultiCharterRunnerModal({
 
   // Charters visible based on runFilter ('all' | 'pending' | 'completed')
   const visibleCharters = useMemo(() => {
-    if (runFilter === 'completed') return charterRunStatus.completed;
-    if (runFilter === 'pending') return charterRunStatus.pending;
-    return loadedCharters;
-  }, [loadedCharters, charterRunStatus, runFilter]);
+    let list: QACharter[];
+    if (runFilter === 'completed') list = [...charterRunStatus.completed];
+    else if (runFilter === 'pending') list = [...charterRunStatus.pending];
+    else list = [...loadedCharters];
 
-  // Sync selectedCharterId if current one is filtered out
-  useEffect(() => {
-    if (visibleCharters.length > 0) {
-      if (!visibleCharters.some(c => c.id === selectedCharterId)) {
-        setSelectedCharterId(visibleCharters[0].id);
+    // Ensure the currently active charter stays visible in the tab bar even if it just completed
+    if (selectedCharterId && !list.some(c => c.id === selectedCharterId)) {
+      const activeC = loadedCharters.find(c => c.id === selectedCharterId);
+      if (activeC) {
+        list = [activeC, ...list];
       }
+    }
+    return list;
+  }, [loadedCharters, charterRunStatus, runFilter, selectedCharterId]);
+
+  // Initialize selectedCharterId once charters are available if none is selected
+  useEffect(() => {
+    if (!selectedCharterId && visibleCharters.length > 0) {
+      setSelectedCharterId(visibleCharters[0].id);
     }
   }, [visibleCharters, selectedCharterId]);
 
   const activeCharter = useMemo(() => {
     return loadedCharters.find(c => c.id === selectedCharterId) || loadedCharters[0];
   }, [loadedCharters, selectedCharterId]);
+
+  const currentCharterIndex = useMemo(() => {
+    return loadedCharters.findIndex(c => c.id === activeCharter?.id);
+  }, [loadedCharters, activeCharter]);
+
+  const prevCharter = useMemo(() => {
+    if (currentCharterIndex > 0) return loadedCharters[currentCharterIndex - 1];
+    return null;
+  }, [loadedCharters, currentCharterIndex]);
+
+  const nextCharter = useMemo(() => {
+    if (currentCharterIndex >= 0 && currentCharterIndex < loadedCharters.length - 1) {
+      return loadedCharters[currentCharterIndex + 1];
+    }
+    return null;
+  }, [loadedCharters, currentCharterIndex]);
+
+  const isCurrentCharterDone = useMemo(() => {
+    if (!activeCharter?.scenarios || activeCharter.scenarios.length === 0) return false;
+    return !activeCharter.scenarios.some(s => s.status === 'Untested');
+  }, [activeCharter]);
+
+  const handleGoToNextCharter = () => {
+    if (nextCharter) {
+      setSelectedCharterId(nextCharter.id);
+    }
+  };
+
+  const handleGoToPrevCharter = () => {
+    if (prevCharter) {
+      setSelectedCharterId(prevCharter.id);
+    }
+  };
 
   // Scenarios for active charter in Charter View
   const activeCharterScenarios = useMemo(() => {
@@ -1439,9 +1480,36 @@ export function MultiCharterRunnerModal({
                           )}
                         </div>
 
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-neon/20 text-dark-chassis border border-neon/30">
-                          {activeCharter.status || 'ACTIVE_RUN'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {/* Mini Previous / Next Charter Controls */}
+                          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-clinical-border shadow-2xs">
+                            <button
+                              type="button"
+                              disabled={!prevCharter}
+                              onClick={handleGoToPrevCharter}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-dark-chassis disabled:opacity-30 disabled:hover:bg-transparent transition"
+                              title={prevCharter ? `Previous: ${prevCharter.charter_code}` : 'First charter'}
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="text-[10px] font-mono font-bold text-txt-muted px-1.5">
+                              {currentCharterIndex + 1} / {loadedCharters.length}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!nextCharter}
+                              onClick={handleGoToNextCharter}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-dark-chassis disabled:opacity-30 disabled:hover:bg-transparent transition"
+                              title={nextCharter ? `Next: ${nextCharter.charter_code}` : 'Last charter'}
+                            >
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-neon/20 text-dark-chassis border border-neon/30">
+                            {activeCharter.status || 'ACTIVE_RUN'}
+                          </span>
+                        </div>
                       </div>
 
                       {/* 4 Core Mission Pillars */}
@@ -1704,6 +1772,59 @@ export function MultiCharterRunnerModal({
                           )}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Bottom Charter Navigation & Completion Banner */}
+                    <div className="px-6 py-4 bg-slate-50 border-t border-clinical-border flex flex-wrap items-center justify-between gap-4">
+                      <button
+                        type="button"
+                        disabled={!prevCharter}
+                        onClick={handleGoToPrevCharter}
+                        className="px-4 py-2 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis border border-clinical-border text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        <span>Previous Charter{prevCharter ? `: ${prevCharter.charter_code}` : ''}</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-txt-muted font-medium">
+                          Charter {currentCharterIndex + 1} of {loadedCharters.length}
+                        </span>
+                        {isCurrentCharterDone ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                            <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Charter Complete</span>
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200">
+                            {activeCharter.scenarios?.filter(s => s.status === 'Untested').length} Untested Remaining
+                          </span>
+                        )}
+                      </div>
+
+                      {nextCharter ? (
+                        <button
+                          type="button"
+                          onClick={handleGoToNextCharter}
+                          className={`px-5 py-2.5 rounded-pill text-xs font-bold flex items-center gap-2 transition shadow-card active:scale-95 ${
+                            isCurrentCharterDone
+                              ? 'bg-neon hover:bg-neon-bright text-dark-chassis ring-2 ring-neon/50'
+                              : 'bg-dark-chassis hover:bg-black text-white'
+                          }`}
+                        >
+                          <span>{isCurrentCharterDone ? 'Proceed to Next Charter' : 'Next Charter'}: {nextCharter.charter_code}</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('history')}
+                          className="px-5 py-2.5 rounded-pill bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 transition shadow-card active:scale-95"
+                        >
+                          <CheckCheck className="w-4 h-4" />
+                          <span>Finish Run &amp; View Summary</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
