@@ -297,6 +297,42 @@ export default function Home() {
     loadFeatureData();
   }, [loadFeatureData]);
 
+  // Lightweight targeted refresh for active feature charters and scenarios (no full-screen loader)
+  const refreshFeatureCharters = useCallback(async (targetFeatureId?: string) => {
+    const featId = targetFeatureId || feature?.id;
+    if (!featId) return;
+
+    try {
+      const { data: chtrs } = await supabase
+        .from('qa_charters')
+        .select('*')
+        .eq('feature_id', featId)
+        .order('created_at', { ascending: true });
+
+      if (chtrs && chtrs.length > 0) {
+        const charterIds = chtrs.map(c => c.id);
+        const { data: scns } = await supabase
+          .from('qa_charter_scenarios')
+          .select('*')
+          .in('charter_id', charterIds)
+          .order('sort_order', { ascending: true });
+
+        const scenariosByCharter = (scns || []).reduce((acc: any, s: any) => {
+          if (!acc[s.charter_id]) acc[s.charter_id] = [];
+          acc[s.charter_id].push(s);
+          return acc;
+        }, {});
+
+        setCharters(chtrs.map(c => ({
+          ...c,
+          scenarios: scenariosByCharter[c.id] || []
+        })));
+      }
+    } catch (err) {
+      console.error('Error refreshing feature charters:', err);
+    }
+  }, [feature?.id]);
+
   // AI Triggers
   const handleAnalyzeScreen = async (scr: ScreenItem) => {
     if (!feature) return;
@@ -544,9 +580,16 @@ export default function Home() {
           allProjects={allProjects}
           allFeatures={allFeatures}
           currentFeature={feature}
+          onChartersUpdated={(updatedCharters) => {
+            if (feature) {
+              const featCharters = updatedCharters.filter(c => c.feature_id === feature.id);
+              if (featCharters.length > 0) {
+                setCharters(featCharters);
+              }
+            }
+          }}
           onRefreshData={async () => {
-            if (feature) await loadFeatureData(feature.id);
-            else await loadFeatureData();
+            await refreshFeatureCharters();
           }}
         />
 
@@ -786,9 +829,16 @@ export default function Home() {
         allProjects={allProjects}
         allFeatures={allFeatures}
         currentFeature={feature}
+        onChartersUpdated={(updatedCharters) => {
+          if (feature) {
+            const featCharters = updatedCharters.filter(c => c.feature_id === feature.id);
+            if (featCharters.length > 0) {
+              setCharters(featCharters);
+            }
+          }
+        }}
         onRefreshData={async () => {
-          if (feature) await loadFeatureData(feature.id);
-          else await loadFeatureData();
+          await refreshFeatureCharters();
         }}
       />
 

@@ -53,6 +53,7 @@ interface MultiCharterRunnerModalProps {
   currentFeature?: Feature | null;
   onRefreshData?: () => Promise<void>;
   initialRun?: QATestRun | null;
+  onChartersUpdated?: (updatedCharters: QACharter[]) => void;
 }
 
 interface RunnableScenario extends CharterScenario {
@@ -73,7 +74,8 @@ export function MultiCharterRunnerModal({
   allFeatures,
   currentFeature,
   onRefreshData,
-  initialRun
+  initialRun,
+  onChartersUpdated
 }: MultiCharterRunnerModalProps) {
   // Phase: 'setup' (scope selection) or 'running' (active execution)
   const [phase, setPhase] = useState<'setup' | 'running'>('setup');
@@ -783,6 +785,17 @@ export function MultiCharterRunnerModal({
     setShowExportMenu(false);
   };
 
+  // Exit Studio handler with instant in-memory hand-off of updated charters
+  const handleExitStudio = useCallback(() => {
+    if (onChartersUpdated && loadedCharters.length > 0) {
+      onChartersUpdated(loadedCharters);
+    }
+    if (onRefreshData) {
+      onRefreshData();
+    }
+    onClose();
+  }, [onChartersUpdated, loadedCharters, onRefreshData, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -793,10 +806,7 @@ export function MultiCharterRunnerModal({
       <header className="bg-dark-chassis text-white px-3.5 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-3 border-b border-dark-secondary shrink-0 shadow-md">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
-            onClick={() => {
-              if (onRefreshData) onRefreshData();
-              onClose();
-            }}
+            onClick={handleExitStudio}
             className="px-2 sm:px-3 py-1.5 rounded-pill bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white flex items-center gap-1 sm:gap-1.5 text-xs font-semibold transition border border-dark-tertiary shadow-2xs shrink-0"
             title="Exit Full-Page Studio back to workspace"
           >
@@ -914,10 +924,7 @@ export function MultiCharterRunnerModal({
           )}
 
           <button
-            onClick={() => {
-              if (onRefreshData) onRefreshData();
-              onClose();
-            }}
+            onClick={handleExitStudio}
             className="w-7 h-7 rounded-full bg-dark-secondary hover:bg-dark-tertiary text-txt-muted hover:text-white flex items-center justify-center transition border border-dark-tertiary"
             title="Exit Full-Page Studio"
           >

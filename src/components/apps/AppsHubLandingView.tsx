@@ -25,7 +25,8 @@ import {
   FileDown,
   CheckCheck,
   Clock,
-  Database
+  Database,
+  ChevronDown
 } from 'lucide-react';
 import { Project, Feature, QATestRun, QACharter, CharterScenario } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
@@ -725,45 +726,27 @@ export function AppsHubLandingView({
             {/* Product Filter Bar */}
             {dbRuns.length > 0 && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 p-3 sm:p-3.5 bg-qa-white rounded-2xl border border-qa-border shadow-xs">
-                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0 max-w-full">
-                  <span className="text-xs font-semibold text-txt-secondary flex items-center gap-1 mr-1 shrink-0">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="run-product-filter" className="text-xs font-semibold text-txt-secondary flex items-center gap-1.5 shrink-0">
                     <Filter className="w-3.5 h-3.5 text-txt-muted" />
-                    Product:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRunProductFilter('All')}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition shrink-0 ${
-                      selectedRunProductFilter === 'All'
-                        ? 'bg-dark-chassis text-neon shadow-xs'
-                        : 'bg-qa-warm/60 text-txt-secondary hover:text-dark-chassis hover:bg-qa-warm'
-                    }`}
-                  >
-                    All Products ({runsCountByProject['All'] || 0})
-                  </button>
-                  {projects.map(proj => {
-                    const count = runsCountByProject[proj.id] || 0;
-                    const isSelected = selectedRunProductFilter === proj.id;
-                    return (
-                      <button
-                        key={proj.id}
-                        type="button"
-                        onClick={() => setSelectedRunProductFilter(proj.id)}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-                          isSelected
-                            ? 'bg-dark-chassis text-neon shadow-xs'
-                            : 'bg-qa-warm/60 text-txt-secondary hover:text-dark-chassis hover:bg-qa-warm'
-                        }`}
-                      >
-                        <span>{proj.name}</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                          isSelected ? 'bg-neon/20 text-neon' : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
+                    <span>Product:</span>
+                  </label>
+                  <div className="relative inline-block min-w-[200px] sm:min-w-[240px]">
+                    <select
+                      id="run-product-filter"
+                      value={selectedRunProductFilter}
+                      onChange={(e) => setSelectedRunProductFilter(e.target.value)}
+                      className="w-full appearance-none bg-qa-warm/80 hover:bg-qa-warm text-dark-chassis font-semibold text-xs py-2 pl-3.5 pr-8 rounded-pill border border-qa-border focus:outline-none focus:border-dark-chassis transition cursor-pointer shadow-2xs"
+                    >
+                      <option value="All">All Products ({runsCountByProject['All'] || 0} runs)</option>
+                      {projects.map(proj => (
+                        <option key={proj.id} value={proj.id}>
+                          {proj.name} ({runsCountByProject[proj.id] || 0} runs)
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-txt-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 <div className="text-[11px] sm:text-xs text-txt-muted font-mono self-end sm:self-auto">
