@@ -386,7 +386,7 @@ export function AppsHubLandingView({
                   placeholder="Search applications by name or description..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-qa-surface border border-qa-border rounded-xl text-xs focus:outline-none focus:border-dark-chassis placeholder:text-txt-muted transition"
+                  className="w-full pl-9 pr-4 py-1.5 bg-qa-surface border border-qa-border rounded-pill text-xs focus:outline-none focus:border-dark-chassis placeholder:text-txt-muted transition"
                 />
               </div>
 
@@ -410,12 +410,12 @@ export function AppsHubLandingView({
                   ))}
                 </div>
 
-                {/* View Mode Toggle: Grid vs List */}
-                <div className="flex items-center gap-1 bg-qa-surface p-1 rounded-xl border border-qa-border">
+                {/* View Mode Toggle: Grid vs List (Pill integrity) */}
+                <div className="flex items-center gap-1 bg-qa-surface p-1 rounded-pill border border-qa-border">
                   <button
                     type="button"
                     onClick={() => handleSetViewMode('grid')}
-                    className={`p-1.5 rounded-lg transition ${
+                    className={`p-1.5 rounded-pill transition ${
                       viewMode === 'grid'
                         ? 'bg-dark-chassis text-white shadow-xs'
                         : 'text-txt-muted hover:text-dark-chassis'
@@ -427,7 +427,7 @@ export function AppsHubLandingView({
                   <button
                     type="button"
                     onClick={() => handleSetViewMode('list')}
-                    className={`p-1.5 rounded-lg transition ${
+                    className={`p-1.5 rounded-pill transition ${
                       viewMode === 'list'
                         ? 'bg-dark-chassis text-white shadow-xs'
                         : 'text-txt-muted hover:text-dark-chassis'

@@ -851,11 +851,11 @@ export function ExploratoryChartersView({
                           {/* Top Row: Prompt ID, Category, and Delete */}
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-xs text-dark-chassis px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+                              <span className="font-mono font-bold text-xs text-dark-chassis px-2.5 py-0.5 rounded-pill bg-slate-100 border border-slate-200">
                                 {scenario.prompt_id}
                               </span>
                               {scenario.category && (
-                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-pill text-[10px] font-bold border ${
                                   scenario.category === 'Golden Path'
                                     ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                     : scenario.category === 'Alternative Flow'
@@ -879,7 +879,7 @@ export function ExploratoryChartersView({
                             </div>
 
                             <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-pill border ${
                                 scenario.status === 'Pass'
                                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                   : scenario.status === 'Fail'
@@ -910,7 +910,7 @@ export function ExploratoryChartersView({
                             <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
                               <div className="flex flex-wrap items-center gap-1">
                                 {scenario.traceability.exploration_dimensions?.map((dim, dIdx) => (
-                                  <span key={dIdx} className="px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                  <span key={dIdx} className="px-2 py-0.5 rounded-pill text-[9px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">
                                     {dim}
                                   </span>
                                 ))}
@@ -920,7 +920,7 @@ export function ExploratoryChartersView({
                                   <summary className="cursor-pointer hover:text-dark-chassis font-medium inline-flex items-center gap-1 text-[10px] py-0.5">
                                     <Info className="w-3 h-3 text-indigo-500" /> Traceability Reason
                                   </summary>
-                                  <div className="mt-1 p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-0.5 text-[10px] text-slate-700">
+                                  <div className="mt-1 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-0.5 text-[10px] text-slate-700">
                                     {scenario.traceability.derived_from.failure_state && (
                                       <div><strong className="text-rose-700">Failure State:</strong> {scenario.traceability.derived_from.failure_state.join('; ')}</div>
                                     )}
@@ -936,14 +936,14 @@ export function ExploratoryChartersView({
                             </div>
                           )}
 
-                          {/* 1-Click Thumb-Friendly Action Buttons */}
+                          {/* 1-Click Thumb-Friendly Action Buttons (Pill Integrity) */}
                           <div className="pt-2 border-t border-slate-100 space-y-2">
                             <div className="text-[11px] font-semibold text-txt-muted">Execute Outcome:</div>
                             <div className="grid grid-cols-3 gap-2">
                               <button
                                 type="button"
                                 onClick={() => handleUpdateScenario(scenario.id, { status: 'Pass' })}
-                                className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                className={`min-h-[44px] py-2 px-3 rounded-pill text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
                                   scenario.status === 'Pass'
                                     ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
                                     : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
@@ -956,7 +956,7 @@ export function ExploratoryChartersView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateScenario(scenario.id, { status: 'Fail' })}
-                                className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                className={`min-h-[44px] py-2 px-3 rounded-pill text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
                                   scenario.status === 'Fail'
                                     ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
                                     : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200'
@@ -969,7 +969,7 @@ export function ExploratoryChartersView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateScenario(scenario.id, { status: 'Blocked' })}
-                                className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                className={`min-h-[44px] py-2 px-3 rounded-pill text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
                                   scenario.status === 'Blocked'
                                     ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
                                     : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
@@ -984,7 +984,7 @@ export function ExploratoryChartersView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateScenario(scenario.id, { status: 'Untested' })}
-                                className="text-xs text-txt-muted hover:text-dark-chassis flex items-center gap-1.5 py-1"
+                                className="text-xs text-txt-muted hover:text-dark-chassis flex items-center gap-1.5 py-1 px-2.5 rounded-pill hover:bg-slate-100 transition"
                               >
                                 <RotateCcw className="w-3 h-3" />
                                 <span>Reset to Untested</span>
@@ -1007,7 +1007,7 @@ export function ExploratoryChartersView({
                                   }
                                 }}
                                 rows={2}
-                                className="w-full text-xs p-2.5 rounded-xl border border-clinical-border bg-white text-dark-chassis placeholder:text-txt-muted/70 focus:outline-none focus:border-dark-chassis transition resize-y leading-relaxed font-sans"
+                                className="w-full text-xs p-3 rounded-2xl border border-clinical-border bg-white text-dark-chassis placeholder:text-txt-muted/70 focus:outline-none focus:border-dark-chassis transition resize-y leading-relaxed font-sans"
                               />
                               {savingScenarioId === scenario.id && (
                                 <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
@@ -1030,14 +1030,14 @@ export function ExploratoryChartersView({
                                       handleUpdateScenario(scenario.id, { media_url: e.target.value });
                                     }
                                   }}
-                                  className="flex-1 text-xs p-2 rounded-xl border border-clinical-border bg-white text-dark-secondary placeholder:text-txt-muted/60 focus:outline-none focus:border-dark-chassis font-mono"
+                                  className="flex-1 text-xs px-3.5 py-2 rounded-pill border border-clinical-border bg-white text-dark-secondary placeholder:text-txt-muted/60 focus:outline-none focus:border-dark-chassis font-mono"
                                 />
                                 {scenario.media_url && (
                                   <a
                                     href={scenario.media_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-neon-dark text-xs font-semibold flex items-center gap-1 font-mono"
+                                    className="shrink-0 min-h-[38px] px-3.5 py-1.5 rounded-pill bg-slate-100 hover:bg-slate-200 text-neon-dark text-xs font-semibold flex items-center gap-1 font-mono"
                                   >
                                     <ExternalLink className="w-3.5 h-3.5" />
                                     <span>Open</span>
