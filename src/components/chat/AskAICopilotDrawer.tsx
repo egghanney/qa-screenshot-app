@@ -69,7 +69,9 @@ export function AskAICopilotDrawer({ isOpen, onClose, feature }: AskAICopilotDra
     setIsSending(true);
 
     try {
-      const apiKey = typeof window !== 'undefined' ? localStorage.getItem('AETHER_GEMINI_API_KEY') || undefined : undefined;
+      const apiKey = typeof window !== 'undefined' 
+        ? (localStorage.getItem('QA_GEMINI_API_KEY') || localStorage.getItem('AETHER_GEMINI_API_KEY') || undefined) 
+        : undefined;
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,7 +132,7 @@ export function AskAICopilotDrawer({ isOpen, onClose, feature }: AskAICopilotDra
             className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
           >
             <div className="flex items-center gap-1 text-[10px] text-txt-muted mb-1">
-              <span>{m.sender === 'user' ? 'You' : 'Aether Copilot'}</span>
+              <span>{m.sender === 'user' ? 'You' : 'AI Copilot'}</span>
               <span>•</span>
               <span>{m.timestamp}</span>
             </div>

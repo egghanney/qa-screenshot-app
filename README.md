@@ -1,4 +1,4 @@
-# AetherQA — AI Screenshot-to-User-Journey & QA Knowledge Platform
+# QA Studio — AI Screenshot-to-User-Journey & QA Knowledge Platform
 
 > Transform raw application screenshots and user flows into interactive visual journey graphs, structured 7-pillar clinical QA knowledge bases, and actionable test matrices.
 
@@ -12,7 +12,7 @@
 
 ## 🌟 Overview
 
-**AetherQA** solves the disconnect between manual QA testing and technical documentation. By analyzing sequenced screenshots of an application feature, AetherQA generates:
+**QA Studio** solves the disconnect between manual QA testing and technical documentation. By analyzing sequenced screenshots of an application feature, QA Studio generates:
 
 1. **Interactive Visual Journey DAGs**: Directed acyclic graph with explicit `Screen → User Action → System Response → Screen` transitions, decision branching, and error recovery loops using `@xyflow/react` and `@dagrejs/dagre` auto-layout.
 2. **7-Pillar Clinical Knowledge Base**: High-confidence structured documentation across Features, User Types, Journeys, Interactions, Business Rules, System States, and Dependencies with strict 4-tier confidence classification (`CONFIRMED`, `INFERRED`, `UNKNOWN`).
@@ -27,7 +27,7 @@
 
 ## 🎨 Design Language: Futuristic Clinical Data Workspace
 
-AetherQA implements a high-density, low-fatigue **Futuristic Clinical Data Workspace**:
+QA Studio implements a high-density, low-fatigue **Futuristic Clinical Data Workspace**:
 - **Outer Chassis**: Dark charcoal `#1D1E1C` enclosure with generous `rounded-[32px]` corners and `8–12px` frame padding.
 - **Inner Canvas**: Warm ivory `#EDEDEB` and off-white `#F4F3EE` surfaces with `#DCDDD6` hairline dividers.
 - **Fluorescent Accent**: Electric Neon Yellow `#F2F52A` reserved strictly for active navigation pills, highlighted edges, and attention anchors (5–10% of visible interface).

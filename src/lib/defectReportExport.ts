@@ -403,7 +403,7 @@ export function exportDefectReportPdf(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(`AetherQA Studio Defect Report • Page ${i} of ${totalPages}`, margin, pageHeight - 8);
+    doc.text(`QA Studio Defect Report • Page ${i} of ${totalPages}`, margin, pageHeight - 8);
   }
 
   const cleanProjectName = metadata.projectName.replace(/[^a-zA-Z0-9_-]/g, '_');

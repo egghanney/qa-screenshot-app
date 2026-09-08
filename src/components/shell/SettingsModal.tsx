@@ -39,7 +39,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="w-7 h-7 rounded-full bg-neon flex items-center justify-center text-dark-chassis font-bold text-xs">
               OS
             </div>
-            <h3 className="text-sm font-bold text-dark-chassis">AetherQA System Settings</h3>
+            <h3 className="text-sm font-bold text-dark-chassis">QA System Settings</h3>
           </div>
           <button onClick={onClose} className="text-txt-muted hover:text-dark-chassis">
             <X className="w-4 h-4" />

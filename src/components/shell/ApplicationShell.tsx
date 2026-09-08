@@ -145,7 +145,7 @@ export function ApplicationShell({
                 QA
               </div>
               <span className="font-semibold tracking-tight text-xs sm:text-sm text-white hidden xs:inline">
-                AETHER <span className="text-neon">//</span> QA
+                QA <span className="text-neon">//</span> STUDIO
               </span>
             </div>
 

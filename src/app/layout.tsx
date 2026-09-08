@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AetherQA // QA Testing & User Journey Intelligence Platform",
+  title: "QA Studio // Testing & User Journey Intelligence Platform",
   description: "AI-powered living feature knowledge base and visual user journey mapping from application screenshots.",
 };
 

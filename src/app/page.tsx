@@ -540,7 +540,7 @@ export default function Home() {
             QA
           </div>
           <span className="text-xs font-mono font-semibold text-dark-chassis tracking-wider">
-            INITIALIZING AETHER QA TEST STUDIO...
+            INITIALIZING QA TEST STUDIO...
           </span>
         </div>
       </div>

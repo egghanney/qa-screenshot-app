@@ -279,7 +279,7 @@ export function AppsHubLandingView({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <h1 className="font-bold tracking-tight text-sm sm:text-base text-white truncate">
-                AETHER <span className="text-neon">//</span> QA TEST STUDIO
+                QA <span className="text-neon">//</span> TEST STUDIO
               </h1>
               <span className="hidden xs:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-dark-secondary text-txt-muted border border-dark-tertiary">
                 APPS HUB
