@@ -13,26 +13,49 @@ export interface StoryboardExportOptions {
 }
 
 /**
- * Recalculate sequential badges (#1, #1a, #2, #2a...) for a list of screens
+ * Recalculate sequential badges (#1, #1a, #1a.1, #2, #2a...) for a list of screens
  */
 export function computeStepBadges(screens: StoryboardScreen[]): StoryboardScreen[] {
   let primaryIndex = 0;
   let subIndex = 0;
+  let subSubIndex = 0;
 
   return screens.map((screen, idx) => {
-    if (idx === 0 || !screen.isSubScreen) {
+    // Determine effective nest level (0 = Primary, 1 = Sub, 2 = Sub of Sub)
+    let level = screen.nestLevel ?? (screen.isSubScreen ? 1 : 0);
+    if (idx === 0) level = 0; // First screen must always be primary
+
+    if (level === 0) {
       primaryIndex++;
       subIndex = 0;
+      subSubIndex = 0;
       return {
         ...screen,
+        isSubScreen: false,
+        nestLevel: 0,
         stepBadge: `#${primaryIndex}`
       };
-    } else {
+    } else if (level === 1) {
+      if (primaryIndex === 0) primaryIndex = 1;
       const subLetter = String.fromCharCode(97 + subIndex); // 'a', 'b', 'c'...
       subIndex++;
+      subSubIndex = 0;
       return {
         ...screen,
+        isSubScreen: true,
+        nestLevel: 1,
         stepBadge: `#${primaryIndex}${subLetter}`
+      };
+    } else {
+      // level === 2 (Sub of a Sub)
+      if (primaryIndex === 0) primaryIndex = 1;
+      const effectiveSubLetter = String.fromCharCode(97 + Math.max(0, subIndex - 1));
+      subSubIndex++;
+      return {
+        ...screen,
+        isSubScreen: true,
+        nestLevel: 2,
+        stepBadge: `#${primaryIndex}${effectiveSubLetter}.${subSubIndex}`
       };
     }
   });
@@ -206,10 +229,22 @@ async function renderGridCanvas(
     const badgeY = imgY + 8;
 
     drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 8);
-    ctx.fillStyle = isDark ? '#00FF88' : '#111827';
+    if (screen.nestLevel === 2) {
+      ctx.fillStyle = isDark ? '#38BDF8' : '#0284C7'; // Cyan for Sub-of-Sub
+    } else if (screen.nestLevel === 1) {
+      ctx.fillStyle = isDark ? '#00FF88' : '#059669'; // Neon/Emerald for Sub-Screen
+    } else {
+      ctx.fillStyle = isDark ? '#2D302B' : '#111827'; // Dark Chassis for Primary
+    }
     ctx.fill();
 
-    ctx.fillStyle = isDark ? '#111827' : '#FFFFFF';
+    if (screen.nestLevel === 2) {
+      ctx.fillStyle = isDark ? '#082F49' : '#FFFFFF';
+    } else if (screen.nestLevel === 1) {
+      ctx.fillStyle = isDark ? '#064E3B' : '#FFFFFF';
+    } else {
+      ctx.fillStyle = '#FFFFFF';
+    }
     ctx.fillText(badgeText, badgeX + 7, badgeY + 15);
     ctx.restore();
 

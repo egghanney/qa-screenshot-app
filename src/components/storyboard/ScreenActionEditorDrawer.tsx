@@ -34,7 +34,7 @@ export function ScreenActionEditorDrawer({
   onDelete
 }: ScreenActionEditorDrawerProps) {
   const [name, setName] = useState('');
-  const [isSubScreen, setIsSubScreen] = useState(false);
+  const [nestLevel, setNestLevel] = useState<number>(0);
   const [actions, setActions] = useState<ScreenAction[]>([]);
   const [expectedResult, setExpectedResult] = useState('');
   const [newActionText, setNewActionText] = useState('');
@@ -43,7 +43,10 @@ export function ScreenActionEditorDrawer({
   useEffect(() => {
     if (screen) {
       setName(screen.name || '');
-      setIsSubScreen(!!screen.isSubScreen);
+      const initialNest = typeof screen.nestLevel === 'number' 
+        ? screen.nestLevel 
+        : (screen.isSubScreen ? 1 : 0);
+      setNestLevel(initialNest);
       setActions(screen.actions ? [...screen.actions] : []);
       setExpectedResult(screen.expectedResult || '');
       setNewActionText('');
@@ -83,7 +86,8 @@ export function ScreenActionEditorDrawer({
     onSave({
       ...screen,
       name: name.trim() || screen.name,
-      isSubScreen,
+      isSubScreen: nestLevel > 0,
+      nestLevel,
       actions,
       expectedResult: expectedResult.trim()
     });
@@ -99,12 +103,18 @@ export function ScreenActionEditorDrawer({
         {/* Header Bar */}
         <div className="px-5 py-4 border-b border-dark-secondary/90 flex items-center justify-between gap-3 shrink-0 bg-dark-chassis">
           <div className="flex items-center gap-2.5">
-            <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-neon text-dark-chassis shadow-sm">
+            <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shadow-sm ${
+              nestLevel === 2
+                ? 'bg-sky-400 text-dark-chassis'
+                : nestLevel === 1
+                ? 'bg-neon text-dark-chassis'
+                : 'bg-dark-secondary text-white border border-dark-tertiary'
+            }`}>
               {screen.stepBadge || '#'}
             </span>
             <div>
               <h3 className="font-bold text-sm text-white">Screen Details & Actions</h3>
-              <p className="text-[11px] text-txt-muted">Configure step name, sub-step nesting, and sequential actions</p>
+              <p className="text-[11px] text-txt-muted">Configure step name, 3-tier hierarchy, and sequential actions</p>
             </div>
           </div>
           <button
@@ -143,32 +153,75 @@ export function ScreenActionEditorDrawer({
             </div>
           </div>
 
-          {/* Sub-Screen / Nesting Toggle */}
-          <div className="p-3.5 rounded-2xl bg-dark-secondary/40 border border-dark-tertiary space-y-2">
+          {/* 3-Tier Step Hierarchy Selector */}
+          <div className="p-3.5 rounded-2xl bg-dark-secondary/40 border border-dark-tertiary space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CornerDownRight className="w-4 h-4 text-neon shrink-0" />
                 <div>
-                  <h4 className="text-xs font-bold text-white">Nest as Sub-Screen</h4>
+                  <h4 className="text-xs font-bold text-white">Screen Step Hierarchy</h4>
                   <p className="text-[10px] text-txt-muted">
-                    Treat this as an intermediate state, overlay, or modal of the preceding screen (e.g. #1a, #2a)
+                    Set primary step (#1), sub-screen (#1a), or nested sub-of-sub (#1a.1)
                   </p>
                 </div>
               </div>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                nestLevel === 2
+                  ? 'bg-sky-400 text-dark-chassis'
+                  : nestLevel === 1
+                  ? 'bg-neon text-dark-chassis'
+                  : 'bg-dark-chassis text-txt-muted border border-dark-tertiary'
+              }`}>
+                {nestLevel === 2 ? 'Level 2: Sub-Sub' : nestLevel === 1 ? 'Level 1: Sub' : 'Level 0: Primary'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-dark-chassis border border-dark-tertiary">
               <button
                 type="button"
-                onClick={() => setIsSubScreen(!isSubScreen)}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  isSubScreen ? 'bg-neon' : 'bg-dark-tertiary'
+                onClick={() => setNestLevel(0)}
+                className={`py-2 px-2 rounded-lg text-center transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                  nestLevel === 0
+                    ? 'bg-dark-secondary text-white font-bold border border-dark-tertiary/80 shadow-sm'
+                    : 'text-txt-muted hover:text-white'
                 }`}
               >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-dark-chassis shadow-lg ring-0 transition duration-200 ease-in-out ${
-                    isSubScreen ? 'translate-x-4' : 'translate-x-0'
-                  }`}
-                />
+                <span className="text-[10px] font-mono font-bold">#1, #2</span>
+                <span className="text-[11px] font-medium">Primary</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNestLevel(1)}
+                className={`py-2 px-2 rounded-lg text-center transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                  nestLevel === 1
+                    ? 'bg-neon text-dark-chassis font-bold shadow-sm shadow-neon/20'
+                    : 'text-txt-muted hover:text-white'
+                }`}
+              >
+                <span className="text-[10px] font-mono font-bold">#1a, #1b</span>
+                <span className="text-[11px] font-medium">Sub-Screen</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNestLevel(2)}
+                className={`py-2 px-2 rounded-lg text-center transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                  nestLevel === 2
+                    ? 'bg-sky-400 text-dark-chassis font-bold shadow-sm shadow-sky-400/20'
+                    : 'text-txt-muted hover:text-white'
+                }`}
+              >
+                <span className="text-[10px] font-mono font-bold">#1a.1, #1a.2</span>
+                <span className="text-[11px] font-medium">Sub of Sub</span>
               </button>
             </div>
+            
+            <p className="text-[10px] text-txt-muted">
+              {nestLevel === 0 && 'Main step in the user flow. Starts or advances the primary numbered sequence (#1, #2, ...).'}
+              {nestLevel === 1 && 'Intermediate overlay, drawer, or modal under the active primary step (e.g. #1a, #1b).'}
+              {nestLevel === 2 && 'Nested micro-dialog, popup, or confirmation inside a sub-screen (e.g. #1a.1, #1a.2).'}
+            </p>
           </div>
 
           {/* User Actions Sequence */}

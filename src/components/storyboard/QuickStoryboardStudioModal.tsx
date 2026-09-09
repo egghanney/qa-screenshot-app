@@ -22,7 +22,8 @@ import {
   Sparkles,
   RefreshCw,
   FolderPlus,
-  AlertCircle
+  AlertCircle,
+  GripVertical
 } from 'lucide-react';
 import { StoryboardScreen, Project } from '@/lib/types';
 import { 
@@ -52,6 +53,10 @@ export function QuickStoryboardStudioModal({
   const [screens, setScreens] = useState<StoryboardScreen[]>([]);
   const [selectedScreenForEdit, setSelectedScreenForEdit] = useState<StoryboardScreen | null>(null);
   const [previewScreen, setPreviewScreen] = useState<StoryboardScreen | null>(null);
+
+  // Drag and drop rearrange state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Exporter Dialog State
   const [isExporting, setIsExporting] = useState(false);
@@ -151,7 +156,7 @@ export function QuickStoryboardStudioModal({
     setIsLiveCaptureOpen(false);
   };
 
-  // Reorder screen position
+  // Reorder screen position with button nudge
   const handleMoveScreen = (index: number, direction: 'left' | 'right') => {
     const targetIdx = direction === 'left' ? index - 1 : index + 1;
     if (targetIdx < 0 || targetIdx >= screens.length) return;
@@ -159,18 +164,84 @@ export function QuickStoryboardStudioModal({
     const temp = updated[index];
     updated[index] = updated[targetIdx];
     updated[targetIdx] = temp;
+
+    // First screen must always remain Level 0
+    if (updated[0].nestLevel && updated[0].nestLevel > 0) {
+      updated[0] = { ...updated[0], nestLevel: 0, isSubScreen: false };
+    }
     setScreens(updated);
   };
 
-  // Toggle sub-screen nesting
-  const handleToggleSubScreen = (index: number) => {
-    if (index === 0) return; // First screen cannot be a sub-screen
+  // Drag and Drop Handlers
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent, index: number) => {
+    if (dragOverIndex === index) {
+      setDragOverIndex(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const sourceIdxStr = e.dataTransfer.getData('text/plain');
+    const sourceIndex = sourceIdxStr !== '' ? parseInt(sourceIdxStr, 10) : draggedIndex;
+
+    if (
+      sourceIndex !== null && 
+      sourceIndex !== undefined && 
+      !isNaN(sourceIndex) && 
+      sourceIndex !== targetIndex
+    ) {
+      const updated = [...screens];
+      const [movedItem] = updated.splice(sourceIndex, 1);
+      updated.splice(targetIndex, 0, movedItem);
+
+      // First screen must always remain Level 0
+      if (updated[0].nestLevel && updated[0].nestLevel > 0) {
+        updated[0] = { ...updated[0], nestLevel: 0, isSubScreen: false };
+      }
+      setScreens(updated);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Set 3-tier hierarchy level (0: Primary, 1: Sub-Screen, 2: Sub of Sub)
+  const handleSetNestLevel = (index: number, level: number) => {
+    if (index === 0) return; // First screen cannot be nested
+    const clamped = Math.max(0, Math.min(2, level));
     const updated = [...screens];
     updated[index] = {
       ...updated[index],
-      isSubScreen: !updated[index].isSubScreen
+      nestLevel: clamped,
+      isSubScreen: clamped > 0
     };
     setScreens(updated);
+  };
+
+  // Toggle sub-screen nesting (legacy compatibility)
+  const handleToggleSubScreen = (index: number) => {
+    if (index === 0) return;
+    const current = screens[index].nestLevel ?? (screens[index].isSubScreen ? 1 : 0);
+    const next = current === 0 ? 1 : 0;
+    handleSetNestLevel(index, next);
   };
 
   // Delete screen
@@ -305,7 +376,7 @@ export function QuickStoryboardStudioModal({
           user_action: actionStr,
           expected_behavior: item.expectedResult || 'System advances to next state',
           state: 'normal',
-          notes: item.isSubScreen ? `Sub-step (${item.stepBadge})` : null
+          notes: item.isSubScreen ? (item.nestLevel === 2 ? `Sub-step Level 2 (${item.stepBadge})` : `Sub-step (${item.stepBadge})`) : null
         });
       }
 
@@ -542,10 +613,20 @@ export function QuickStoryboardStudioModal({
               
               {/* Grid Control Bar */}
               <div className="flex items-center justify-between text-xs text-txt-muted pb-1">
-                <div className="flex items-center gap-2 font-mono">
+                <div className="flex items-center gap-2 font-mono flex-wrap">
                   <span>Showing {computedScreens.length} screens in sequence</span>
                   <span>•</span>
-                  <span className="text-neon">{computedScreens.filter(s => s.isSubScreen).length} sub-screens</span>
+                  <span className="text-neon">{computedScreens.filter(s => (s.nestLevel ?? (s.isSubScreen ? 1 : 0)) === 1).length} sub-screens</span>
+                  {computedScreens.some(s => s.nestLevel === 2) && (
+                    <>
+                      <span>•</span>
+                      <span className="text-sky-400">{computedScreens.filter(s => s.nestLevel === 2).length} sub-of-subs</span>
+                    </>
+                  )}
+                  <span>•</span>
+                  <span className="text-txt-muted text-[11px] hidden sm:inline flex items-center gap-1">
+                    <GripVertical className="w-3 h-3 text-txt-muted" /> Drag cards to rearrange
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -559,131 +640,198 @@ export function QuickStoryboardStudioModal({
 
               {/* 5-Column Responsive Cards Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-4">
-                {computedScreens.map((screen, idx) => (
-                  <div
-                    key={screen.id}
-                    className={`rounded-2xl bg-dark-secondary border transition flex flex-col overflow-hidden shadow-sm group ${
-                      screen.isSubScreen
-                        ? 'border-neon/40 bg-dark-secondary/80'
-                        : 'border-dark-tertiary hover:border-dark-tertiary/90'
-                    }`}
-                  >
-                    {/* Top Device Preview Box */}
-                    <div className="relative aspect-[9/16] bg-black overflow-hidden flex items-center justify-center">
-                      
-                      {/* Step Number Badge */}
-                      <div className={`absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full font-mono font-bold text-[10px] flex items-center gap-1 shadow-sm ${
-                        screen.isSubScreen 
-                          ? 'bg-neon text-dark-chassis border border-neon/50' 
-                          : 'bg-dark-chassis/95 text-white border border-dark-tertiary'
-                      }`}>
-                        {screen.isSubScreen && <CornerDownRight className="w-2.5 h-2.5" />}
-                        <span>{screen.stepBadge}</span>
+                {computedScreens.map((screen, idx) => {
+                  const isDragging = draggedIndex === idx;
+                  const isDragOver = dragOverIndex === idx && draggedIndex !== idx;
+                  const nestLevel = screen.nestLevel ?? (screen.isSubScreen ? 1 : 0);
+
+                  return (
+                    <div
+                      key={screen.id}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragLeave={(e) => handleDragLeave(e, idx)}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      onDragEnd={handleDragEnd}
+                      className={`rounded-2xl transition-all flex flex-col overflow-hidden shadow-sm group select-none relative cursor-grab active:cursor-grabbing ${
+                        isDragging
+                          ? 'opacity-25 scale-95 border-2 border-dashed border-neon ring-4 ring-neon/20'
+                          : isDragOver
+                          ? 'ring-2 ring-neon border-neon bg-dark-secondary/95 scale-[1.02] shadow-lg shadow-neon/15 z-20'
+                          : nestLevel === 2
+                          ? 'border border-sky-400/50 bg-dark-secondary/85 shadow-sm shadow-sky-400/5'
+                          : nestLevel === 1
+                          ? 'border border-neon/40 bg-dark-secondary/80 shadow-sm shadow-neon/5'
+                          : 'border border-dark-tertiary bg-dark-secondary hover:border-dark-tertiary/90'
+                      }`}
+                    >
+                      {/* Top Device Preview Box */}
+                      <div className="relative aspect-[9/16] bg-black overflow-hidden flex items-center justify-center">
+                        
+                        {/* Step Number Badge */}
+                        <div className={`absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full font-mono font-bold text-[10px] flex items-center gap-1 shadow-sm ${
+                          nestLevel === 2
+                            ? 'bg-sky-400 text-dark-chassis border border-sky-300 shadow-sky-400/30'
+                            : nestLevel === 1
+                            ? 'bg-neon text-dark-chassis border border-neon/50 shadow-neon/30'
+                            : 'bg-dark-chassis/95 text-white border border-dark-tertiary'
+                        }`}>
+                          {nestLevel > 0 && <CornerDownRight className="w-2.5 h-2.5 stroke-[2.5]" />}
+                          <span>{screen.stepBadge}</span>
+                        </div>
+
+                        {/* Drag Handle Icon in Preview Header */}
+                        <div 
+                          className="absolute top-2 right-2 z-10 p-1 rounded-md bg-dark-chassis/80 text-txt-muted group-hover:text-white border border-dark-tertiary/60 opacity-60 group-hover:opacity-100 transition shadow-sm"
+                          title="Drag to rearrange"
+                        >
+                          <GripVertical className="w-3 h-3" />
+                        </div>
+
+                        {/* Screen Thumbnail */}
+                        <img
+                          src={screen.previewUrl}
+                          alt={screen.name}
+                          onClick={() => setPreviewScreen(screen)}
+                          className="w-full h-full object-contain cursor-pointer transition group-hover:scale-105"
+                        />
+
+                        {/* Quick Hover Controls Overlay */}
+                        <div className="absolute inset-0 bg-dark-chassis/70 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2 pointer-events-none">
+                          <div className="flex items-center justify-between pointer-events-auto">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewScreen(screen)}
+                              className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-white cursor-pointer"
+                              title="Preview Fullscreen"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteScreen(screen.id)}
+                              className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-rose-400 cursor-pointer"
+                              title="Remove Screen"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          {/* Middle Action: Reorder Button Nudge */}
+                          <div className="flex items-center justify-center gap-2 pointer-events-auto">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveScreen(idx, 'left');
+                              }}
+                              disabled={idx === 0}
+                              className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
+                              title="Move Left"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveScreen(idx, 'right');
+                              }}
+                              disabled={idx === computedScreens.length - 1}
+                              className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
+                              title="Move Right"
+                            >
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Bottom Action: Edit Details */}
+                          <div className="pointer-events-auto">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedScreenForEdit(screen);
+                              }}
+                              className="w-full py-1 rounded-xl bg-neon hover:bg-neon-bright text-dark-chassis font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit Actions</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Screen Thumbnail */}
-                      <img
-                        src={screen.previewUrl}
-                        alt={screen.name}
-                        onClick={() => setPreviewScreen(screen)}
-                        className="w-full h-full object-contain cursor-pointer transition group-hover:scale-105"
-                      />
+                      {/* Card Content Footer */}
+                      <div className="p-2.5 space-y-2 flex-1 flex flex-col justify-between">
+                        <div className="space-y-1">
+                          <span className="font-bold text-xs text-white block truncate">
+                            {screen.name || `Screen ${idx + 1}`}
+                          </span>
 
-                      {/* Quick Hover Controls Overlay */}
-                      <div className="absolute inset-0 bg-dark-chassis/70 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2 pointer-events-none">
-                        <div className="flex items-center justify-between pointer-events-auto">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewScreen(screen)}
-                            className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-white cursor-pointer"
-                            title="Preview Fullscreen"
-                          >
-                            <Eye className="w-3 h-3" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteScreen(screen.id)}
-                            className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-rose-400 cursor-pointer"
-                            title="Remove Screen"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          {/* Action Steps Count Snippet */}
+                          {screen.actions && screen.actions.length > 0 ? (
+                            <div className="text-[10px] text-neon flex items-center gap-1">
+                              <Layers className="w-2.5 h-2.5" />
+                              <span>{screen.actions.length} action{screen.actions.length === 1 ? '' : 's'} defined</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-txt-muted block">No actions added</span>
+                          )}
                         </div>
 
-                        {/* Middle Action: Reorder */}
-                        <div className="flex items-center justify-center gap-2 pointer-events-auto">
-                          <button
-                            type="button"
-                            onClick={() => handleMoveScreen(idx, 'left')}
-                            disabled={idx === 0}
-                            className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
-                            title="Move Left"
-                          >
-                            <ChevronLeft className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveScreen(idx, 'right')}
-                            disabled={idx === computedScreens.length - 1}
-                            className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
-                            title="Move Right"
-                          >
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {/* Bottom Action: Edit Details */}
-                        <div className="pointer-events-auto">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedScreenForEdit(screen)}
-                            className="w-full py-1 rounded-xl bg-neon hover:bg-neon-bright text-dark-chassis font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                            <span>Edit Actions</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card Content Footer */}
-                    <div className="p-2.5 space-y-2 flex-1 flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <span className="font-bold text-xs text-white block truncate">
-                          {screen.name || `Screen ${idx + 1}`}
-                        </span>
-
-                        {/* Action Steps Count Snippet */}
-                        {screen.actions && screen.actions.length > 0 ? (
-                          <div className="text-[10px] text-neon flex items-center gap-1">
-                            <Layers className="w-2.5 h-2.5" />
-                            <span>{screen.actions.length} action{screen.actions.length === 1 ? '' : 's'} defined</span>
+                        {/* 3-Tier Hierarchy Selector or Fixed Entry Tag */}
+                        {idx === 0 ? (
+                          <div className="w-full py-1 px-2 rounded-lg text-[10px] font-mono text-txt-muted bg-dark-chassis/60 border border-dark-tertiary/40 flex items-center justify-center gap-1">
+                            <span>Flow Entry (#1)</span>
                           </div>
                         ) : (
-                          <span className="text-[10px] text-txt-muted block">No actions added</span>
+                          <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-dark-chassis border border-dark-tertiary">
+                            <button
+                              type="button"
+                              onClick={() => handleSetNestLevel(idx, 0)}
+                              className={`py-1 rounded text-[9px] font-mono font-bold transition cursor-pointer flex items-center justify-center ${
+                                nestLevel === 0 
+                                  ? 'bg-dark-secondary text-white border border-dark-tertiary shadow-sm' 
+                                  : 'text-txt-muted hover:text-white'
+                              }`}
+                              title="Primary Step (#1, #2)"
+                            >
+                              Primary
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetNestLevel(idx, 1)}
+                              className={`py-1 rounded text-[9px] font-mono font-bold transition cursor-pointer flex items-center justify-center ${
+                                nestLevel === 1 
+                                  ? 'bg-neon text-dark-chassis font-bold shadow-sm shadow-neon/20' 
+                                  : 'text-txt-muted hover:text-white'
+                              }`}
+                              title="Sub-Screen (#1a, #1b)"
+                            >
+                              Sub
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetNestLevel(idx, 2)}
+                              className={`py-1 rounded text-[9px] font-mono font-bold transition cursor-pointer flex items-center justify-center ${
+                                nestLevel === 2 
+                                  ? 'bg-sky-400 text-dark-chassis font-bold shadow-sm shadow-sky-400/20' 
+                                  : 'text-txt-muted hover:text-white'
+                              }`}
+                              title="Sub of Sub (#1a.1, #1a.2)"
+                            >
+                              Sub-Sub
+                            </button>
+                          </div>
                         )}
                       </div>
 
-                      {/* Sub-Screen Nest Toggle Button */}
-                      {idx > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSubScreen(idx)}
-                          className={`w-full py-1 px-1.5 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition cursor-pointer ${
-                            screen.isSubScreen
-                              ? 'bg-neon/15 text-neon hover:bg-neon/25 border border-neon/30'
-                              : 'bg-dark-chassis hover:bg-dark-tertiary text-txt-muted hover:text-white border border-dark-tertiary'
-                          }`}
-                        >
-                          <CornerDownRight className="w-2.5 h-2.5" />
-                          <span>{screen.isSubScreen ? 'Sub-Screen (Active)' : 'Nest as Sub-step'}</span>
-                        </button>
-                      )}
                     </div>
-
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

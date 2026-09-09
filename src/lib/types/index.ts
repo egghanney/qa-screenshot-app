@@ -96,8 +96,9 @@ export interface StoryboardScreen {
   previewUrl: string;
   name: string;
   isSubScreen: boolean;
+  nestLevel?: number; // 0 = Primary (#1), 1 = Sub-screen (#1a), 2 = Sub of a Sub (#1a.1)
   parentScreenId?: string | null;
-  stepBadge: string; // e.g. "#1", "#1a", "#2"
+  stepBadge: string; // e.g. "#1", "#1a", "#1a.1", "#2"
   actions: ScreenAction[];
   expectedResult?: string;
   width?: number;
@@ -117,6 +118,7 @@ export interface ScreenItem {
   expected_behavior: string | null;
   ai_analysis: AIScreenAnalysis | null;
   is_sub_screen?: boolean;
+  nest_level?: number;
   parent_screen_id?: string | null;
   actions?: ScreenAction[];
   pii_flagged: boolean;
