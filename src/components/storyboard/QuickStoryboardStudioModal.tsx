@@ -896,7 +896,7 @@ export function QuickStoryboardStudioModal({
                       onDragLeave={(e) => handleDragLeave(e, idx)}
                       onDrop={(e) => handleDrop(e, idx)}
                       onDragEnd={handleDragEnd}
-                      className={`rounded-2xl transition-all flex flex-col overflow-hidden shadow-sm group select-none relative cursor-grab active:cursor-grabbing ${
+                      className={`rounded-2xl transition-all flex flex-col overflow-hidden shadow-sm group select-none relative isolate cursor-grab active:cursor-grabbing ${
                         isDragging
                           ? 'opacity-25 scale-95 border-2 border-dashed border-neon ring-4 ring-neon/20'
                           : isDragOver
