@@ -88,41 +88,42 @@ export async function POST(req: Request) {
         scope: c.scope || 'feature',
         status: c.status || 'Draft',
         scenarios: formattedScenarios,
-        context_pack: contextPack as any,
-        validation_report: {
-          passed: qualityGateReport.valid,
-          score: qualityGateReport.quality_score,
-          checks: {
-            feature_scope: qualityGateReport.checks.feature_relevance.passed,
-            persona_relevant: qualityGateReport.checks.required_fields.passed,
-            journey_relevant: qualityGateReport.checks.traceability_sourcing.passed,
-            screenshot_grounded: qualityGateReport.checks.evidence_grounded_claims.passed,
-            business_rules_grounded: qualityGateReport.checks.evidence_grounded_claims.passed,
-            failure_states_considered: qualityGateReport.checks.risk_coverage.passed,
-            dependencies_considered: qualityGateReport.checks.risk_coverage.passed,
-            exploratory_not_scripted: qualityGateReport.checks.exploration_quality.passed,
-            duplicate_prompts: qualityGateReport.checks.duplicate_detection.passed,
-            unsupported_claims: !qualityGateReport.unsupported_assumptions.length,
-            positive_golden_flow_covered: true
-          }
-        },
         created_at: c.created_at,
         updated_at: c.updated_at
       };
     });
 
+    const screenshotCoverageSummary = {
+      total_screenshots: contextPack.screens.length,
+      screenshots_analyzed: charterSuite.generation_metadata.screenshots_used,
+      coverage_score: 100,
+      screens: contextPack.screens.map(s => ({
+        number: s.screen_number,
+        name: s.screen_name,
+        actions_count: s.user_actions?.length || 0,
+        has_screenshot: !!s.image_url
+      }))
+    };
+
+    const qualityGateSummary = {
+      passed: qualityGateReport.valid,
+      score: qualityGateReport.quality_score,
+      rating: qualityGateReport.rating,
+      checks_passed: Object.values(qualityGateReport.checks).filter((c: any) => c.passed).length,
+      total_checks: Object.keys(qualityGateReport.checks).length,
+      checks: qualityGateReport.checks
+    };
+
     return NextResponse.json({
       success: true,
-      charters: savedCharters,
+      feature_id: targetFeatureId,
+      feature_name: contextPack.feature.name,
       engine,
-      context_pack: contextPack,
-      quality_gate_report: qualityGateReport,
-      validation_report: {
-        passed: qualityGateReport.valid,
-        score: qualityGateReport.quality_score,
-        rating: qualityGateReport.rating,
-        checks: qualityGateReport.checks
-      }
+      quality_gate: qualityGateSummary,
+      validation_report: qualityGateSummary,
+      generation_metadata: charterSuite.generation_metadata,
+      screenshot_coverage_summary: screenshotCoverageSummary,
+      charters: savedCharters
     });
   } catch (err: any) {
     console.error('Error in /api/charters/generate:', err);

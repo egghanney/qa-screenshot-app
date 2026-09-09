@@ -106,6 +106,14 @@ export function ExploratoryChartersView({
           const cachedVR = localStorage.getItem(`charters_validation_report_${currentFeature.id}`);
           if (cachedVR) setValidationReport(JSON.parse(cachedVR));
         } catch {}
+
+        const advContext = (currentFeature.advanced_context as any);
+        if (advContext?.latest_context_pack) {
+          setContextPack(prev => prev || advContext.latest_context_pack);
+        }
+        if (advContext?.latest_validation_report) {
+          setValidationReport(prev => prev || advContext.latest_validation_report);
+        }
       }
     }
   }, [currentFeature]);
@@ -122,8 +130,8 @@ export function ExploratoryChartersView({
   }, [charters, selectedCharterId]);
 
   const activeCharter = localCharters.find(c => c.id === selectedCharterId) || localCharters[0];
-  const activeContextPack = activeCharter?.context_pack || contextPack;
-  const activeValidationReport = activeCharter?.validation_report || validationReport;
+  const activeContextPack = activeCharter?.context_pack || contextPack || (currentFeature?.advanced_context as any)?.latest_context_pack;
+  const activeValidationReport = activeCharter?.validation_report || validationReport || (currentFeature?.advanced_context as any)?.latest_validation_report;
 
   // AI Generation Handler
   const handleGenerateCharters = async () => {
@@ -159,10 +167,11 @@ export function ExploratoryChartersView({
           localStorage.setItem(`charters_context_pack_${currentFeature.id}`, JSON.stringify(resData.context_pack));
         }
       }
-      if (resData.validation_report) {
-        setValidationReport(resData.validation_report);
+      const report = resData.validation_report || resData.quality_gate;
+      if (report) {
+        setValidationReport(report);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(`charters_validation_report_${currentFeature.id}`, JSON.stringify(resData.validation_report));
+          localStorage.setItem(`charters_validation_report_${currentFeature.id}`, JSON.stringify(report));
         }
       }
 
