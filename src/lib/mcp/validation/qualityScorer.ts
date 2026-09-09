@@ -12,6 +12,9 @@ import { Charter, QualityGateReport } from '../contracts/schemas';
  */
 export interface QualityScorerOptions {
   missingInteractiveScreensCount?: number;
+  multimodalRequested?: boolean;
+  screensAvailable?: number;
+  screenshotsAnalyzed?: number;
 }
 
 export function calculateQualityScore(
@@ -32,18 +35,22 @@ export function calculateQualityScore(
   // 1. Relevance (20 pts)
   if (qualityGateChecks.feature_relevance.passed) {
     totalScore += 20 * (qualityGateChecks.feature_relevance.score / 100);
+  } else {
+    totalScore += 5;
   }
 
   // 2. Risk Alignment (20 pts)
   if (qualityGateChecks.risk_coverage.passed) {
     totalScore += 20 * (qualityGateChecks.risk_coverage.score / 100);
   } else {
-    totalScore += 10;
+    totalScore += 5;
   }
 
   // 3. Traceability (20 pts)
   if (qualityGateChecks.traceability_sourcing.passed) {
     totalScore += 20 * (qualityGateChecks.traceability_sourcing.score / 100);
+  } else {
+    totalScore += 5;
   }
 
   // 4. Exploratory Quality (15 pts)
@@ -82,16 +89,27 @@ export function calculateQualityScore(
   // ENFORCE VISUAL EVIDENCE RATING CEILING
   // A charter generated without seeing critical storyboard evidence cannot claim "Strong" or "Good"
   let ceilingApplied: 'Review' | 'Regenerate' | undefined;
-  const missingScreens = options?.missingInteractiveScreensCount ?? 0;
-  if (missingScreens >= 2) {
+  
+  const multimodalRequested = options?.multimodalRequested ?? false;
+  const screensAvailable = options?.screensAvailable ?? 0;
+  const screenshotsAnalyzed = options?.screenshotsAnalyzed ?? 0;
+
+  if (multimodalRequested && screensAvailable > 0 && screenshotsAnalyzed === 0) {
     rating = 'Regenerate';
-    finalScore = Math.min(55, finalScore);
+    finalScore = Math.min(50, finalScore);
     ceilingApplied = 'Regenerate';
-  } else if (missingScreens === 1) {
-    if (rating === 'Strong' || rating === 'Good') {
-      rating = 'Review';
-      finalScore = Math.min(74, finalScore);
-      ceilingApplied = 'Review';
+  } else {
+    const missingScreens = options?.missingInteractiveScreensCount ?? 0;
+    if (missingScreens >= 2) {
+      rating = 'Regenerate';
+      finalScore = Math.min(55, finalScore);
+      ceilingApplied = 'Regenerate';
+    } else if (missingScreens === 1) {
+      if (rating === 'Strong' || rating === 'Good') {
+        rating = 'Review';
+        finalScore = Math.min(74, finalScore);
+        ceilingApplied = 'Review';
+      }
     }
   }
 

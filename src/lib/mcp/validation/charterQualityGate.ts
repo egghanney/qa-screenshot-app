@@ -248,14 +248,33 @@ export function validateCharterSuite(
     issues.push('Charters contain too many rigid click-by-click scripts.');
   }
 
+  // Check for multimodal failure (requested with screenshots available, but 0 analyzed)
+  const screensAvailable = contextPack.screens.filter(s => !!s.image_url).length;
+  const isMultimodalRequested = effectiveMeta?.screenshots_requested && effectiveMeta.screenshots_requested.length > 0;
+  const screenshotsAnalyzed = effectiveMeta?.screenshots_used?.length ?? 0;
+
+  if (isMultimodalRequested && screensAvailable > 0 && screenshotsAnalyzed === 0) {
+    checks.evidence_grounded_claims.passed = false;
+    checks.evidence_grounded_claims.score = Math.min(checks.evidence_grounded_claims.score, 40);
+    checks.evidence_grounded_claims.details = `Multimodal inspection was requested for ${screensAvailable} available screenshot(s), but 0 screenshots were analyzed. Primary visual evidence unverified.`;
+    issues.push(`Multimodal inspection failure: requested visual analysis of ${screensAvailable} screenshot(s) was not performed.`);
+  }
+
   // Compute final quality score and rating with ceiling enforcement
   const { score, rating, ceilingApplied } = calculateQualityScore(charters, checks, {
-    missingInteractiveScreensCount: missingInteractiveCount
+    missingInteractiveScreensCount: missingInteractiveCount,
+    multimodalRequested: Boolean(isMultimodalRequested),
+    screensAvailable,
+    screenshotsAnalyzed
   });
 
   if (ceilingApplied) {
-    checks.evidence_grounded_claims.details += ` [Quality Rating capped at "${rating}" due to ${missingInteractiveCount} missing interactive screenshot(s)].`;
-    issues.push(`Quality Rating capped at "${rating}" due to visual evidence gap (${missingInteractiveCount} interactive screen(s) unavailable).`);
+    if (isMultimodalRequested && screensAvailable > 0 && screenshotsAnalyzed === 0) {
+      checks.evidence_grounded_claims.details += ` [Quality Rating capped at "Regenerate" due to multimodal failure: 0 of ${screensAvailable} screenshots analyzed].`;
+    } else {
+      checks.evidence_grounded_claims.details += ` [Quality Rating capped at "${rating}" due to ${missingInteractiveCount} missing interactive screenshot(s)].`;
+      issues.push(`Quality Rating capped at "${rating}" due to visual evidence gap (${missingInteractiveCount} interactive screen(s) unavailable).`);
+    }
   }
 
   const isValid = checks.schema_integrity.passed &&

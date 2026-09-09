@@ -1,18 +1,34 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { supabase } from '@/lib/supabase/client';
 import { generateChartersForFeature } from '@/lib/mcp/engine/aiEngine';
 import { QACharter, CharterScenario } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
+const GenerateChartersRequestSchema = z.object({
+  feature_id: z.string().min(1, 'feature_id is required'),
+  count: z.number().int().positive().default(4),
+  multimodal: z.boolean().default(false),
+  project_id: z.string().optional(),
+  api_key: z.string().optional(),
+  model: z.string().optional()
+});
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { feature_id, project_id, api_key, count, model } = body;
-
-    if (!feature_id && !project_id) {
-      return NextResponse.json({ error: 'feature_id is required' }, { status: 400 });
+    const parseResult = GenerateChartersRequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json({ 
+        error: 'Invalid request payload', 
+        details: parseResult.error.format() 
+      }, { status: 400 });
     }
+
+    const { feature_id, api_key, count, model, multimodal } = parseResult.data;
+    const reqId = `req-${Date.now().toString(36)}`;
+    console.log(`[charter-generate] id=${reqId} feature_id=${feature_id} count=${count} multimodal=${multimodal}`);
 
     const targetFeatureId = feature_id;
 
@@ -23,7 +39,8 @@ export async function POST(req: Request) {
       contextPack, 
       engine 
     } = await generateChartersForFeature(targetFeatureId, {
-      count: count || 4,
+      count,
+      multimodal,
       apiKey: api_key,
       model,
       forceRegenerate: true
@@ -93,10 +110,20 @@ export async function POST(req: Request) {
       };
     });
 
+    const conciseMetadata = {
+      ...charterSuite.generation_metadata,
+      screenshots_requested: charterSuite.generation_metadata.screenshots_requested.length,
+      screenshots_analyzed: charterSuite.generation_metadata.screenshots_used.length,
+      screenshots_unavailable: charterSuite.generation_metadata.screenshots_unavailable.length,
+      screenshots_used: charterSuite.generation_metadata.screenshots_used.length
+    };
+
     const screenshotCoverageSummary = {
       total_screenshots: contextPack.screens.length,
-      screenshots_analyzed: charterSuite.generation_metadata.screenshots_used,
-      coverage_score: 100,
+      screenshots_requested: charterSuite.generation_metadata.screenshots_requested.length,
+      screenshots_analyzed: charterSuite.generation_metadata.screenshots_used.length,
+      screenshots_unavailable: charterSuite.generation_metadata.screenshots_unavailable.length,
+      coverage_score: charterSuite.generation_metadata.multimodal_enabled ? 100 : (contextPack.screens.length === 0 ? 100 : 0),
       screens: contextPack.screens.map(s => ({
         number: s.screen_number,
         name: s.screen_name,
@@ -121,7 +148,7 @@ export async function POST(req: Request) {
       engine,
       quality_gate: qualityGateSummary,
       validation_report: qualityGateSummary,
-      generation_metadata: charterSuite.generation_metadata,
+      generation_metadata: conciseMetadata,
       screenshot_coverage_summary: screenshotCoverageSummary,
       charters: savedCharters
     });
