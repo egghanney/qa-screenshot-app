@@ -13,7 +13,8 @@ import {
   Search,
   Plus,
   ShieldCheck,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RotateCcw
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import Papa from 'papaparse';
@@ -100,9 +101,9 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
     <div className="flex-1 flex flex-col h-full overflow-hidden p-4 sm:p-6 space-y-4">
       
       {/* Top Banner & Exporters */}
-      <div className="bg-clinical-white p-4 rounded-2xl border border-clinical-border shadow-subtle flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-clinical-white p-4 rounded-2xl border border-clinical-border shadow-subtle flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-neon animate-pulse" />
+          <span className="w-2.5 h-2.5 rounded-full bg-neon animate-pulse shrink-0" />
           <div>
             <h3 className="text-xs font-bold text-dark-chassis tracking-tight">
               QA VERIFICATION CHECKPOINT MATRIX ({checkpoints.length} Checkpoints)
@@ -113,21 +114,23 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0">
           <button
             onClick={exportCSV}
-            className="px-3.5 py-1.5 rounded-pill bg-clinical-warm hover:bg-clinical-border text-dark-chassis text-xs font-semibold border border-clinical-border flex items-center gap-1.5 transition"
+            className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 px-4 py-2 sm:py-1.5 rounded-pill bg-clinical-warm hover:bg-clinical-border text-dark-chassis text-xs font-semibold border border-clinical-border flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap shadow-xs"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            Export CSV / Excel
+            <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Export CSV / Excel</span>
+            <span className="sm:hidden">Export CSV</span>
           </button>
 
           <button
             onClick={onGenerateCheckpoints}
-            className="px-4 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center gap-1.5 transition active:scale-95"
+            className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 px-4 py-2 sm:py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap"
           >
-            <BrainCircuit className="w-3.5 h-3.5" />
-            Generate QA Checkpoints with AI
+            <BrainCircuit className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Generate QA Checkpoints with AI</span>
+            <span className="sm:hidden">Generate with AI</span>
           </button>
         </div>
       </div>
@@ -136,14 +139,14 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
         <button
           onClick={() => setActiveCategory('all')}
-          className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
             activeCategory === 'all'
               ? 'bg-dark-chassis text-white shadow-sm'
               : 'bg-clinical-white text-txt-secondary border border-clinical-border hover:bg-clinical-warm'
           }`}
         >
           <span>All Categories</span>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none ${
+          <span className={`text-[10px] px-2 py-0.5 rounded-pill font-mono font-bold leading-none ${
             activeCategory === 'all'
               ? 'bg-dark-secondary text-white'
               : 'bg-clinical-warm text-dark-chassis'
@@ -159,14 +162,14 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
                 isActive
                   ? 'bg-dark-chassis text-white font-semibold shadow-sm'
                   : 'bg-clinical-white text-txt-secondary border border-clinical-border hover:bg-clinical-warm'
               }`}
             >
               <span>{cat}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none ${
+              <span className={`text-[10px] px-2 py-0.5 rounded-pill font-mono font-bold leading-none ${
                 isActive
                   ? 'bg-dark-secondary text-white'
                   : 'bg-clinical-warm text-dark-chassis'
@@ -187,20 +190,20 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
             placeholder="Search checkpoints, boundaries, negative tests..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-clinical-white border border-clinical-border rounded-pill text-xs focus:outline-none focus:border-dark-chassis"
+            className="w-full min-h-[38px] pl-8 pr-3 py-2 bg-clinical-white border border-clinical-border rounded-pill text-xs focus:outline-none focus:border-dark-chassis"
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <span className="text-txt-muted text-[11px] whitespace-nowrap shrink-0">Status Filter:</span>
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 w-full sm:w-auto">
+          <span className="text-txt-muted text-[11px] whitespace-nowrap shrink-0 hidden xs:inline">Status Filter:</span>
           {(['all', 'Not Run', 'Passed', 'Failed', 'Blocked'] as const).map((st) => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
-              className={`px-2.5 py-1 rounded-pill text-[10px] font-semibold border whitespace-nowrap shrink-0 transition ${
+              className={`min-h-[34px] px-3 py-1 rounded-pill text-[11px] font-semibold border whitespace-nowrap shrink-0 transition ${
                 statusFilter === st 
-                  ? 'bg-dark-chassis text-neon border-dark-chassis' 
-                  : 'bg-clinical-white text-txt-secondary border-clinical-border'
+                  ? 'bg-dark-chassis text-neon border-dark-chassis shadow-xs' 
+                  : 'bg-clinical-white text-txt-secondary border-clinical-border hover:bg-clinical-warm'
               }`}
             >
               {st}
@@ -216,12 +219,19 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
         <div className="block lg:hidden overflow-y-auto flex-1 p-3 space-y-3">
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-txt-secondary">
-              <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+              <div className="flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
                 <ShieldCheck className="w-8 h-8 text-txt-muted opacity-40" />
                 <p className="text-xs font-bold text-dark-chassis">No QA Checkpoints Generated</p>
                 <p className="text-[11px] text-txt-muted">
                   Click &quot;Generate QA Checkpoints with AI&quot; to synthesize test procedures and validation scenarios.
                 </p>
+                <button
+                  onClick={onGenerateCheckpoints}
+                  className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center justify-center gap-2 transition active:scale-95 mt-1"
+                >
+                  <BrainCircuit className="w-4 h-4" />
+                  <span>Generate QA Checkpoints with AI</span>
+                </button>
               </div>
             </div>
           ) : (
@@ -259,33 +269,60 @@ export function QACheckpointMatrix({ checkpoints, feature, onRefresh, onGenerate
                   </div>
                 </div>
 
-                {/* Execution Status Outcome Buttons (44px min-height, rounded-pill) */}
-                <div className="pt-1">
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {(['Not Run', 'Passed', 'Failed', 'Blocked'] as const).map((st) => {
-                      const isSel = cp.status === st;
-                      let activeCls = 'bg-dark-chassis text-white';
-                      if (st === 'Passed') activeCls = 'bg-status-positive text-dark-chassis font-bold shadow-xs';
-                      if (st === 'Failed') activeCls = 'bg-status-critical text-white font-bold shadow-xs';
-                      if (st === 'Blocked') activeCls = 'bg-status-warning text-dark-chassis font-bold shadow-xs';
-                      if (st === 'Not Run') activeCls = 'bg-dark-chassis text-txt-muted border border-dark-chassis';
+                {/* Execution Status Outcome Buttons (Thumb-friendly 44px min-height, 100% pill integrity) */}
+                <div className="pt-2 border-t border-clinical-border/40 space-y-2">
+                  <div className="text-[11px] font-semibold text-txt-muted">Execute Outcome:</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateStatus(cp.id, cp.status === 'Passed' ? 'Not Run' : 'Passed')}
+                      className={`min-h-[44px] py-2 px-3 rounded-pill text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                        cp.status === 'Passed'
+                          ? 'bg-status-positive text-dark-chassis border-status-positive shadow-xs'
+                          : 'bg-clinical-warm hover:bg-status-positive/20 text-dark-chassis border-clinical-border'
+                      }`}
+                    >
+                      <CheckCircle className="w-4 h-4 shrink-0" />
+                      <span>Pass</span>
+                    </button>
 
-                      return (
-                        <button
-                          key={st}
-                          type="button"
-                          onClick={() => handleUpdateStatus(cp.id, st)}
-                          className={`min-h-[44px] py-2 px-1 rounded-pill text-[10px] font-semibold flex items-center justify-center gap-1 transition cursor-pointer active:scale-95 ${
-                            isSel 
-                              ? activeCls 
-                              : 'bg-clinical-warm text-txt-secondary border border-clinical-border hover:bg-clinical-surface'
-                          }`}
-                        >
-                          <span>{st === 'Not Run' ? 'Reset' : st}</span>
-                        </button>
-                      );
-                    })}
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateStatus(cp.id, cp.status === 'Failed' ? 'Not Run' : 'Failed')}
+                      className={`min-h-[44px] py-2 px-3 rounded-pill text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                        cp.status === 'Failed'
+                          ? 'bg-status-critical text-white border-status-critical shadow-xs'
+                          : 'bg-clinical-warm hover:bg-status-critical/20 text-dark-chassis border-clinical-border'
+                      }`}
+                    >
+                      <XCircle className="w-4 h-4 shrink-0" />
+                      <span>Fail</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateStatus(cp.id, cp.status === 'Blocked' ? 'Not Run' : 'Blocked')}
+                      className={`min-h-[44px] py-2 px-3 rounded-pill text-xs font-bold transition border flex items-center justify-center gap-1.5 active:scale-95 ${
+                        cp.status === 'Blocked'
+                          ? 'bg-status-warning text-dark-chassis border-status-warning shadow-xs'
+                          : 'bg-clinical-warm hover:bg-status-warning/20 text-dark-chassis border-clinical-border'
+                      }`}
+                    >
+                      <AlertOctagon className="w-4 h-4 shrink-0" />
+                      <span>Block</span>
+                    </button>
                   </div>
+
+                  {cp.status !== 'Not Run' && (
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateStatus(cp.id, 'Not Run')}
+                      className="w-full text-xs text-txt-muted hover:text-dark-chassis flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-pill hover:bg-clinical-warm border border-transparent hover:border-clinical-border transition min-h-[36px]"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset to Not Run</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))
