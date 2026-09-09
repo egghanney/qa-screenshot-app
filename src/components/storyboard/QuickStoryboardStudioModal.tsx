@@ -854,7 +854,7 @@ export function QuickStoryboardStudioModal({
               </div>
 
               {/* Grid Control Bar */}
-              <div className="flex items-center justify-between text-xs text-txt-muted pb-1">
+              <div className="flex items-center justify-between gap-2 text-xs text-txt-muted pb-1 flex-wrap sm:flex-nowrap">
                 <div className="flex items-center gap-2 font-mono flex-wrap">
                   <span>Showing {computedScreens.length} screens in sequence</span>
                   <span>•</span>
@@ -865,15 +865,15 @@ export function QuickStoryboardStudioModal({
                       <span className="text-sky-400">{computedScreens.filter(s => s.nestLevel === 2).length} sub-of-subs</span>
                     </>
                   )}
-                  <span>•</span>
-                  <span className="text-txt-muted text-[11px] hidden sm:inline flex items-center gap-1">
-                    <GripVertical className="w-3 h-3 text-txt-muted" /> Drag cards to rearrange
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-dark-secondary/80 border border-dark-tertiary/70 text-[11px] text-txt-muted font-sans font-medium">
+                    <GripVertical className="w-3 h-3 text-txt-muted shrink-0" />
+                    <span>Drag cards to rearrange</span>
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs text-neon hover:text-neon-bright transition flex items-center gap-1 font-semibold cursor-pointer"
+                  className="text-xs text-neon hover:text-neon-bright transition flex items-center gap-1 font-semibold cursor-pointer shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add More Screens</span>
@@ -923,12 +923,26 @@ export function QuickStoryboardStudioModal({
                           <span>{screen.stepBadge}</span>
                         </div>
 
-                        {/* Drag Handle Icon in Preview Header */}
-                        <div 
-                          className="absolute top-2 right-2 z-10 p-1 rounded-md bg-dark-chassis/80 text-txt-muted group-hover:text-white border border-dark-tertiary/60 opacity-60 group-hover:opacity-100 transition shadow-sm"
-                          title="Drag to rearrange"
-                        >
-                          <GripVertical className="w-3 h-3" />
+                        {/* Top-Right Control Buttons: Delete & Drag Handle */}
+                        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              handleDeleteScreen(screen.id);
+                            }}
+                            className="p-1 rounded-md bg-dark-chassis/90 hover:bg-rose-600 text-txt-muted hover:text-white border border-dark-tertiary/70 hover:border-rose-500 transition shadow-sm cursor-pointer opacity-80 group-hover:opacity-100"
+                            title="Delete this screen"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                          <div 
+                            className="p-1 rounded-md bg-dark-chassis/80 text-txt-muted group-hover:text-white border border-dark-tertiary/60 opacity-60 group-hover:opacity-100 transition shadow-sm cursor-grab active:cursor-grabbing"
+                            title="Drag to rearrange"
+                          >
+                            <GripVertical className="w-3 h-3" />
+                          </div>
                         </div>
 
                         {/* Screen Thumbnail */}
@@ -953,8 +967,12 @@ export function QuickStoryboardStudioModal({
 
                             <button
                               type="button"
-                              onClick={() => handleDeleteScreen(screen.id)}
-                              className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-rose-400 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                handleDeleteScreen(screen.id);
+                              }}
+                              className="p-1 rounded-full bg-dark-secondary text-txt-muted hover:text-rose-400 hover:bg-rose-500/20 cursor-pointer"
                               title="Remove Screen"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -1009,9 +1027,23 @@ export function QuickStoryboardStudioModal({
                       {/* Card Content Footer */}
                       <div className="p-2.5 space-y-2 flex-1 flex flex-col justify-between">
                         <div className="space-y-1">
-                          <span className="font-bold text-xs text-white block truncate">
-                            {screen.name || `Screen ${idx + 1}`}
-                          </span>
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="font-bold text-xs text-white truncate" title={screen.name || `Screen ${idx + 1}`}>
+                              {screen.name || `Screen ${idx + 1}`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                handleDeleteScreen(screen.id);
+                              }}
+                              className="p-1 rounded-md hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 transition cursor-pointer shrink-0"
+                              title="Delete this screen"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
 
                           {/* Action Steps Count Snippet */}
                           {screen.actions && screen.actions.length > 0 ? (

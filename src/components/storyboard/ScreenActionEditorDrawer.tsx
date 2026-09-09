@@ -117,12 +117,30 @@ export function ScreenActionEditorDrawer({
               <p className="text-[11px] text-txt-muted">Configure step name, 3-tier hierarchy, and sequential actions</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-dark-secondary text-txt-muted hover:text-white transition cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Delete this screen from the storyboard?')) {
+                    onDelete(screen.id);
+                    onClose();
+                  }
+                }}
+                className="p-1.5 rounded-full hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 transition cursor-pointer"
+                title="Delete this screen"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-dark-secondary text-txt-muted hover:text-white transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Body */}
