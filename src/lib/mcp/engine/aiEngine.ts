@@ -744,9 +744,9 @@ export async function generateChartersForFeature(
   let rawCharters: Charter[] = [];
   let engineUsed = 'deterministic-contracts-engine';
 
-  // 5. Check for OpenAI or Gemini API key
-  const openAiKey = options.apiKey || process.env.OPENAI_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const isExplicitOpenAi = options.apiKey?.startsWith('sk-');
+  const openAiKey = isExplicitOpenAi ? options.apiKey : (!options.apiKey ? process.env.OPENAI_API_KEY : undefined);
+  const geminiKey = (options.apiKey && !isExplicitOpenAi) ? options.apiKey : process.env.GEMINI_API_KEY;
 
   if (openAiKey) {
     try {
