@@ -41,6 +41,7 @@ import {
 import { CreateAppModal } from './CreateAppModal';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { ProfileMenu } from '@/components/shell/ProfileMenu';
+import { QuickStoryboardStudioModal } from '@/components/storyboard/QuickStoryboardStudioModal';
 
 interface AppsHubLandingViewProps {
   projects: Project[];
@@ -78,6 +79,7 @@ export function AppsHubLandingView({
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'All' | 'Mobile' | 'Web'>('All');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isStoryboardOpen, setIsStoryboardOpen] = useState(false);
   const [hubTab, setHubTab] = useState<'apps' | 'runs'>('apps');
 
   // Database-backed Test Runs
@@ -315,6 +317,17 @@ export function AppsHubLandingView({
             onOpenSettings={onOpenSettings}
             onSignOut={onSignOut}
           />
+
+          <button
+            type="button"
+            onClick={() => setIsStoryboardOpen(true)}
+            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill bg-dark-chassis hover:bg-dark-secondary text-white text-xs font-bold transition shadow-card flex items-center gap-1.5 sm:gap-2 active:scale-95 border border-dark-secondary cursor-pointer"
+            title="Create quick screen storyboards and download contact sheet grid images"
+          >
+            <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neon stroke-[2.5]" />
+            <span className="hidden xs:inline">Quick Storyboard</span>
+            <span className="xs:hidden">Storyboard</span>
+          </button>
 
           <button
             onClick={() => setIsCreateModalOpen(true)}
@@ -917,6 +930,17 @@ export function AppsHubLandingView({
         onAppCreated={async (newProj) => {
           await onRefreshProjects();
           onSelectProject(newProj.id);
+        }}
+      />
+
+      {/* Quick Storyboard Studio Modal */}
+      <QuickStoryboardStudioModal
+        isOpen={isStoryboardOpen}
+        onClose={() => setIsStoryboardOpen(false)}
+        projects={projects}
+        onFeatureCreated={async (newFeatureId, newProjectId) => {
+          await onRefreshProjects();
+          onSelectProject(newProjectId);
         }}
       />
     </div>

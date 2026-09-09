@@ -25,11 +25,14 @@ import {
   Maximize2,
   Layers,
   Camera,
-  RefreshCw
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { LiveScreenCaptureModal } from '@/components/capture/LiveScreenCaptureModal';
 import { SnappedScreen } from '@/lib/capture/useScreenCapture';
+import { exportStoryboardInSetsOf10, exportStoryboardMasterImage } from '@/lib/storyboard/storyboardGridExporter';
+import { StoryboardScreen } from '@/lib/types';
 
 interface ScreenDeckViewProps {
   screens: ScreenItem[];
@@ -146,6 +149,45 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
       alert('Error auto-naming screens. Check console for details.');
     } finally {
       setIsAutoNaming(false);
+    }
+  };
+
+  const [isExportingStoryboard, setIsExportingStoryboard] = useState(false);
+
+  const handleExportStoryboard = async () => {
+    if (screens.length === 0) return;
+    setIsExportingStoryboard(true);
+    try {
+      const storyboardScreens: StoryboardScreen[] = screens.map((s) => ({
+        id: s.id,
+        previewUrl: s.image_url,
+        name: s.name || `Screen ${s.screen_number}`,
+        isSubScreen: !!s.is_sub_screen,
+        stepBadge: `#${s.screen_number}`,
+        actions: s.actions && s.actions.length > 0
+          ? s.actions
+          : (s.user_action ? [{ id: '1', order: 1, type: 'tap', description: s.user_action }] : []),
+        expectedResult: s.expected_behavior || ''
+      }));
+
+      if (storyboardScreens.length > 10) {
+        await exportStoryboardInSetsOf10(storyboardScreens, {
+          title: 'Screen Journey Deck Flow',
+          includeActions: true,
+          theme: 'light'
+        });
+      } else {
+        await exportStoryboardMasterImage(storyboardScreens, {
+          title: 'Screen Journey Deck Flow',
+          includeActions: true,
+          theme: 'light'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to export storyboard:', err);
+      alert('Failed to generate storyboard image. Check console for details.');
+    } finally {
+      setIsExportingStoryboard(false);
     }
   };
 
@@ -311,6 +353,21 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
           >
             <BrainCircuit className={`w-3.5 h-3.5 ${isAutoNaming ? 'animate-spin' : ''}`} />
             {isAutoNaming ? 'Naming Screens...' : 'Auto-Name All'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportStoryboard}
+            disabled={isExportingStoryboard || screens.length === 0}
+            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+            title="Download full screen sequence as a high-res Storyboard Grid image"
+          >
+            {isExportingStoryboard ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-neon" />
+            )}
+            <span>Download Storyboard</span>
           </button>
 
           <div className="hidden lg:flex items-center gap-2">

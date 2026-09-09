@@ -83,6 +83,27 @@ export interface AIScreenAnalysis {
   confidence: 'CONFIRMED' | 'INFERRED' | 'UNKNOWN';
 }
 
+export interface ScreenAction {
+  id: string;
+  order: number;
+  type?: 'tap' | 'type' | 'swipe' | 'verify' | 'scroll' | 'wait' | 'other';
+  description: string;
+}
+
+export interface StoryboardScreen {
+  id: string;
+  file?: File;
+  previewUrl: string;
+  name: string;
+  isSubScreen: boolean;
+  parentScreenId?: string | null;
+  stepBadge: string; // e.g. "#1", "#1a", "#2"
+  actions: ScreenAction[];
+  expectedResult?: string;
+  width?: number;
+  height?: number;
+}
+
 export interface ScreenItem {
   id: string;
   feature_id: string;
@@ -95,6 +116,9 @@ export interface ScreenItem {
   user_action: string | null;
   expected_behavior: string | null;
   ai_analysis: AIScreenAnalysis | null;
+  is_sub_screen?: boolean;
+  parent_screen_id?: string | null;
+  actions?: ScreenAction[];
   pii_flagged: boolean;
   pii_redactions: Array<{ x: number; y: number; width: number; height: number; type: string }>;
   notes: string | null;
