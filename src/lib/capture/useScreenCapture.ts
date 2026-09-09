@@ -23,8 +23,11 @@ export interface UseScreenCaptureReturn {
   startCapture: () => Promise<boolean>;
   stopCapture: () => void;
   snapFrame: () => Promise<SnappedScreen | null>;
+  addLocalFiles: (files: FileList | File[]) => void;
   deleteSnappedScreen: (id: string) => void;
   clearSnappedScreens: () => void;
+  isScreenCaptureSupported: boolean;
+  isMobile: boolean;
   isPipSupported: boolean;
   isPipActive: boolean;
   openPipWindow: (onSnapCallback?: () => void) => Promise<Window | null>;
@@ -39,11 +42,24 @@ export function useScreenCapture(): UseScreenCaptureReturn {
   const [snappedScreens, setSnappedScreens] = useState<SnappedScreen[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPipActive, setIsPipActive] = useState(false);
+  const [isScreenCaptureSupported, setIsScreenCaptureSupported] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const pipWindowRef = useRef<Window | null>(null);
 
   const isPipSupported = typeof window !== 'undefined' && 'documentPictureInPicture' in window;
+
+  // Detect browser capabilities and mobile platform on mount
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      const hasGetDisplayMedia = !!navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function';
+      setIsScreenCaptureSupported(hasGetDisplayMedia);
+
+      const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+      setIsMobile(mobileRegex.test(navigator.userAgent));
+    }
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -76,7 +92,11 @@ export function useScreenCapture(): UseScreenCaptureReturn {
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        throw new Error('Screen capture is not supported in this browser. Please use Chrome, Edge, Safari, or Firefox.');
+        throw new Error(
+          isMobile
+            ? 'Mobile browsers (Android & iOS) restrict background screen recording for OS privacy. Please tap "Select Screenshots from Pixel" below to import your phone screenshots.'
+            : 'Screen capture is not supported in this browser. Please use Chrome, Edge, Safari, or Firefox on desktop.'
+        );
       }
 
       // Request live window/display capture with high framerate and resolution preference
@@ -123,7 +143,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     } finally {
       setIsStarting(false);
     }
-  }, [handleTrackEnded]);
+  }, [handleTrackEnded, isMobile]);
 
   // Stop active capture session
   const stopCapture = useCallback(() => {
@@ -268,6 +288,48 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     }
   }, []);
 
+  // Batch import local files (e.g. phone screenshots from Pixel/iOS or desktop folder)
+  const addLocalFiles = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (fileArray.length === 0) return;
+
+    const newScreens: SnappedScreen[] = [];
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      const previewUrl = URL.createObjectURL(file);
+      const timestamp = Date.now() + i;
+
+      // Extract natural dimensions from image
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          resolve({
+            width: img.naturalWidth || 1080,
+            height: img.naturalHeight || 1920
+          });
+        };
+        img.onerror = () => resolve({ width: 1080, height: 1920 });
+        img.src = previewUrl;
+      });
+
+      const baseName = file.name.replace(/\.[^/.]+$/, '').trim();
+
+      newScreens.push({
+        id: `local_${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
+        file,
+        previewUrl,
+        width: dimensions.width,
+        height: dimensions.height,
+        timestamp,
+        name: baseName || `Screen ${snappedScreens.length + i + 1}`
+      });
+    }
+
+    setSnappedScreens((prev) => [...prev, ...newScreens]);
+    playShutterSound();
+  }, [snappedScreens.length]);
+
   return {
     isStreaming,
     isStarting,
@@ -279,8 +341,11 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     startCapture,
     stopCapture,
     snapFrame,
+    addLocalFiles,
     deleteSnappedScreen,
     clearSnappedScreens,
+    isScreenCaptureSupported,
+    isMobile,
     isPipSupported,
     isPipActive,
     openPipWindow,

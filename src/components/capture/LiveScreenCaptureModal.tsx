@@ -17,7 +17,9 @@ import {
   Layers,
   ArrowRight,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  FolderPlus
 } from 'lucide-react';
 import { useScreenCapture, SnappedScreen } from '@/lib/capture/useScreenCapture';
 
@@ -46,8 +48,11 @@ export function LiveScreenCaptureModal({
     startCapture,
     stopCapture,
     snapFrame,
+    addLocalFiles,
     deleteSnappedScreen,
     clearSnappedScreens,
+    isScreenCaptureSupported,
+    isMobile,
     isPipSupported,
     isPipActive,
     openPipWindow,
@@ -57,6 +62,14 @@ export function LiveScreenCaptureModal({
   const [previewScreen, setPreviewScreen] = useState<SnappedScreen | null>(null);
   const [justSnapped, setJustSnapped] = useState(false);
   const pipCountRef = useRef<HTMLSpanElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      addLocalFiles(e.target.files);
+      e.target.value = '';
+    }
+  };
 
   // Keyboard shortcut listener: Space or Enter to snap when modal is active
   useEffect(() => {
@@ -215,15 +228,21 @@ export function LiveScreenCaptureModal({
         <div className="px-5 py-4 border-b border-dark-secondary/80 flex items-center justify-between gap-3 shrink-0 bg-dark-chassis relative">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 rounded-full bg-neon text-dark-chassis flex items-center justify-center font-bold text-xs shadow-sm shadow-neon/30 shrink-0">
-              <Camera className="w-4 h-4 stroke-[2.5]" />
+              {isMobile ? <Smartphone className="w-4 h-4 stroke-[2.5]" /> : <Camera className="w-4 h-4 stroke-[2.5]" />}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="font-bold text-sm sm:text-base text-white truncate">{title}</h2>
+                <h2 className="font-bold text-sm sm:text-base text-white truncate">
+                  {isMobile ? 'Pixel / Mobile Screenshot Importer' : title}
+                </h2>
                 {isStreaming ? (
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-neon/15 text-neon border border-neon/30 animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-neon" />
                     LIVE
+                  </span>
+                ) : isMobile ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono text-neon bg-neon/10 border border-neon/30">
+                    📱 PIXEL / MOBILE
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono text-txt-muted bg-dark-secondary border border-dark-tertiary">
@@ -232,7 +251,7 @@ export function LiveScreenCaptureModal({
                 )}
               </div>
               <p className="text-[11px] text-txt-muted truncate hidden sm:block">
-                {description}
+                {isMobile ? 'Select screenshots taken on your Pixel or mobile device to sequence directly into this flow.' : description}
               </p>
             </div>
           </div>
@@ -258,13 +277,24 @@ export function LiveScreenCaptureModal({
           
           {/* Error Alert */}
           {error && (
-            <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-rose-300">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-              <span>{error}</span>
+            <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-rose-300">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{error}</span>
+              </div>
+              {(isMobile || !isScreenCaptureSupported) && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-[11px] font-bold shrink-0 cursor-pointer self-start sm:self-auto"
+                >
+                  Select from Pixel Photos
+                </button>
+              )}
             </div>
           )}
 
-          {/* MAIN VIEWFINDER CANVAS */}
+          {/* MAIN VIEWFINDER / CAPTURE CANVAS */}
           <div className="relative rounded-2xl bg-black border border-dark-secondary overflow-hidden flex items-center justify-center min-h-[260px] sm:min-h-[340px] max-h-[50vh]">
             
             {/* Shutter Visual Flash */}
@@ -285,52 +315,108 @@ export function LiveScreenCaptureModal({
 
             {/* Inactive Standby Screen */}
             {!isStreaming && (
-              <div className="p-6 text-center max-w-md space-y-4 animate-in fade-in">
-                <div className="w-16 h-16 rounded-full bg-dark-secondary border border-dark-tertiary flex items-center justify-center mx-auto text-neon shadow-lg shadow-neon/10">
-                  <Monitor className="w-8 h-8" />
-                </div>
-                
-                <div className="space-y-1.5">
-                  <h3 className="font-bold text-sm sm:text-base text-white">
-                    Ready to Stream & Snap Screens
-                  </h3>
-                  <p className="text-xs text-txt-muted leading-relaxed">
-                    Select your <strong>iOS Simulator</strong>, <strong>Android Emulator</strong>, or <strong>Web Browser Window</strong> to begin capturing screens.
-                  </p>
-                </div>
+              (isMobile || !isScreenCaptureSupported) ? (
+                /* Mobile Device Screen Importer Flow */
+                <div className="p-6 text-center max-w-md space-y-4 animate-in fade-in">
+                  <div className="w-16 h-16 rounded-full bg-dark-secondary border border-neon/40 flex items-center justify-center mx-auto text-neon shadow-lg shadow-neon/15 relative">
+                    <Smartphone className="w-8 h-8" />
+                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-neon"></span>
+                    </span>
+                  </div>
 
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={startCapture}
-                    disabled={isStarting}
-                    className="px-5 py-3 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition flex items-center gap-2 mx-auto active:scale-95 shadow-card cursor-pointer disabled:opacity-60"
-                  >
-                    {isStarting ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Video className="w-4 h-4 stroke-[2.5]" />
-                    )}
-                    <span>Select Window / Simulator to Share</span>
-                  </button>
-                </div>
+                  <div className="space-y-1.5">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-dark-secondary text-neon border border-neon/30">
+                      <span>Pixel & Mobile Mode</span>
+                    </div>
+                    <h3 className="font-bold text-sm sm:text-base text-white">
+                      Import Pixel / Mobile Screenshots
+                    </h3>
+                    <p className="text-xs text-txt-muted leading-relaxed">
+                      Android and iOS block web browsers from screen recording background apps for OS security. Simply take screenshots on your phone (<kbd className="px-1.5 py-0.5 rounded bg-dark-secondary border border-dark-tertiary text-white font-mono text-[10px]">Power + Vol Down</kbd>), then tap below.
+                    </p>
+                  </div>
 
-                {/* Helpful tips ribbon */}
-                <div className="grid grid-cols-3 gap-2 pt-2 text-[10px] text-txt-muted">
-                  <div className="p-2 rounded-xl bg-dark-secondary/60 border border-dark-tertiary/40">
-                    <span className="font-semibold block text-white">📱 iOS Simulator</span>
-                    <span>Xcode Simulator window</span>
+                  <div className="pt-2 flex flex-col items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full sm:w-auto px-6 py-3 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 shadow-card cursor-pointer"
+                    >
+                      <Smartphone className="w-4 h-4 stroke-[2.5]" />
+                      <span>Select Screenshots from Pixel</span>
+                    </button>
                   </div>
-                  <div className="p-2 rounded-xl bg-dark-secondary/60 border border-dark-tertiary/40">
-                    <span className="font-semibold block text-white">🤖 Android Studio</span>
-                    <span>AVD emulator window</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-dark-secondary/60 border border-dark-tertiary/40">
-                    <span className="font-semibold block text-white">🌐 Web Apps</span>
-                    <span>Any Chrome/Safari window</span>
+
+                  <div className="p-3 rounded-xl bg-dark-secondary/50 border border-dark-tertiary/40 text-[11px] text-txt-muted text-left space-y-1">
+                    <div className="flex items-center gap-1.5 text-white font-medium text-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-neon" />
+                      <span>Batch Selection Supported</span>
+                    </div>
+                    <p className="text-[10px] text-txt-secondary leading-normal">
+                      Select multiple screenshots at once from your Google Photos or Screenshots album. Our AI vision system will automatically name, sequence, and map them into your Visual User Journey.
+                    </p>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* Desktop Live Screen Streaming Flow */
+                <div className="p-6 text-center max-w-md space-y-4 animate-in fade-in">
+                  <div className="w-16 h-16 rounded-full bg-dark-secondary border border-dark-tertiary flex items-center justify-center mx-auto text-neon shadow-lg shadow-neon/10">
+                    <Monitor className="w-8 h-8" />
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <h3 className="font-bold text-sm sm:text-base text-white">
+                      Ready to Stream & Snap Screens
+                    </h3>
+                    <p className="text-xs text-txt-muted leading-relaxed">
+                      Select your <strong>iOS Simulator</strong>, <strong>Android Emulator</strong>, or <strong>Web Browser Window</strong> to begin capturing screens.
+                    </p>
+                  </div>
+
+                  <div className="pt-1 flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={startCapture}
+                      disabled={isStarting}
+                      className="px-5 py-3 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition flex items-center gap-2 mx-auto active:scale-95 shadow-card cursor-pointer disabled:opacity-60"
+                    >
+                      {isStarting ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Video className="w-4 h-4 stroke-[2.5]" />
+                      )}
+                      <span>Select Window / Simulator to Share</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs text-txt-muted hover:text-white transition flex items-center gap-1.5 py-1 px-3 rounded-pill hover:bg-dark-secondary/60 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Or import existing screenshots from file</span>
+                    </button>
+                  </div>
+
+                  {/* Helpful tips ribbon */}
+                  <div className="grid grid-cols-3 gap-2 pt-2 text-[10px] text-txt-muted">
+                    <div className="p-2 rounded-xl bg-dark-secondary/60 border border-dark-tertiary/40">
+                      <span className="font-semibold block text-white">📱 iOS Simulator</span>
+                      <span>Xcode Simulator window</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-dark-secondary/60 border border-dark-tertiary/40">
+                      <span className="font-semibold block text-white">🤖 Android Studio</span>
+                      <span>AVD emulator window</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-dark-secondary/60 border border-dark-tertiary/40">
+                      <span className="font-semibold block text-white">🌐 Web Apps</span>
+                      <span>Any Chrome/Safari window</span>
+                    </div>
+                  </div>
+                </div>
+              )
             )}
           </div>
 
@@ -395,15 +481,26 @@ export function LiveScreenCaptureModal({
                 </span>
               </div>
 
-              {snappedScreens.length > 0 && (
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={clearSnappedScreens}
-                  className="text-[11px] text-txt-muted hover:text-rose-400 transition hover:underline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-[11px] text-neon hover:text-neon-bright flex items-center gap-1 transition hover:underline cursor-pointer font-medium"
                 >
-                  Clear All
+                  <FolderPlus className="w-3 h-3" />
+                  <span>+ Add More</span>
                 </button>
-              )}
+
+                {snappedScreens.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearSnappedScreens}
+                    className="text-[11px] text-txt-muted hover:text-rose-400 transition hover:underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Filmstrip Container */}
@@ -511,6 +608,16 @@ export function LiveScreenCaptureModal({
             </div>
           </div>
         )}
+
+        {/* Hidden File Input for Mobile / Local Screenshot Import */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileInputChange}
+          accept="image/*"
+          multiple
+          className="hidden"
+        />
 
       </div>
     </div>
