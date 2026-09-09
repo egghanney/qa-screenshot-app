@@ -23,9 +23,14 @@ import {
   ChevronDown, 
   ChevronUp,
   Maximize2,
-  Layers
+  Layers,
+  Camera,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import { LiveScreenCaptureModal } from '@/components/capture/LiveScreenCaptureModal';
+import { SnappedScreen } from '@/lib/capture/useScreenCapture';
 
 interface ScreenDeckViewProps {
   screens: ScreenItem[];
@@ -46,6 +51,83 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Live Screen Capture State
+  const [isLiveCaptureOpen, setIsLiveCaptureOpen] = useState(false);
+  const [isUploadingCaptures, setIsUploadingCaptures] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+
+  const handleCaptureScreens = async (snapped: SnappedScreen[]) => {
+    if (snapped.length === 0) return;
+    setIsUploadingCaptures(true);
+    setUploadStatus(`Uploading ${snapped.length} live captures to Supabase...`);
+
+    try {
+      const startingIndex = screens.length;
+      for (let i = 0; i < snapped.length; i++) {
+        const item = snapped[i];
+        const screenNumber = startingIndex + i + 1;
+        const filePath = `${featureId}/screen-${screenNumber}-${Date.now()}.png`;
+
+        let finalImageUrl = item.previewUrl;
+        let storagePath: string | null = null;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('qa_screenshots')
+          .upload(filePath, item.file, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
+        if (!uploadErr && uploadData) {
+          storagePath = uploadData.path;
+          const { data: publicUrlData } = supabase.storage
+            .from('qa_screenshots')
+            .getPublicUrl(uploadData.path);
+          if (publicUrlData?.publicUrl) {
+            finalImageUrl = publicUrlData.publicUrl;
+          }
+        }
+
+        await supabase.from('qa_screens').insert({
+          feature_id: featureId,
+          screen_number: screenNumber,
+          name: item.name || `Screen ${screenNumber}`,
+          image_url: finalImageUrl,
+          storage_path: storagePath,
+          user_action: `User action on Step ${screenNumber}`,
+          expected_behavior: 'System processes input and transitions to next state',
+          state: 'normal'
+        });
+      }
+
+      // Automatically trigger AI auto-naming for the screens
+      setUploadStatus('AI Vision analyzing new screenshots & generating titles...');
+      const apiKey = getStoredGeminiApiKey();
+      await fetch('/api/screens/auto-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature_id: featureId, api_key: apiKey, force_all: true })
+      });
+
+      // Automatically reconstruct the Visual User Journey DAG!
+      setUploadStatus('Rebuilding Visual User Journey DAG...');
+      await fetch('/api/journey/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature_id: featureId })
+      });
+
+      onRefresh();
+    } catch (err: any) {
+      console.error('Failed to save captured screens:', err);
+      alert('Failed to save some screens. Check console.');
+    } finally {
+      setIsUploadingCaptures(false);
+      setUploadStatus(null);
+      setIsLiveCaptureOpen(false);
+    }
+  };
 
   const handleAutoNameAll = async () => {
     setIsAutoNaming(true);
@@ -210,20 +292,31 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsLiveCaptureOpen(true)}
+            disabled={isUploadingCaptures}
+            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Stream and capture live screens from iOS Simulator, Android Studio AVD, or Web App"
+          >
+            <Camera className="w-3.5 h-3.5 text-neon" />
+            <span>Live Screen Capture</span>
+          </button>
+
           <button
             onClick={handleAutoNameAll}
-            disabled={isAutoNaming || screens.length === 0}
-            className="px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50"
+            disabled={isAutoNaming || screens.length === 0 || isUploadingCaptures}
+            className="px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             title="Automatically analyze and rename all screens with clean semantic AI titles"
           >
             <BrainCircuit className={`w-3.5 h-3.5 ${isAutoNaming ? 'animate-spin' : ''}`} />
-            {isAutoNaming ? 'Naming Screens...' : 'Auto-Name All Screens with AI'}
+            {isAutoNaming ? 'Naming Screens...' : 'Auto-Name All'}
           </button>
 
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             <span className="text-xs text-txt-muted">Sequence:</span>
-            <div className="flex items-center gap-1 overflow-x-auto max-w-md py-0.5 text-[11px] font-mono">
+            <div className="flex items-center gap-1 overflow-x-auto max-w-xs xl:max-w-md py-0.5 text-[11px] font-mono">
               {screens.map((s, idx) => (
                 <React.Fragment key={s.id}>
                   <span className="px-2 py-0.5 rounded bg-clinical-warm text-dark-chassis border border-clinical-border font-semibold">
@@ -236,6 +329,14 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
           </div>
         </div>
       </div>
+
+      {/* Uploading Captures Processing Banner */}
+      {isUploadingCaptures && (
+        <div className="p-3 bg-neon/15 border border-neon/40 rounded-2xl flex items-center gap-3 text-xs text-neon-dark font-medium animate-pulse shadow-sm">
+          <RefreshCw className="w-4 h-4 animate-spin text-neon-dark shrink-0" />
+          <span>{uploadStatus || 'Processing captured screens and synthesizing Visual Journey...'}</span>
+        </div>
+      )}
 
       {/* Main Screen Cards Grid */}
       <div className="flex-1 overflow-y-auto space-y-4">
@@ -513,6 +614,15 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
           </div>
         </div>
       )}
+
+      {/* Live Screen Capture Studio Modal */}
+      <LiveScreenCaptureModal
+        isOpen={isLiveCaptureOpen}
+        onClose={() => setIsLiveCaptureOpen(false)}
+        onScreensCaptured={handleCaptureScreens}
+        title="Live Screen Capture Studio"
+        description="Share your iOS Simulator, Android Emulator, or Web App to snap live screens directly into this deck."
+      />
 
     </div>
   );

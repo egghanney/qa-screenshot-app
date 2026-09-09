@@ -18,11 +18,14 @@ import {
   Sliders,
   Image as ImageIcon,
   ChevronDown,
-  Folder
+  Folder,
+  Camera,
+  Video
 } from 'lucide-react';
 import { PlatformType, UserRole, AdvancedFeatureContext } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
 import { getStoredGeminiApiKey } from '@/lib/settings';
+import { LiveScreenCaptureModal } from '@/components/capture/LiveScreenCaptureModal';
 
 interface FeatureWizardModalProps {
   isOpen: boolean;
@@ -82,6 +85,7 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
   // Step 3 & 4: Uploaded Screens (Clean user-uploaded screens only)
   const [screens, setScreens] = useState<UploadedScreen[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLiveCaptureOpen, setIsLiveCaptureOpen] = useState(false);
 
   // Step 5: Execution Status
   const [isProcessing, setIsProcessing] = useState(false);
@@ -712,8 +716,50 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
               <div>
                 <h3 className="text-base font-semibold text-dark-chassis">Step 3 — Screenshot Upload</h3>
                 <p className="text-xs text-txt-secondary">
-                  Upload screenshots showing the feature journey in the order the user experiences it. You can drag and drop multiple files or paste screenshots.
+                  Capture live screens from your iOS Simulator, Android Emulator, or Web App, or upload existing screenshot files.
                 </p>
+              </div>
+
+              {/* Live Screen Share & Capture Banner */}
+              <div className="p-4 sm:p-5 rounded-[22px] bg-dark-chassis text-white border border-dark-secondary shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 relative overflow-hidden">
+                <div className="absolute -top-12 -right-12 w-36 h-36 bg-neon/15 rounded-full blur-2xl pointer-events-none" />
+
+                <div className="flex items-center gap-3.5 z-10 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-neon text-dark-chassis flex items-center justify-center font-bold shrink-0 shadow-sm shadow-neon/30">
+                    <Video className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-white">Live Screen Share & Simulator Capture</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-neon/20 text-neon border border-neon/30">
+                        Zero Install • iOS & Android
+                      </span>
+                    </div>
+                    <p className="text-xs text-txt-muted truncate sm:whitespace-normal">
+                      Share your iOS Simulator, Android Studio AVD, or Web App window to snap screens directly into the flow.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="z-10 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsLiveCaptureOpen(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 shadow-sm shadow-neon/40 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4 stroke-[2.5]" />
+                    <span>Start Screen Capture</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 py-1">
+                <div className="flex-1 h-px bg-clinical-border" />
+                <span className="text-[11px] font-mono uppercase tracking-wider text-txt-muted font-semibold">
+                  Or Upload / Paste Files
+                </span>
+                <div className="flex-1 h-px bg-clinical-border" />
               </div>
 
               {/* Upload Dropzone */}
@@ -1024,6 +1070,19 @@ export function FeatureWizardModal({ isOpen, onClose, onFeatureCreated, defaultP
         </div>
 
       </div>
+
+      {/* Live Screen Capture Studio Modal */}
+      <LiveScreenCaptureModal
+        isOpen={isLiveCaptureOpen}
+        onClose={() => setIsLiveCaptureOpen(false)}
+        onScreensCaptured={(captured) => {
+          const files = captured.map((c) => c.file);
+          handleFileUpload(files);
+          setIsLiveCaptureOpen(false);
+        }}
+        title={`Live Capture — ${featureName.trim() || 'New Feature'}`}
+        description="Share your iOS Simulator, Android Studio AVD, or Web App window to snap screens into this flow."
+      />
     </div>
   );
 }
