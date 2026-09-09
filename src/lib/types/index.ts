@@ -293,7 +293,7 @@ export interface ScreenComparison {
   created_at: string;
 }
 
-export type CharterStatus = 'Draft' | 'In Progress' | 'Completed';
+export type CharterStatus = 'Draft' | 'In Progress' | 'Completed' | 'Approved' | 'Rejected';
 export type ScenarioStatus = 'Pass' | 'Fail' | 'Blocked' | 'Untested';
 
 export type ScenarioCategory = 'Golden Path' | 'Alternative Flow' | 'Boundary & Edge' | 'Failure & Recovery';
