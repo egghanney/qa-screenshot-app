@@ -97,14 +97,16 @@ export function createMcpServer(): McpServer {
       feature_id: z.string().describe('The unique ID of the QA feature'),
       count: z.number().min(1).max(10).optional().describe('Number of charters to generate (default 4)'),
       idempotency_key: z.string().optional().describe('Optional idempotency key to prevent duplicate runs'),
-      model: z.string().optional().describe('Optional AI model override (e.g. gpt-4o or gemini-3.6-flash)')
+      model: z.string().optional().describe('Optional AI model override (e.g. gpt-4o or gemini-3.6-flash)'),
+      multimodal: z.boolean().optional().describe('Enable multimodal vision inspection of actual screen screenshots (default false)')
     },
-    async ({ feature_id, count, idempotency_key, model }) => {
+    async ({ feature_id, count, idempotency_key, model, multimodal }) => {
       try {
         const result = await generateChartersForFeature(feature_id, {
           count,
           idempotencyKey: idempotency_key,
-          model
+          model,
+          multimodal
         });
 
         return {

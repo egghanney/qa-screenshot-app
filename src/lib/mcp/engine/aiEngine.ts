@@ -36,10 +36,13 @@ import { validateCharterSuite } from '../validation/charterQualityGate';
 import { calculateQualityScore } from '../validation/qualityScorer';
 import { 
   buildPass1UnderstandPrompt, 
+  buildPass1MultimodalOpenAiBlocks,
+  buildPass1MultimodalGeminiParts,
   buildPass2AnalyzePrompt, 
   buildPass3ChallengePrompt, 
   buildPass4GeneratePrompt, 
-  buildPass5ValidatePrompt 
+  buildPass5ValidatePrompt,
+  ResolvedScreenImage
 } from '../prompts/passes';
 import { MASTER_SYSTEM_PROMPT } from '../prompts/masterSystemPrompt';
 import OpenAI from 'openai';
@@ -630,6 +633,78 @@ export interface CharterGenerationOptions {
   apiKey?: string;
   model?: string;
   forceRegenerate?: boolean;
+  multimodal?: boolean;
+}
+
+export interface ScreenResolutionResult {
+  multimodal_enabled: boolean;
+  screenshots_requested: string[];
+  screenshots_resolved: string[];
+  screenshots_unavailable: string[];
+  screenshots_used: string[];
+  resolvedImages: ResolvedScreenImage[];
+}
+
+export async function resolveScreenImages(
+  screens: ScreenEvidence[],
+  multimodalRequested: boolean
+): Promise<ScreenResolutionResult> {
+  const result: ScreenResolutionResult = {
+    multimodal_enabled: false,
+    screenshots_requested: [],
+    screenshots_resolved: [],
+    screenshots_unavailable: [],
+    screenshots_used: [],
+    resolvedImages: []
+  };
+
+  if (!multimodalRequested) {
+    return result;
+  }
+
+  for (const s of screens) {
+    const label = `Screen #${s.screen_number} "${s.screen_name}"`;
+    result.screenshots_requested.push(label);
+
+    if (!s.image_url) {
+      result.screenshots_unavailable.push(`${label}: Missing image URL`);
+      continue;
+    }
+
+    try {
+      const res = await fetch(s.image_url, {
+        signal: AbortSignal.timeout(8000)
+      });
+
+      if (!res.ok) {
+        result.screenshots_unavailable.push(`${label}: HTTP ${res.status}`);
+        continue;
+      }
+
+      const contentType = res.headers.get('content-type') || 'image/png';
+      const arrayBuf = await res.arrayBuffer();
+      const base64Data = Buffer.from(arrayBuf).toString('base64');
+      const dataUrl = `data:${contentType};base64,${base64Data}`;
+
+      result.resolvedImages.push({
+        screen_id: s.screen_id,
+        screen_number: s.screen_number,
+        screen_name: s.screen_name,
+        image_url: s.image_url,
+        mimeType: contentType,
+        base64Data,
+        dataUrl
+      });
+
+      result.screenshots_resolved.push(label);
+      result.screenshots_used.push(label);
+    } catch (err: any) {
+      result.screenshots_unavailable.push(`${label}: Fetch failed (${err.message})`);
+    }
+  }
+
+  result.multimodal_enabled = result.resolvedImages.length > 0;
+  return result;
 }
 
 export async function generateChartersForFeature(
@@ -656,7 +731,11 @@ export async function generateChartersForFeature(
   const contextPack = await getFeatureContextPack(featureId);
   const requestedCount = options.count || 4;
 
-  // 3. Derive internal models
+  // 3. Resolve screen images if multimodal was requested
+  const multimodalRequested = options.multimodal === true;
+  const imageResolution = await resolveScreenImages(contextPack.screens, multimodalRequested);
+
+  // 4. Derive internal models
   const journeyAnalysis = analyzeJourney(contextPack);
   const stateAnalysis = analyzeState(contextPack);
   const dataAnalysis = analyzeDataConsistency(contextPack);
@@ -665,7 +744,7 @@ export async function generateChartersForFeature(
   let rawCharters: Charter[] = [];
   let engineUsed = 'deterministic-contracts-engine';
 
-  // 4. Check for OpenAI or Gemini API key
+  // 5. Check for OpenAI or Gemini API key
   const openAiKey = options.apiKey || process.env.OPENAI_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
 
@@ -678,7 +757,8 @@ export async function generateChartersForFeature(
         riskAnalysis, 
         requestedCount, 
         openAiKey,
-        options.model || 'gpt-4o'
+        options.model || 'gpt-4o',
+        imageResolution.resolvedImages
       );
       engineUsed = `openai-${options.model || 'gpt-4o'}`;
     } catch (err) {
@@ -692,7 +772,8 @@ export async function generateChartersForFeature(
         stateAnalysis,
         riskAnalysis,
         requestedCount,
-        geminiKey
+        geminiKey,
+        imageResolution.resolvedImages
       );
       engineUsed = 'gemini-3.6-flash';
     } catch (err) {
@@ -700,7 +781,7 @@ export async function generateChartersForFeature(
     }
   }
 
-  // 5. If LLM unavailable or failed, run high-precision Deterministic Synthesis
+  // 6. If LLM unavailable or failed, run high-precision Deterministic Synthesis
   if (rawCharters.length === 0) {
     rawCharters = synthesizeDeterministicCharters(
       contextPack,
@@ -711,16 +792,6 @@ export async function generateChartersForFeature(
       requestedCount
     );
   }
-
-  // 6. Enforce 9-Check Deterministic Code Quality Gate
-  const qualityGateReport = validateCharterSuite(rawCharters, contextPack);
-
-  // 7. Assign quality score from quality gate report
-  rawCharters.forEach(c => {
-    c.quality_score = qualityGateReport.quality_score;
-  });
-
-  const suiteQualityScore = qualityGateReport.quality_score;
 
   const generationMetadata: GenerationMetadata = {
     generation_id: `gen-${Date.now()}`,
@@ -734,8 +805,24 @@ export async function generateChartersForFeature(
     validator_version: '9-check-v1',
     provider: engineUsed,
     model: options.model || (engineUsed.includes('openai') ? 'gpt-4o' : 'gemini-3.6-flash'),
+    multimodal_enabled: imageResolution.multimodal_enabled,
+    screenshots_requested: imageResolution.screenshots_requested,
+    screenshots_resolved: imageResolution.screenshots_resolved,
+    screenshots_unavailable: imageResolution.screenshots_unavailable,
+    screenshots_used: imageResolution.screenshots_used,
     generated_at: new Date().toISOString()
   };
+
+  // 7. Enforce 9-Check Deterministic Code Quality Gate (including missing screenshot check)
+  const qualityGateReport = validateCharterSuite(rawCharters, contextPack, generationMetadata);
+
+  // 8. Assign quality score and generation metadata to all charters
+  rawCharters.forEach(c => {
+    c.quality_score = qualityGateReport.quality_score;
+    c.generation_metadata = generationMetadata;
+  });
+
+  const suiteQualityScore = qualityGateReport.quality_score;
 
   const charterSuite: CharterSuite = {
     feature_id: featureId,
@@ -745,7 +832,7 @@ export async function generateChartersForFeature(
     generation_metadata: generationMetadata
   };
 
-  // 8. Persist to DB (qa_charters, qa_charter_scenarios, and feature.advanced_context)
+  // 9. Persist to DB (qa_charters, qa_charter_scenarios, and feature.advanced_context)
   await persistChartersToDb(featureId, charterSuite, qualityGateReport, contextPack);
 
   // Cache by idempotency key if present
@@ -776,24 +863,36 @@ async function executeOpenAiFivePassPipeline(
   risks: RiskAnalysis,
   count: number,
   apiKey: string,
-  model: string
+  model: string,
+  resolvedImages: ResolvedScreenImage[] = []
 ): Promise<Charter[]> {
   const openai = new OpenAI({ apiKey });
 
-  // Pass 1: Understand
-  const p1Prompt = buildPass1UnderstandPrompt(contextPack);
-  const p1Res = await openai.chat.completions.create({
-    model,
-    messages: [
+  // Pass 1: Understand (Multimodal if images resolved, otherwise text-based)
+  let p1Messages: any[];
+  if (resolvedImages && resolvedImages.length > 0) {
+    const p1Blocks = buildPass1MultimodalOpenAiBlocks(contextPack, resolvedImages);
+    p1Messages = [
+      { role: 'system', content: MASTER_SYSTEM_PROMPT },
+      { role: 'user', content: p1Blocks }
+    ];
+  } else {
+    const p1Prompt = buildPass1UnderstandPrompt(contextPack);
+    p1Messages = [
       { role: 'system', content: MASTER_SYSTEM_PROMPT },
       { role: 'user', content: p1Prompt }
-    ],
+    ];
+  }
+
+  const p1Res = await openai.chat.completions.create({
+    model,
+    messages: p1Messages,
     temperature: 0.1,
     response_format: { type: 'json_object' }
   });
   const understanding = JSON.parse(p1Res.choices[0].message.content || '{}');
 
-  // Pass 2: Analyze
+  // Pass 2: Analyze (Retains full storyboard context pack)
   const p2Prompt = buildPass2AnalyzePrompt(contextPack, understanding);
   const p2Res = await openai.chat.completions.create({
     model,
@@ -806,8 +905,8 @@ async function executeOpenAiFivePassPipeline(
   });
   const analysis = JSON.parse(p2Res.choices[0].message.content || '{}');
 
-  // Pass 3: Challenge (The 10 explicit audit questions)
-  const p3Prompt = buildPass3ChallengePrompt(analysis);
+  // Pass 3: Challenge (The 10 explicit audit questions against storyboard ground truth)
+  const p3Prompt = buildPass3ChallengePrompt(analysis, contextPack);
   const p3Res = await openai.chat.completions.create({
     model,
     messages: [
@@ -819,7 +918,7 @@ async function executeOpenAiFivePassPipeline(
   });
   const challenged = JSON.parse(p3Res.choices[0].message.content || '{}');
 
-  // Pass 4: Generate Charters
+  // Pass 4: Generate Charters (Explicit storyboard screens & actions provided)
   const p4Prompt = buildPass4GeneratePrompt(contextPack, challenged, count);
   const p4Res = await openai.chat.completions.create({
     model,
@@ -859,7 +958,8 @@ async function executeGeminiFivePassPipeline(
   state: StateAnalysis,
   risks: RiskAnalysis,
   count: number,
-  apiKey: string
+  apiKey: string,
+  resolvedImages: ResolvedScreenImage[] = []
 ): Promise<Charter[]> {
   const callGemini = async (prompt: string): Promise<any> => {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
@@ -882,9 +982,38 @@ async function executeGeminiFivePassPipeline(
     return JSON.parse(text || '{}');
   };
 
-  const p1Understand = await callGemini(buildPass1UnderstandPrompt(contextPack));
+  let p1Understand: any;
+  if (resolvedImages && resolvedImages.length > 0) {
+    const geminiParts = buildPass1MultimodalGeminiParts(contextPack, resolvedImages);
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: MASTER_SYSTEM_PROMPT },
+              ...geminiParts
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json"
+        }
+      })
+    });
+    if (!res.ok) throw new Error(`Gemini Multimodal API call failed with status ${res.status}`);
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    p1Understand = JSON.parse(text || '{}');
+  } else {
+    p1Understand = await callGemini(buildPass1UnderstandPrompt(contextPack));
+  }
+
   const p2Analyze = await callGemini(buildPass2AnalyzePrompt(contextPack, p1Understand));
-  const p3Challenge = await callGemini(buildPass3ChallengePrompt(p2Analyze));
+  const p3Challenge = await callGemini(buildPass3ChallengePrompt(p2Analyze, contextPack));
   const p4Generate = await callGemini(buildPass4GeneratePrompt(contextPack, p3Challenge, count));
   const p5Validate = await callGemini(buildPass5ValidatePrompt(p4Generate, contextPack));
 
@@ -922,6 +1051,11 @@ function synthesizeDeterministicCharters(
     validator_version: '9-check-v1',
     provider: 'deterministic-contracts-engine',
     model: 'heuristic-rules-v1',
+    multimodal_enabled: false,
+    screenshots_requested: [],
+    screenshots_resolved: [],
+    screenshots_unavailable: [],
+    screenshots_used: [],
     generated_at: now
   };
 
@@ -1295,6 +1429,11 @@ function sanitizeAndAssignCharterIds(rawList: any[], contextPack: ContextPack): 
         validator_version: '9-check-v1',
         provider: 'ai-engine',
         model: 'pipeline',
+        multimodal_enabled: false,
+        screenshots_requested: [],
+        screenshots_resolved: [],
+        screenshots_unavailable: [],
+        screenshots_used: [],
         generated_at: now
       },
       quality_score: raw.quality_score || 88

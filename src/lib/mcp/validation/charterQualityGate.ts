@@ -1,4 +1,4 @@
-import { Charter, ContextPack, QualityGateReport, CharterSchema } from '../contracts/schemas';
+import { Charter, ContextPack, QualityGateReport, CharterSchema, GenerationMetadata } from '../contracts/schemas';
 import { calculateQualityScore } from './qualityScorer';
 
 /**
@@ -7,7 +7,8 @@ import { calculateQualityScore } from './qualityScorer';
  */
 export function validateCharterSuite(
   charters: Charter[],
-  contextPack: ContextPack
+  contextPack: ContextPack,
+  metadata?: GenerationMetadata
 ): QualityGateReport {
   const issues: string[] = [];
   const unsupportedAssumptions: string[] = [];
@@ -157,6 +158,30 @@ export function validateCharterSuite(
     const ratio = (allPrompts.length - untracedPromptsCount) / allPrompts.length;
     checks.traceability_sourcing.score = Math.round(ratio * 100);
     checks.traceability_sourcing.details = `${untracedPromptsCount} of ${allPrompts.length} prompts lack derived_from lineage.`;
+  }
+
+  // --- CHECK 4 Visual Evidence Integrity Calculation ---
+  const effectiveMeta = metadata || charters[0]?.generation_metadata;
+  if (effectiveMeta && effectiveMeta.screenshots_unavailable && effectiveMeta.screenshots_unavailable.length > 0) {
+    const unavail = effectiveMeta.screenshots_unavailable;
+    const interactiveUnavailable = contextPack.screens.filter(s => {
+      const isUnavail = unavail.some(u =>
+        u.includes(s.screen_name) ||
+        u.includes(s.screen_id) ||
+        u.includes(`Screen #${s.screen_number}`)
+      );
+      return isUnavail && (s.user_actions.length > 0 || s.observed_behaviour.length > 0);
+    });
+
+    if (interactiveUnavailable.length > 0) {
+      const penalty = Math.min(30, interactiveUnavailable.length * 10);
+      checks.evidence_grounded_claims.score = Math.max(0, checks.evidence_grounded_claims.score - penalty);
+      if (checks.evidence_grounded_claims.score < 80) {
+        checks.evidence_grounded_claims.passed = false;
+      }
+      checks.evidence_grounded_claims.details = `Visual evidence coverage degraded: ${interactiveUnavailable.length} interactive screen(s) lacked available screenshot images (${interactiveUnavailable.map(s => `Screen #${s.screen_number} "${s.screen_name}"`).join(', ')}).`;
+      issues.push(`Visual evidence coverage degraded: ${interactiveUnavailable.length} interactive screen(s) unavailable for primary vision inspection.`);
+    }
   }
 
   // --- CHECK 5: Duplicate Detection (Jaccard Similarity) ---

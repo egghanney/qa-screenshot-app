@@ -281,6 +281,11 @@ export const GenerationMetadataSchema = z.object({
   validator_version: z.string(),
   provider: z.string(),
   model: z.string(),
+  multimodal_enabled: z.boolean().default(false),
+  screenshots_requested: z.array(z.string()).default([]),
+  screenshots_resolved: z.array(z.string()).default([]),
+  screenshots_unavailable: z.array(z.string()).default([]),
+  screenshots_used: z.array(z.string()).default([]),
   generated_at: z.string()
 });
 export type GenerationMetadata = z.infer<typeof GenerationMetadataSchema>;

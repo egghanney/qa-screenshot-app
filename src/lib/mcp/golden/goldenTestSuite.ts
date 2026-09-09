@@ -1,5 +1,12 @@
-import { ContextPack, Charter } from '../contracts/schemas';
+import { ContextPack, Charter, GenerationMetadataSchema } from '../contracts/schemas';
 import { validateCharterSuite } from '../validation/charterQualityGate';
+import {
+  buildPass1MultimodalOpenAiBlocks,
+  buildPass1MultimodalGeminiParts,
+  buildPass2AnalyzePrompt,
+  buildPass3ChallengePrompt,
+  buildPass4GeneratePrompt
+} from '../prompts/passes';
 
 export interface GoldenFeatureSpec {
   name: string;
@@ -186,4 +193,237 @@ export function evaluateGoldenFeatureOutput(
     metrics.concept_coverage_rate >= 70;
 
   return { passed, metrics, notes };
+}
+
+/**
+ * Automated Verification Suite for Multimodal Storyboard Integration
+ * Validates the 5 Core Requirements:
+ * 1. Default disabled (multimodal_enabled defaults to false).
+ * 2. Complete tracking: requested, resolved, unavailable, used.
+ * 3. Passes 2-4 maintain primary storyboard context independently.
+ * 4. Missing screenshot penalty in Quality Gate Check 4.
+ * 5. Provider payload builder correctness (OpenAI blocks & Gemini parts).
+ */
+export function runMultimodalVerificationSuite(): {
+  allPassed: boolean;
+  testResults: Array<{ name: string; passed: boolean; details: string }>;
+} {
+  const testResults: Array<{ name: string; passed: boolean; details: string }> = [];
+
+  // Mock Context Pack with 3 sequenced screens
+  const mockPack: ContextPack = {
+    feature: {
+      id: 'test-feat-01',
+      name: 'Mobile Transfer',
+      goal: 'Send funds to contact',
+      description: 'Peer to peer transfer'
+    },
+    framework: {
+      features_services: ['P2P Transfer'],
+      user_types: ['Standard User'],
+      journeys_navigation: ['Input -> Confirm -> Success'],
+      interactions_configuration: ['Amount input', 'Proceed button'],
+      business_rules_constraints: ['Limit GHS 1000'],
+      system_failure_states: ['Network Timeout'],
+      communications_dependencies: ['SMS API'],
+      historical_knowledge_risk: ['Duplicate tap debit']
+    },
+    screens: [
+      {
+        screen_id: 'scr-1',
+        screen_number: 1,
+        screen_name: 'Recipient Screen',
+        image_url: 'https://example.com/scr1.png',
+        user_actions: [{ sequence: 1, action: 'Enter phone number', purpose: 'Target' }],
+        visible_elements: ['Phone Input', 'Next Button'],
+        observed_behaviour: ['Validates 10 digits'],
+        unknowns: []
+      },
+      {
+        screen_id: 'scr-2',
+        screen_number: 2,
+        screen_name: 'Review & Confirm',
+        image_url: undefined, // Missing image!
+        user_actions: [{ sequence: 1, action: 'Tap Confirm', purpose: 'Authorize' }],
+        visible_elements: ['Summary Card', 'Confirm Button'],
+        observed_behaviour: ['Shows total debit'],
+        unknowns: []
+      },
+      {
+        screen_id: 'scr-3',
+        screen_number: 3,
+        screen_name: 'Receipt Screen',
+        image_url: 'https://example.com/scr3.png',
+        user_actions: [{ sequence: 1, action: 'Tap Done', purpose: 'Dismiss' }],
+        visible_elements: ['Transaction ID', 'Done Button'],
+        observed_behaviour: ['Displays Reference ID'],
+        unknowns: []
+      }
+    ],
+    user_actions: [],
+    known_unknowns: ['Unknown daily count limit'],
+    previous_findings: [],
+    evidence_index: {
+      confirmed: [{ id: 'c1', fact: 'Limit GHS 1000', classification: 'CONFIRMED' }],
+      observed: [{ id: 'o1', fact: 'Screen 1 visible', classification: 'OBSERVED' }],
+      inferred: [],
+      unknown: [],
+      needs_exploration: []
+    }
+  };
+
+  // Mock resolved images (only scr-1 and scr-3 resolved, scr-2 unavailable)
+  const resolvedImages = [
+    {
+      screen_id: 'scr-1',
+      screen_number: 1,
+      screen_name: 'Recipient Screen',
+      image_url: 'https://example.com/scr1.png',
+      mimeType: 'image/png',
+      base64Data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    },
+    {
+      screen_id: 'scr-3',
+      screen_number: 3,
+      screen_name: 'Receipt Screen',
+      image_url: 'https://example.com/scr3.png',
+      mimeType: 'image/png',
+      base64Data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    }
+  ];
+
+  // Test 1: OpenAI Multimodal Payload Builder
+  const openAiBlocks = buildPass1MultimodalOpenAiBlocks(mockPack, resolvedImages);
+  const imageBlocks = openAiBlocks.filter(b => b.type === 'image_url');
+  const unavailableTextBlocks = openAiBlocks.filter(b => b.type === 'text' && b.text.includes('[IMAGE UNAVAILABLE: Screen #2'));
+  const hasScreen1Action = openAiBlocks.some(b => b.type === 'text' && b.text.includes('Enter phone number'));
+  const test1Passed = imageBlocks.length === 2 && unavailableTextBlocks.length === 1 && hasScreen1Action;
+  testResults.push({
+    name: '1. OpenAI Multimodal Payload Structure',
+    passed: test1Passed,
+    details: `Generated ${openAiBlocks.length} blocks (${imageBlocks.length} image_url blocks, ${unavailableTextBlocks.length} unavailable notice, action text preserved: ${hasScreen1Action})`
+  });
+
+  // Test 2: Gemini Multimodal Parts Builder
+  const geminiParts = buildPass1MultimodalGeminiParts(mockPack, resolvedImages);
+  const inlineDataParts = geminiParts.filter(p => 'inlineData' in p);
+  const geminiUnavailParts = geminiParts.filter(p => 'text' in p && p.text.includes('[IMAGE UNAVAILABLE: Screen #2'));
+  const test2Passed = inlineDataParts.length === 2 && geminiUnavailParts.length === 1;
+  testResults.push({
+    name: '2. Gemini Multimodal Parts Structure',
+    passed: test2Passed,
+    details: `Generated ${geminiParts.length} parts (${inlineDataParts.length} inlineData parts, ${geminiUnavailParts.length} unavailable fallback)`
+  });
+
+  // Test 3: Passes 2-4 Storyboard Independence
+  const p2 = buildPass2AnalyzePrompt(mockPack, { intent: 'Test' });
+  const p3 = buildPass3ChallengePrompt({ risks: [] }, mockPack);
+  const p4 = buildPass4GeneratePrompt(mockPack, { risks: [] }, 3);
+
+  const p2HasStoryboard = p2.includes('Screen #1 "Recipient Screen"') && p2.includes('Enter phone number');
+  const p3HasGroundTruth = p3.includes('PRIMARY STORYBOARD GROUND-TRUTH') && p3.includes('Recipient Screen');
+  const p4HasFlow = p4.includes('Storyboard Flow: #1 "Recipient Screen"') && p4.includes('Enter phone number');
+  const test3Passed = p2HasStoryboard && p3HasGroundTruth && p4HasFlow;
+  testResults.push({
+    name: '3. Passes 2-4 Storyboard Independence',
+    passed: test3Passed,
+    details: `Pass 2 has storyboard: ${p2HasStoryboard}, Pass 3 has ground truth: ${p3HasGroundTruth}, Pass 4 has flow & actions: ${p4HasFlow}`
+  });
+
+  // Test 4: Quality Gate Missing Image Penalty
+  const mockCharters: Charter[] = [
+    {
+      id: 'ch-1',
+      feature_id: mockPack.feature.id,
+      title: 'Transfer Integrity',
+      mission: 'Verify transaction integrity across recipient, confirm, and receipt screens.',
+      user_persona: 'Verified User',
+      starting_condition: 'User on Screen 1',
+      expected_outcome: 'Transaction completes',
+      risk_level: 'High',
+      exploration_prompts: [
+        {
+          id: 'PRM-01',
+          prompt: 'Execute transfer from Recipient Screen to Receipt Screen with nominal value.',
+          category: 'Golden Path',
+          status: 'Untested',
+          observations: '',
+          evidence: [],
+          derived_from: {
+            features: ['Mobile Transfer'],
+            journeys: ['Input -> Confirm -> Success'],
+            interactions: ['Enter phone number'],
+            business_rules: ['Limit GHS 1000'],
+            failure_states: [],
+            risks: ['Duplicate tap debit'],
+            screens: ['Recipient Screen', 'Review & Confirm', 'Receipt Screen'],
+            user_actions: ['Enter phone number', 'Tap Confirm'],
+            historical_risks: []
+          }
+        }
+      ],
+      coverage: { blueprint_areas: ['features_services'], exploration_dimensions: ['Navigation Paths'] },
+      traceability: {},
+      generation_metadata: {
+        generation_id: 'gen-test-1',
+        context_version: '2026.1',
+        blueprint_version: '2026.1',
+        screen_version: '2026.1',
+        schema_version: '2026-07-28',
+        prompt_version: '1.0.0',
+        analysis_version: '1.0.0',
+        validator_version: '9-check-v1',
+        provider: 'openai-gpt-4o',
+        model: 'gpt-4o',
+        multimodal_enabled: true,
+        screenshots_requested: ['Screen #1 "Recipient Screen"', 'Screen #2 "Review & Confirm"', 'Screen #3 "Receipt Screen"'],
+        screenshots_resolved: ['Screen #1 "Recipient Screen"', 'Screen #3 "Receipt Screen"'],
+        screenshots_unavailable: ['Screen #2 "Review & Confirm": Missing image URL'],
+        screenshots_used: ['Screen #1 "Recipient Screen"', 'Screen #3 "Receipt Screen"'],
+        generated_at: new Date().toISOString()
+      },
+      quality_score: 90
+    }
+  ];
+
+  const gateReport = validateCharterSuite(mockCharters, mockPack, mockCharters[0].generation_metadata);
+  const evidenceScore = gateReport.checks.evidence_grounded_claims.score;
+  const hasDegradedIssue = gateReport.issues.some(i => i.includes('Visual evidence coverage degraded'));
+  const test4Passed = evidenceScore < 100 && hasDegradedIssue;
+  testResults.push({
+    name: '4. Quality Gate Missing Screenshot Penalty',
+    passed: test4Passed,
+    details: `Evidence score penalized to ${evidenceScore}/100, degradation issue recorded: ${hasDegradedIssue}`
+  });
+
+  // Test 5: Metadata Defaults & Schema Integrity
+  const defaultCheck = GenerationMetadataSchema.parse({
+    generation_id: 'gen-001',
+    context_version: '2026.1',
+    blueprint_version: '2026.1',
+    screen_version: '2026.1',
+    schema_version: '2026-07-28',
+    prompt_version: '1.0.0',
+    analysis_version: '1.0.0',
+    validator_version: '9-check-v1',
+    provider: 'engine',
+    model: 'model',
+    generated_at: new Date().toISOString()
+  });
+  const test5Passed = defaultCheck.multimodal_enabled === false &&
+    Array.isArray(defaultCheck.screenshots_requested) && defaultCheck.screenshots_requested.length === 0 &&
+    Array.isArray(defaultCheck.screenshots_resolved) && defaultCheck.screenshots_resolved.length === 0 &&
+    Array.isArray(defaultCheck.screenshots_unavailable) && defaultCheck.screenshots_unavailable.length === 0 &&
+    Array.isArray(defaultCheck.screenshots_used) && defaultCheck.screenshots_used.length === 0;
+
+  testResults.push({
+    name: '5. Metadata Default Integrity (multimodal_enabled: false)',
+    passed: test5Passed,
+    details: `multimodal_enabled defaulted to ${defaultCheck.multimodal_enabled}, all 4 screenshot tracking arrays initialized to empty`
+  });
+
+  const allPassed = testResults.every(r => r.passed);
+  return { allPassed, testResults };
 }
