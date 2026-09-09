@@ -94,7 +94,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
         throw new Error(
           isMobile
-            ? 'Mobile browsers (Android & iOS) restrict background screen recording for OS privacy. Please tap "Select Screenshots from Pixel" below to import your phone screenshots.'
+            ? 'Mobile browsers (Android & iOS) restrict background screen recording for OS privacy. Please tap "Select Mobile Screenshots" below to import your phone screenshots.'
             : 'Screen capture is not supported in this browser. Please use Chrome, Edge, Safari, or Firefox on desktop.'
         );
       }
@@ -288,7 +288,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     }
   }, []);
 
-  // Batch import local files (e.g. phone screenshots from Pixel/iOS or desktop folder)
+  // Batch import local files (e.g. phone screenshots from mobile device or desktop folder)
   const addLocalFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (fileArray.length === 0) return;

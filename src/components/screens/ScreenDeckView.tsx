@@ -25,8 +25,7 @@ import {
   Maximize2,
   Layers,
   Camera,
-  RefreshCw,
-  Sparkles
+  RefreshCw
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { LiveScreenCaptureModal } from '@/components/capture/LiveScreenCaptureModal';

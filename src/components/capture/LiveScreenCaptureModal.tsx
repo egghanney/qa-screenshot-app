@@ -10,7 +10,6 @@ import {
   RefreshCw, 
   ExternalLink, 
   Trash2, 
-  Sparkles, 
   Monitor, 
   Smartphone, 
   Maximize2,
@@ -233,7 +232,7 @@ export function LiveScreenCaptureModal({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="font-bold text-sm sm:text-base text-white truncate">
-                  {isMobile ? 'Pixel / Mobile Screenshot Importer' : title}
+                  {isMobile ? 'Mobile Screenshot Importer' : title}
                 </h2>
                 {isStreaming ? (
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-neon/15 text-neon border border-neon/30 animate-pulse">
@@ -242,7 +241,7 @@ export function LiveScreenCaptureModal({
                   </span>
                 ) : isMobile ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono text-neon bg-neon/10 border border-neon/30">
-                    📱 PIXEL / MOBILE
+                    📱 MOBILE
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono text-txt-muted bg-dark-secondary border border-dark-tertiary">
@@ -251,7 +250,7 @@ export function LiveScreenCaptureModal({
                 )}
               </div>
               <p className="text-[11px] text-txt-muted truncate hidden sm:block">
-                {isMobile ? 'Select screenshots taken on your Pixel or mobile device to sequence directly into this flow.' : description}
+                {isMobile ? 'Select screenshots taken on your mobile device to sequence directly into this flow.' : description}
               </p>
             </div>
           </div>
@@ -288,7 +287,7 @@ export function LiveScreenCaptureModal({
                   onClick={() => fileInputRef.current?.click()}
                   className="px-3 py-1 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-[11px] font-bold shrink-0 cursor-pointer self-start sm:self-auto"
                 >
-                  Select from Pixel Photos
+                  Select Mobile Screenshots
                 </button>
               )}
             </div>
@@ -328,10 +327,10 @@ export function LiveScreenCaptureModal({
 
                   <div className="space-y-1.5">
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-dark-secondary text-neon border border-neon/30">
-                      <span>Pixel & Mobile Mode</span>
+                      <span>Mobile Mode</span>
                     </div>
                     <h3 className="font-bold text-sm sm:text-base text-white">
-                      Import Pixel / Mobile Screenshots
+                      Import Mobile Screenshots
                     </h3>
                     <p className="text-xs text-txt-muted leading-relaxed">
                       Android and iOS block web browsers from screen recording background apps for OS security. Simply take screenshots on your phone (<kbd className="px-1.5 py-0.5 rounded bg-dark-secondary border border-dark-tertiary text-white font-mono text-[10px]">Power + Vol Down</kbd>), then tap below.
@@ -345,17 +344,16 @@ export function LiveScreenCaptureModal({
                       className="w-full sm:w-auto px-6 py-3 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 shadow-card cursor-pointer"
                     >
                       <Smartphone className="w-4 h-4 stroke-[2.5]" />
-                      <span>Select Screenshots from Pixel</span>
+                      <span>Select Mobile Screenshots</span>
                     </button>
                   </div>
 
                   <div className="p-3 rounded-xl bg-dark-secondary/50 border border-dark-tertiary/40 text-[11px] text-txt-muted text-left space-y-1">
                     <div className="flex items-center gap-1.5 text-white font-medium text-xs">
-                      <Sparkles className="w-3.5 h-3.5 text-neon" />
                       <span>Batch Selection Supported</span>
                     </div>
                     <p className="text-[10px] text-txt-secondary leading-normal">
-                      Select multiple screenshots at once from your Google Photos or Screenshots album. Our AI vision system will automatically name, sequence, and map them into your Visual User Journey.
+                      Select multiple screenshots at once from your photos or screenshots gallery. The system will automatically sequence and map them into your Visual User Journey.
                     </p>
                   </div>
                 </div>
@@ -558,7 +556,6 @@ export function LiveScreenCaptureModal({
           <div className="text-xs text-txt-muted font-mono hidden sm:block">
             {snappedScreens.length > 0 ? (
               <span className="text-neon flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
                 Ready to synthesize into Visual Journey DAG
               </span>
             ) : (
