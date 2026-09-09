@@ -23,9 +23,18 @@ import {
   RefreshCw,
   FolderPlus,
   AlertCircle,
-  GripVertical
+  GripVertical,
+  ChevronDown,
+  ChevronUp,
+  BookOpen,
+  Sliders,
+  ShieldAlert,
+  Users,
+  Compass,
+  Cpu,
+  FileText
 } from 'lucide-react';
-import { StoryboardScreen, Project } from '@/lib/types';
+import { StoryboardScreen, Project, StoryboardExecutiveContext, KnowledgeCategory } from '@/lib/types';
 import { 
   computeStepBadges, 
   exportStoryboardMasterImage, 
@@ -62,6 +71,20 @@ export function QuickStoryboardStudioModal({
   const [isExporting, setIsExporting] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [includeActionsInExport, setIncludeActionsInExport] = useState(true);
+  const [includeContextInExport, setIncludeContextInExport] = useState(true);
+
+  // 8-Pillar Executive Flow Context State
+  const [isExecutiveCardOpen, setIsExecutiveCardOpen] = useState(false);
+  const [executiveContext, setExecutiveContext] = useState<StoryboardExecutiveContext>({
+    featuresAndServices: '',
+    userTypes: '',
+    journeysAndNavigation: '',
+    interactionReference: '',
+    businessRules: '',
+    systemFailureStates: '',
+    communicationsDependencies: '',
+    historicalKnowledgeRisk: ''
+  });
 
   // Live Screen Capture Integration State
   const [isLiveCaptureOpen, setIsLiveCaptureOpen] = useState(false);
@@ -79,12 +102,22 @@ export function QuickStoryboardStudioModal({
   // Recompute sequential badges whenever screens change
   const computedScreens = useMemo(() => computeStepBadges(screens), [screens]);
 
+  // Count populated context pillars
+  const definedPillarsCount = useMemo(() => {
+    return Object.values(executiveContext).filter(v => typeof v === 'string' && v.trim().length > 0).length;
+  }, [executiveContext]);
+
   // Load draft from localStorage on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const savedTitle = localStorage.getItem('qa_storyboard_title');
       if (savedTitle) setFlowTitle(savedTitle);
+
+      const savedCtx = localStorage.getItem('qa_storyboard_context');
+      if (savedCtx) {
+        setExecutiveContext(JSON.parse(savedCtx));
+      }
     } catch (e) {}
   }, []);
 
@@ -94,6 +127,17 @@ export function QuickStoryboardStudioModal({
     try {
       localStorage.setItem('qa_storyboard_title', newVal);
     } catch (e) {}
+  };
+
+  // Sync executive context to draft
+  const handleUpdateContext = (key: keyof StoryboardExecutiveContext, val: string) => {
+    setExecutiveContext(prev => {
+      const updated = { ...prev, [key]: val };
+      try {
+        localStorage.setItem('qa_storyboard_context', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
   };
 
   if (!isOpen) return null;
@@ -275,13 +319,17 @@ export function QuickStoryboardStudioModal({
         await exportStoryboardInSetsOf10(computedScreens, {
           title: flowTitle,
           includeActions: includeActionsInExport,
-          theme: 'light'
+          theme: 'light',
+          context: executiveContext,
+          includeContext: includeContextInExport
         });
       } else {
         await exportStoryboardMasterImage(computedScreens, {
           title: flowTitle,
           includeActions: includeActionsInExport,
-          theme: 'light'
+          theme: 'light',
+          context: executiveContext,
+          includeContext: includeContextInExport
         });
       }
     } catch (err) {
@@ -378,6 +426,34 @@ export function QuickStoryboardStudioModal({
           state: 'normal',
           notes: item.isSubScreen ? (item.nestLevel === 2 ? `Sub-step Level 2 (${item.stepBadge})` : `Sub-step (${item.stepBadge})`) : null
         });
+      }
+
+      // 3.5 Sync Executive Context Matrix to qa_knowledge_items
+      const categoryMap: Array<{ key: keyof StoryboardExecutiveContext; category: KnowledgeCategory; defaultTitle: string }> = [
+        { key: 'featuresAndServices', category: 'Features & Services', defaultTitle: 'Core Capabilities & Services' },
+        { key: 'userTypes', category: 'User Types', defaultTitle: 'Target User Roles & Personas' },
+        { key: 'journeysAndNavigation', category: 'Journeys & Navigation', defaultTitle: 'Navigation & Flow Triggers' },
+        { key: 'interactionReference', category: 'Interaction & Configuration Reference', defaultTitle: 'Interaction & Configuration Rules' },
+        { key: 'businessRules', category: 'Business Rules & Constraints', defaultTitle: 'Business Rules & Threshold Limits' },
+        { key: 'systemFailureStates', category: 'System & Failure States', defaultTitle: 'System & Exception States' },
+        { key: 'communicationsDependencies', category: 'Communications & Dependencies', defaultTitle: 'Communications & System Hooks' },
+        { key: 'historicalKnowledgeRisk', category: 'Historical Knowledge & Risk', defaultTitle: 'Historical Regression & Risk Areas' }
+      ];
+
+      for (const mapItem of categoryMap) {
+        const text = executiveContext[mapItem.key]?.trim();
+        if (text) {
+          await supabase.from('qa_knowledge_items').insert({
+            feature_id: featureId,
+            category: mapItem.category,
+            title: mapItem.defaultTitle,
+            content: text,
+            source: 'User',
+            confidence: 'CONFIRMED',
+            verification_status: 'Verified',
+            notes: 'Manual executive specification from Quick Storyboard Studio'
+          });
+        }
       }
 
       // 4. Trigger Visual User Journey generation
@@ -526,7 +602,7 @@ export function QuickStoryboardStudioModal({
                       </p>
                     </button>
 
-                    <div className="pt-2 border-t border-dark-tertiary flex items-center justify-between">
+                    <div className="pt-2 border-t border-dark-tertiary space-y-1.5">
                       <label className="text-[11px] text-txt-secondary cursor-pointer flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -535,6 +611,15 @@ export function QuickStoryboardStudioModal({
                           className="rounded accent-neon"
                         />
                         <span>Print User Actions & Results</span>
+                      </label>
+                      <label className="text-[11px] text-txt-secondary cursor-pointer flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={includeContextInExport}
+                          onChange={(e) => setIncludeContextInExport(e.target.checked)}
+                          className="rounded accent-neon"
+                        />
+                        <span>Print Executive Context ({definedPillarsCount}/8)</span>
                       </label>
                     </div>
                   </div>
@@ -611,6 +696,163 @@ export function QuickStoryboardStudioModal({
             /* Active Storyboard Grid View */
             <div className="space-y-4">
               
+              {/* Executive Flow Specifications & AI Context Card */}
+              <div className="rounded-2xl bg-dark-secondary/80 border border-dark-tertiary shadow-sm overflow-hidden transition-all">
+                {/* Collapsible Header */}
+                <button
+                  type="button"
+                  onClick={() => setIsExecutiveCardOpen(!isExecutiveCardOpen)}
+                  className="w-full px-4 py-3 bg-dark-secondary flex items-center justify-between gap-3 text-left transition hover:bg-dark-secondary/90 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-6 h-6 rounded-full bg-dark-chassis text-neon flex items-center justify-center font-bold text-xs border border-neon/30 shrink-0">
+                      <BookOpen className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold text-white tracking-tight">Executive Specifications & AI Context Matrix</h4>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                          definedPillarsCount > 0 ? 'bg-neon text-dark-chassis shadow-xs' : 'bg-dark-chassis text-txt-muted border border-dark-tertiary'
+                        }`}>
+                          {definedPillarsCount} of 8 Pillars Defined
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-txt-muted truncate">
+                        Define business rules, failure boundaries, user types, and system hooks printed on your storyboard
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] font-semibold text-neon hidden sm:inline">
+                      {isExecutiveCardOpen ? 'Collapse Specifications' : 'Edit Specifications'}
+                    </span>
+                    <div className="p-1 rounded-full bg-dark-chassis text-txt-muted">
+                      {isExecutiveCardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Expanded Body: 8 Pillars Grid */}
+                {isExecutiveCardOpen && (
+                  <div className="p-4 border-t border-dark-tertiary bg-dark-chassis/60 space-y-4 animate-in fade-in duration-150">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                      {[
+                        {
+                          key: 'featuresAndServices' as const,
+                          num: 1,
+                          title: 'Features & Services',
+                          desc: 'Core service scope, product domain & objectives',
+                          placeholder: 'e.g. Peer-to-peer wallet transfers, instant bank settlement, airtime recharge...'
+                        },
+                        {
+                          key: 'userTypes' as const,
+                          num: 2,
+                          title: 'User Types',
+                          desc: 'Personas, KYC tiers & role permissions',
+                          placeholder: 'e.g. Tier 1 Unverified, Tier 3 KYC Verified, Merchant Agent, Admin...'
+                        },
+                        {
+                          key: 'journeysAndNavigation' as const,
+                          num: 3,
+                          title: 'Journeys & Navigation',
+                          desc: 'Entry points, back button logic & modal branches',
+                          placeholder: 'e.g. Initiated from Dashboard Quick Pay; back button resets recipient picker...'
+                        },
+                        {
+                          key: 'interactionReference' as const,
+                          num: 4,
+                          title: 'Interaction & Configuration Reference',
+                          desc: 'Input formatting, auto-focus, keyboard masks & timeouts',
+                          placeholder: 'e.g. MSISDN masked +233, numeric keypad, PIN obscured with biometric prompt...'
+                        },
+                        {
+                          key: 'businessRules' as const,
+                          num: 5,
+                          title: 'Business Rules & Constraints',
+                          desc: 'Min/max limits, fee calculations & validation ceilings',
+                          placeholder: 'e.g. Minimum GHS 1.00, maximum GHS 5,000/day, 1% e-levy fee applied on transfer...'
+                        },
+                        {
+                          key: 'systemFailureStates' as const,
+                          num: 6,
+                          title: 'System & Failure States',
+                          desc: 'Lockout thresholds, network retries & error handling',
+                          placeholder: 'e.g. 3 invalid PIN attempts lock account 15 mins, 504 gateway triggers retry prompt...'
+                        },
+                        {
+                          key: 'communicationsDependencies' as const,
+                          num: 7,
+                          title: 'Communications & Dependencies',
+                          desc: 'SMS alerts, push notifications & telecom hooks',
+                          placeholder: 'e.g. SMS delivery receipt dispatched within 30s, push notification to recipient...'
+                        },
+                        {
+                          key: 'historicalKnowledgeRisk' as const,
+                          num: 8,
+                          title: 'Historical Knowledge & Risk',
+                          desc: 'Regression hotspots, brittle areas & compliance points',
+                          placeholder: 'e.g. Known race condition on double-tap submit; BoG regulatory audit logging...'
+                        }
+                      ].map(pillar => (
+                        <div key={pillar.key} className="p-3 rounded-xl bg-dark-secondary/70 border border-dark-tertiary space-y-1.5 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="text-[10px] font-mono font-bold text-neon uppercase tracking-wider">
+                                #{pillar.num} {pillar.title}
+                              </span>
+                              {executiveContext[pillar.key]?.trim() && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-neon animate-pulse" />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-txt-muted leading-tight mb-2">
+                              {pillar.desc}
+                            </p>
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={executiveContext[pillar.key] || ''}
+                            onChange={(e) => handleUpdateContext(pillar.key, e.target.value)}
+                            placeholder={pillar.placeholder}
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-dark-chassis border border-dark-tertiary text-xs text-white placeholder:text-txt-muted/50 focus:border-neon focus:outline-none transition resize-none font-sans"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-dark-tertiary/70 text-xs">
+                      <span className="text-[11px] text-txt-muted">
+                        Specifications automatically save locally and print on exported Storyboard PNGs.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm('Clear all 8 executive specifications?')) {
+                            const cleared: StoryboardExecutiveContext = {
+                              featuresAndServices: '',
+                              userTypes: '',
+                              journeysAndNavigation: '',
+                              interactionReference: '',
+                              businessRules: '',
+                              systemFailureStates: '',
+                              communicationsDependencies: '',
+                              historicalKnowledgeRisk: ''
+                            };
+                            setExecutiveContext(cleared);
+                            try {
+                              localStorage.removeItem('qa_storyboard_context');
+                            } catch (e) {}
+                          }
+                        }}
+                        className="text-xs text-rose-400 hover:text-rose-300 transition cursor-pointer"
+                      >
+                        Clear Specifications
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Grid Control Bar */}
               <div className="flex items-center justify-between text-xs text-txt-muted pb-1">
                 <div className="flex items-center gap-2 font-mono flex-wrap">

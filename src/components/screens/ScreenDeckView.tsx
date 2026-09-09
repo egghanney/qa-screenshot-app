@@ -4,7 +4,8 @@ import React, { useState, useRef } from 'react';
 import { 
   ScreenItem, 
   ScreenStateType, 
-  AIScreenAnalysis 
+  AIScreenAnalysis,
+  StoryboardExecutiveContext
 } from '@/lib/types';
 import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
@@ -153,10 +154,13 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
   };
 
   const [isExportingStoryboard, setIsExportingStoryboard] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [includeActionsInExport, setIncludeActionsInExport] = useState(true);
 
-  const handleExportStoryboard = async () => {
+  const handleExportStoryboard = async (mode: 'sets_of_10' | 'master' = 'master') => {
     if (screens.length === 0) return;
     setIsExportingStoryboard(true);
+    setIsExportMenuOpen(false);
     try {
       const storyboardScreens: StoryboardScreen[] = screens.map((s) => ({
         id: s.id,
@@ -170,17 +174,43 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
         expectedResult: s.expected_behavior || ''
       }));
 
-      if (storyboardScreens.length > 10) {
+      // Fetch knowledge items for this feature to provide executive context
+      const execContext: StoryboardExecutiveContext = {};
+      try {
+        const { data: kData } = await supabase
+          .from('qa_knowledge_items')
+          .select('category, content')
+          .eq('feature_id', featureId);
+
+        if (kData && kData.length > 0) {
+          kData.forEach((k: any) => {
+            if (k.category === 'Features & Services' && !execContext.featuresAndServices) execContext.featuresAndServices = k.content;
+            if (k.category === 'User Types' && !execContext.userTypes) execContext.userTypes = k.content;
+            if (k.category === 'Journeys & Navigation' && !execContext.journeysAndNavigation) execContext.journeysAndNavigation = k.content;
+            if (k.category === 'Interaction & Configuration Reference' && !execContext.interactionReference) execContext.interactionReference = k.content;
+            if (k.category === 'Business Rules & Constraints' && !execContext.businessRules) execContext.businessRules = k.content;
+            if (k.category === 'System & Failure States' && !execContext.systemFailureStates) execContext.systemFailureStates = k.content;
+            if (k.category === 'Communications & Dependencies' && !execContext.communicationsDependencies) execContext.communicationsDependencies = k.content;
+            if (k.category === 'Historical Knowledge & Risk' && !execContext.historicalKnowledgeRisk) execContext.historicalKnowledgeRisk = k.content;
+          });
+        }
+      } catch (e) {}
+
+      if (mode === 'sets_of_10') {
         await exportStoryboardInSetsOf10(storyboardScreens, {
           title: 'Screen Journey Deck Flow',
-          includeActions: true,
-          theme: 'light'
+          includeActions: includeActionsInExport,
+          theme: 'light',
+          context: execContext,
+          includeContext: true
         });
       } else {
         await exportStoryboardMasterImage(storyboardScreens, {
           title: 'Screen Journey Deck Flow',
-          includeActions: true,
-          theme: 'light'
+          includeActions: includeActionsInExport,
+          theme: 'light',
+          context: execContext,
+          includeContext: true
         });
       }
     } catch (err) {
@@ -355,20 +385,78 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
             {isAutoNaming ? 'Naming Screens...' : 'Auto-Name All'}
           </button>
 
-          <button
-            type="button"
-            onClick={handleExportStoryboard}
-            disabled={isExportingStoryboard || screens.length === 0}
-            className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
-            title="Download full screen sequence as a high-res Storyboard Grid image"
-          >
-            {isExportingStoryboard ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Download className="w-3.5 h-3.5 text-neon" />
+          {/* Download Storyboard Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+              disabled={isExportingStoryboard || screens.length === 0}
+              className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Download full screen sequence as a high-res Storyboard Grid image"
+            >
+              {isExportingStoryboard ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-neon" />
+              )}
+              <span>Download Storyboard</span>
+              <ChevronDown className="w-3 h-3 text-txt-muted" />
+            </button>
+
+            {/* Floating Options Dropdown */}
+            {isExportMenuOpen && (
+              <div 
+                className="absolute right-0 top-full mt-2 w-72 bg-dark-chassis border border-dark-secondary rounded-2xl p-2.5 shadow-2xl z-40 space-y-2 animate-in fade-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-2 py-1 border-b border-dark-secondary/80">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-txt-muted block">
+                    Export Grid Format (2x Retina)
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportStoryboard('sets_of_10')}
+                  className="w-full text-left p-2 rounded-xl bg-dark-secondary hover:bg-neon/10 border border-dark-tertiary hover:border-neon/40 transition group cursor-pointer"
+                >
+                  <div className="text-xs font-bold text-white group-hover:text-neon flex items-center justify-between">
+                    <span>Download in Sets of 10</span>
+                    <span className="text-[10px] font-mono text-neon">2 × 5 Grid</span>
+                  </div>
+                  <p className="text-[10px] text-txt-muted mt-0.5 leading-tight">
+                    Chunks flow into 10-screen sets with staggered browser downloads
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportStoryboard('master')}
+                  className="w-full text-left p-2 rounded-xl bg-dark-secondary hover:bg-neon/10 border border-dark-tertiary hover:border-neon/40 transition group cursor-pointer"
+                >
+                  <div className="text-xs font-bold text-white group-hover:text-neon flex items-center justify-between">
+                    <span>Download 1 Master Image</span>
+                    <span className="text-[10px] font-mono text-txt-muted">All {screens.length}</span>
+                  </div>
+                  <p className="text-[10px] text-txt-muted mt-0.5 leading-tight">
+                    Continuous multi-row composite image of full flow (1 file)
+                  </p>
+                </button>
+
+                <div className="pt-2 border-t border-dark-secondary flex items-center justify-between px-1">
+                  <label className="text-[11px] text-txt-secondary cursor-pointer flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={includeActionsInExport}
+                      onChange={(e) => setIncludeActionsInExport(e.target.checked)}
+                      className="rounded accent-neon"
+                    />
+                    <span>Print User Actions & Results</span>
+                  </label>
+                </div>
+              </div>
             )}
-            <span>Download Storyboard</span>
-          </button>
+          </div>
 
           <div className="hidden lg:flex items-center gap-2">
             <span className="text-xs text-txt-muted">Sequence:</span>

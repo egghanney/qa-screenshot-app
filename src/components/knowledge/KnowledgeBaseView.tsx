@@ -52,7 +52,8 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
     'Interaction & Configuration Reference',
     'Business Rules & Constraints',
     'System & Failure States',
-    'Communications & Dependencies'
+    'Communications & Dependencies',
+    'Historical Knowledge & Risk'
   ];
 
   const confidenceBadge = (confidence: ConfidenceLevel) => {
@@ -140,7 +141,7 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
           <span className="w-2.5 h-2.5 rounded-full bg-neon animate-pulse" />
           <div>
             <h3 className="text-xs font-bold text-dark-chassis tracking-tight">
-              7-CATEGORY QA & PRODUCT KNOWLEDGE BASE
+              8-PILLAR QA & PRODUCT KNOWLEDGE BASE
             </h3>
             <p className="text-[11px] text-txt-secondary">
               Evidence-grounded specifications with strict anti-hallucination confidence labeling.
@@ -245,8 +246,8 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
         </div>
       </div>
 
-      {/* Structured Clinical Knowledge Table */}
-      <div className="flex-1 bg-clinical-white rounded-2xl border border-clinical-border shadow-card overflow-hidden flex flex-col">
+      {/* Structured Clinical Knowledge Table (Desktop lg:block) */}
+      <div className="hidden lg:flex flex-1 bg-clinical-white rounded-2xl border border-clinical-border shadow-card overflow-hidden flex-col">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-clinical-surface text-txt-secondary border-b border-clinical-border font-mono text-[11px] uppercase tracking-wider">
@@ -268,7 +269,7 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
                       <BookOpen className="w-8 h-8 text-txt-muted opacity-40" />
                       <p className="text-xs font-bold text-dark-chassis">No Knowledge Items Documented</p>
                       <p className="text-[11px] text-txt-muted">
-                        Generate the 7 core pillars from your sequenced screens or click &quot;Add Knowledge Item&quot; to manually define verified rules.
+                        Generate the 8 core pillars from your sequenced screens or click &quot;Add Knowledge Item&quot; to manually define verified rules.
                       </p>
                     </div>
                   </td>
@@ -279,7 +280,7 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
                   
                   {/* Category Pill */}
                   <td className="py-3 px-4 align-top whitespace-nowrap">
-                    <span className="px-2 py-1 rounded bg-clinical-warm text-dark-chassis font-medium text-[10px] border border-clinical-border">
+                    <span className="px-2.5 py-1 rounded-pill bg-clinical-warm text-dark-chassis font-medium text-[10px] border border-clinical-border">
                       {item.category}
                     </span>
                   </td>
@@ -315,21 +316,21 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
                     <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition">
                       <button
                         onClick={() => handleUpdateStatus(item.id, 'Verified')}
-                        className="p-1 rounded bg-clinical-warm hover:bg-status-positive/20 text-dark-chassis"
+                        className="p-1.5 rounded-pill bg-clinical-warm hover:bg-status-positive/20 text-dark-chassis transition"
                         title="Mark Verified"
                       >
                         <ShieldCheck className="w-3.5 h-3.5 text-status-positive" />
                       </button>
                       <button
                         onClick={() => handleUpdateStatus(item.id, 'Flagged')}
-                        className="p-1 rounded bg-clinical-warm hover:bg-status-warning/20 text-dark-chassis"
+                        className="p-1.5 rounded-pill bg-clinical-warm hover:bg-status-warning/20 text-dark-chassis transition"
                         title="Flag for Review"
                       >
                         <Flag className="w-3.5 h-3.5 text-status-warning" />
                       </button>
                       <button
                         onClick={() => handleDeleteItem(item.id)}
-                        className="p-1 rounded bg-clinical-warm hover:bg-status-critical/20 text-txt-muted hover:text-status-critical"
+                        className="p-1.5 rounded-pill bg-clinical-warm hover:bg-status-critical/20 text-txt-muted hover:text-status-critical transition"
                         title="Delete Item"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -342,6 +343,73 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Knowledge Cards (lg:hidden) */}
+      <div className="lg:hidden flex-1 overflow-y-auto space-y-3 pb-6">
+        {filteredItems.length === 0 ? (
+          <div className="py-12 text-center text-txt-secondary bg-clinical-white rounded-2xl border border-clinical-border p-6">
+            <BookOpen className="w-8 h-8 text-txt-muted opacity-40 mx-auto mb-2" />
+            <p className="text-xs font-bold text-dark-chassis">No Knowledge Items Documented</p>
+            <p className="text-[11px] text-txt-muted mt-1">
+              Generate the 8 core pillars from your sequenced screens or tap &quot;Add Knowledge Item&quot; to manually define verified rules.
+            </p>
+          </div>
+        ) : (
+          filteredItems.map((item) => (
+            <div key={item.id} className="bg-clinical-white rounded-2xl border border-clinical-border p-4 shadow-subtle space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="px-2.5 py-1 rounded-pill bg-clinical-warm text-dark-chassis font-medium text-[10px] border border-clinical-border truncate max-w-[200px]">
+                  {item.category}
+                </span>
+                {confidenceBadge(item.confidence)}
+              </div>
+
+              <div>
+                <h4 className="font-bold text-dark-chassis text-sm mb-1">{item.title}</h4>
+                <p className="text-txt-secondary text-xs leading-relaxed">{item.content}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-clinical-border/40 text-[11px]">
+                <div className="flex items-center gap-1.5 text-txt-muted">
+                  <span className="font-mono text-[10px]">Src: {item.source}</span>
+                  <span>•</span>
+                  <span>{statusBadge(item.verification_status)}</span>
+                </div>
+                {item.notes && (
+                  <p className="w-full text-txt-muted text-[10px] italic">
+                    Note: {item.notes}
+                  </p>
+                )}
+              </div>
+
+              {/* Mobile Pill Actions with touch targets */}
+              <div className="flex items-center gap-2 pt-2 border-t border-clinical-border/40">
+                <button
+                  onClick={() => handleUpdateStatus(item.id, 'Verified')}
+                  className="flex-1 min-h-[40px] px-3 py-1.5 rounded-pill bg-clinical-warm hover:bg-status-positive/20 text-dark-chassis text-xs font-semibold border border-clinical-border flex items-center justify-center gap-1.5 transition active:scale-95"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-status-positive" />
+                  <span>Verify</span>
+                </button>
+                <button
+                  onClick={() => handleUpdateStatus(item.id, 'Flagged')}
+                  className="flex-1 min-h-[40px] px-3 py-1.5 rounded-pill bg-clinical-warm hover:bg-status-warning/20 text-dark-chassis text-xs font-semibold border border-clinical-border flex items-center justify-center gap-1.5 transition active:scale-95"
+                >
+                  <Flag className="w-3.5 h-3.5 text-status-warning" />
+                  <span>Flag</span>
+                </button>
+                <button
+                  onClick={() => handleDeleteItem(item.id)}
+                  className="min-h-[40px] w-10 flex items-center justify-center rounded-pill bg-clinical-warm hover:bg-status-critical/20 text-txt-muted hover:text-status-critical border border-clinical-border transition active:scale-95"
+                  title="Delete Item"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Add Knowledge Item Modal */}

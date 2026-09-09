@@ -162,6 +162,17 @@ export interface JourneyEdgeData {
   created_at?: string;
 }
 
+export interface StoryboardExecutiveContext {
+  featuresAndServices?: string;
+  userTypes?: string;
+  journeysAndNavigation?: string;
+  interactionReference?: string;
+  businessRules?: string;
+  systemFailureStates?: string;
+  communicationsDependencies?: string;
+  historicalKnowledgeRisk?: string;
+}
+
 export type KnowledgeCategory = 
   | 'Features & Services'
   | 'User Types'
@@ -169,7 +180,8 @@ export type KnowledgeCategory =
   | 'Interaction & Configuration Reference'
   | 'Business Rules & Constraints'
   | 'System & Failure States'
-  | 'Communications & Dependencies';
+  | 'Communications & Dependencies'
+  | 'Historical Knowledge & Risk';
 
 export type ConfidenceLevel = 'CONFIRMED' | 'INFERRED' | 'UNKNOWN';
 export type VerificationStatus = 'Verified' | 'Needs Confirmation' | 'Flagged' | 'Rejected';

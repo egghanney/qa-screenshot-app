@@ -376,32 +376,39 @@ export function VisualJourneyCanvas({
     <div className="w-full h-full min-h-[600px] flex-1 relative bg-clinical-warm flex flex-col">
       
       {/* Canvas Top Bar */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
+      <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 z-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pointer-events-none">
         
         {/* Left Status Pill */}
-        <div className="pointer-events-auto bg-clinical-white/95 backdrop-blur-md px-3.5 py-2 rounded-pill border border-clinical-border shadow-card flex items-center gap-2 text-xs font-semibold text-dark-chassis">
-          <span className="w-2 h-2 rounded-full bg-neon animate-pulse" />
-          <span>VISUAL JOURNEY GRAPH</span>
-          <span className="text-clinical-border">•</span>
-          <span className="text-txt-muted font-mono">{rfNodes.length} Nodes / {rfEdges.length} Transitions</span>
+        <div className="pointer-events-auto bg-clinical-white/95 backdrop-blur-md px-3.5 py-2 rounded-pill border border-clinical-border shadow-card flex items-center justify-between sm:justify-start gap-2 text-xs font-semibold text-dark-chassis">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-neon animate-pulse" />
+            <span className="hidden sm:inline">VISUAL JOURNEY GRAPH</span>
+            <span className="sm:hidden text-[11px] font-bold">JOURNEY GRAPH</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-txt-muted font-mono text-[11px]">
+            <span className="text-clinical-border">•</span>
+            <span>{rfNodes.length} Nodes</span>
+            <span className="hidden xs:inline">/ {rfEdges.length} Transitions</span>
+          </div>
         </div>
 
         {/* Right Action Tools */}
-        <div className="pointer-events-auto flex items-center gap-2">
+        <div className="pointer-events-auto flex items-center gap-2 justify-end">
           <button
             onClick={() => autoLayout(true)}
-            className="px-3 py-1.5 rounded-pill bg-clinical-white hover:bg-clinical-surface text-dark-chassis text-xs font-semibold border border-clinical-border shadow-subtle flex items-center gap-1.5 transition"
+            className="flex-1 sm:flex-none min-h-[38px] sm:min-h-0 px-3.5 py-1.5 rounded-pill bg-clinical-white hover:bg-clinical-surface text-dark-chassis text-xs font-semibold border border-clinical-border shadow-subtle flex items-center justify-center gap-1.5 transition active:scale-95"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Auto-Layout Graph
+            <span>Auto-Layout</span>
           </button>
 
           <button
             onClick={onGenerateJourney}
-            className="px-4 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center gap-1.5 transition active:scale-95"
+            className="flex-1 sm:flex-none min-h-[38px] sm:min-h-0 px-4 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold shadow-card flex items-center justify-center gap-1.5 transition active:scale-95 whitespace-nowrap"
           >
             <BrainCircuit className="w-3.5 h-3.5" />
-            Regenerate Journey with AI
+            <span className="hidden sm:inline">Regenerate Journey with AI</span>
+            <span className="sm:hidden">Regenerate</span>
           </button>
         </div>
       </div>
@@ -442,10 +449,10 @@ export function VisualJourneyCanvas({
             >
               <Background color="#DCDDD6" gap={24} size={1.5} />
               <Controls 
-                className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card overflow-hidden" 
+                className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card overflow-hidden !bottom-4 !left-4" 
               />
               <MiniMap 
-                className="!bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card !bottom-4 !right-4"
+                className="!hidden sm:!block !bg-clinical-white !border !border-clinical-border !rounded-2xl !shadow-card !bottom-4 !right-4"
                 nodeColor={(n) => {
                   if (n.type === 'decision') return '#F2F52A';
                   if (n.type === 'error_state') return '#E56B68';

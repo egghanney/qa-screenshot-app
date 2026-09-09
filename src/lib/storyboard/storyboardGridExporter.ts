@@ -4,12 +4,14 @@
  * Supports exporting in sets of 10 (2 rows x 5 columns) or as 1 master continuous grid.
  */
 
-import { StoryboardScreen } from '@/lib/types';
+import { StoryboardScreen, StoryboardExecutiveContext } from '@/lib/types';
 
 export interface StoryboardExportOptions {
   title?: string;
   includeActions?: boolean;
   theme?: 'light' | 'dark';
+  context?: StoryboardExecutiveContext;
+  includeContext?: boolean;
 }
 
 /**
@@ -83,6 +85,9 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 /**
  * Render a single grid of up to N screens onto an HTML5 Canvas
  */
+/**
+ * Render a single grid of up to N screens onto an HTML5 Canvas
+ */
 async function renderGridCanvas(
   screens: StoryboardScreen[],
   options: {
@@ -90,14 +95,32 @@ async function renderGridCanvas(
     includeActions: boolean;
     theme: 'light' | 'dark';
     partLabel?: string;
+    context?: StoryboardExecutiveContext;
+    includeContext?: boolean;
   }
 ): Promise<HTMLCanvasElement> {
-  const { title, includeActions, theme, partLabel } = options;
+  const { title, includeActions, theme, partLabel, context, includeContext } = options;
   const isDark = theme === 'dark';
 
   const cols = 5;
   const count = screens.length;
   const rows = Math.ceil(count / cols);
+
+  // Parse Executive Context Pillars
+  const rawPillars = [
+    { num: 1, title: 'Features & Services', content: context?.featuresAndServices?.trim() },
+    { num: 2, title: 'User Types', content: context?.userTypes?.trim() },
+    { num: 3, title: 'Journeys & Navigation', content: context?.journeysAndNavigation?.trim() },
+    { num: 4, title: 'Interaction & Configuration', content: context?.interactionReference?.trim() },
+    { num: 5, title: 'Business Rules & Constraints', content: context?.businessRules?.trim() },
+    { num: 6, title: 'System & Failure States', content: context?.systemFailureStates?.trim() },
+    { num: 7, title: 'Communications & Dependencies', content: context?.communicationsDependencies?.trim() },
+    { num: 8, title: 'Historical Knowledge & Risk', content: context?.historicalKnowledgeRisk?.trim() }
+  ];
+  const populatedPillars = rawPillars.filter(p => !!p.content);
+  const hasExecutiveContext = (includeContext ?? true) && populatedPillars.length > 0;
+  const executiveCardHeight = hasExecutiveContext ? (populatedPillars.length > 4 ? 200 : 125) : 0;
+  const executiveGap = hasExecutiveContext ? 28 : 0;
 
   // Geometric specifications (in base pixels, scaled by 2x for Retina export)
   const scale = 2;
@@ -112,11 +135,12 @@ async function renderGridCanvas(
 
   const gap = 24;
   const marginX = 40;
-  const marginTop = 100; // Room for header banner
+  const marginTop = 100;
+  const effectiveMarginTop = marginTop + executiveCardHeight + executiveGap;
   const marginBottom = 40;
 
   const canvasWidth = marginX * 2 + cols * cardWidth + (cols - 1) * gap;
-  const canvasHeight = marginTop + rows * cardHeight + (rows - 1) * gap + marginBottom;
+  const canvasHeight = effectiveMarginTop + rows * cardHeight + (rows - 1) * gap + marginBottom;
 
   const canvas = document.createElement('canvas');
   canvas.width = canvasWidth * scale;
@@ -154,10 +178,66 @@ async function renderGridCanvas(
   ctx.fillText(`Generated on ${dateStr}`, canvasWidth - marginX, 58);
   ctx.textAlign = 'left';
 
-  // 3. Preload all screen images
+  // 3. Draw Executive Header Specifications Card (if context provided and non-empty)
+  if (hasExecutiveContext) {
+    const execX = marginX;
+    const execY = 95;
+    const execW = canvasWidth - marginX * 2;
+    const execH = executiveCardHeight;
+
+    ctx.save();
+    drawRoundedRect(ctx, execX, execY, execW, execH, 16);
+    ctx.fillStyle = isDark ? '#1D1E1C' : '#FFFFFF';
+    ctx.fill();
+    ctx.strokeStyle = isDark ? '#2D302B' : '#E5E7EB';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Top Bar inside Executive Card
+    ctx.fillStyle = isDark ? '#00FF88' : '#059669';
+    ctx.font = 'bold 11px ui-monospace, SFMono-Regular, monospace';
+    ctx.fillText('EXECUTIVE FLOW SPECIFICATIONS & AI CONTEXT MATRIX', execX + 18, execY + 24);
+
+    // Pill badge for number of defined pillars
+    const countBadge = `${populatedPillars.length} OF 8 PILLARS DEFINED`;
+    ctx.font = 'bold 10px ui-monospace, SFMono-Regular, monospace';
+    const badgeW = ctx.measureText(countBadge).width + 16;
+    drawRoundedRect(ctx, execX + execW - badgeW - 18, execY + 12, badgeW, 18, 9);
+    ctx.fillStyle = isDark ? '#2D302B' : '#F3F4F6';
+    ctx.fill();
+    ctx.fillStyle = isDark ? '#A6ABA1' : '#4B5563';
+    ctx.fillText(countBadge, execX + execW - badgeW - 10, execY + 25);
+
+    // Grid of Pillars: 4 columns
+    const numCols = 4;
+    const pillarColWidth = Math.floor((execW - 36 - (numCols - 1) * 20) / numCols);
+    const rowHeight = 75;
+
+    populatedPillars.forEach((pillar, pIdx) => {
+      const pCol = pIdx % numCols;
+      const pRow = Math.floor(pIdx / numCols);
+      const px = execX + 18 + pCol * (pillarColWidth + 20);
+      const py = execY + 46 + pRow * rowHeight;
+
+      // Pillar Number & Title
+      ctx.fillStyle = isDark ? '#FFFFFF' : '#111827';
+      ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const titleStr = `${pillar.num}. ${pillar.title}`;
+      ctx.fillText(truncateText(ctx, titleStr, pillarColWidth), px, py);
+
+      // Pillar Content snippet
+      ctx.fillStyle = isDark ? '#A6ABA1' : '#4B5563';
+      ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      drawTextWrapped(ctx, pillar.content || '', px, py + 14, pillarColWidth, 13, 2);
+    });
+
+    ctx.restore();
+  }
+
+  // 4. Preload all screen images
   const loadedImages = await Promise.all(screens.map((s) => loadImage(s.previewUrl)));
 
-  // 4. Render each card
+  // 5. Render each card
   for (let i = 0; i < screens.length; i++) {
     const screen = screens[i];
     const img = loadedImages[i];
@@ -165,7 +245,7 @@ async function renderGridCanvas(
     const row = Math.floor(i / cols);
 
     const x = marginX + col * (cardWidth + gap);
-    const y = marginTop + row * (cardHeight + gap);
+    const y = effectiveMarginTop + row * (cardHeight + gap);
 
     // A. Card Chassis / Rounded Box
     ctx.save();
@@ -334,6 +414,46 @@ function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: num
 }
 
 /**
+ * Word wrap text into canvas with max lines
+ */
+function drawTextWrapped(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines: number = 3
+): number {
+  const words = text.split(/\s+/);
+  let line = '';
+  let linesCount = 0;
+  let currentY = y;
+
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line ? `${line} ${words[n]}` : words[n];
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && n > 0) {
+      linesCount++;
+      if (linesCount === maxLines) {
+        ctx.fillText(truncateText(ctx, line.trim(), maxWidth), x, currentY);
+        return linesCount;
+      }
+      ctx.fillText(line.trim(), x, currentY);
+      line = words[n];
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line.trim().length > 0 && linesCount < maxLines) {
+    ctx.fillText(truncateText(ctx, line.trim(), maxWidth), x, currentY);
+    linesCount++;
+  }
+  return linesCount;
+}
+
+/**
  * Download a canvas as a high-res PNG file
  */
 function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {
@@ -372,7 +492,9 @@ export async function exportStoryboardMasterImage(
     title: flowTitle,
     includeActions,
     theme,
-    partLabel: 'Complete Flow'
+    partLabel: 'Complete Flow',
+    context: options?.context,
+    includeContext: options?.includeContext ?? true
   });
 
   const safeName = flowTitle.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
@@ -408,7 +530,9 @@ export async function exportStoryboardInSetsOf10(
       title: flowTitle,
       includeActions,
       theme,
-      partLabel
+      partLabel,
+      context: options?.context,
+      includeContext: options?.includeContext ?? true
     });
 
     const filename = totalSets > 1
@@ -416,5 +540,10 @@ export async function exportStoryboardInSetsOf10(
       : `${safeName}_storyboard.png`;
 
     await downloadCanvasAsPng(canvas, filename);
+
+    // Stagger multi-part downloads to prevent browser anti-spam blocking
+    if (setIdx < totalSets - 1) {
+      await new Promise((r) => setTimeout(r, 1200));
+    }
   }
 }
