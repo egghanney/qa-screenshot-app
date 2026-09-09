@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client';
+import { supabase } from '../../supabase/client';
 import { 
   Feature, 
   ScreenItem, 
@@ -6,7 +6,7 @@ import {
   JourneyEdgeData, 
   KnowledgeItem,
   QATestRun
-} from '@/lib/types';
+} from '../../types';
 import {
   ContextPack,
   ContextPackSchema,

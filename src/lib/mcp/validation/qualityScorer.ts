@@ -10,10 +10,19 @@ import { Charter, QualityGateReport } from '../contracts/schemas';
  * - Coverage Value (15)
  * - Specificity (10)
  */
+export interface QualityScorerOptions {
+  missingInteractiveScreensCount?: number;
+}
+
 export function calculateQualityScore(
   charters: Charter[],
-  qualityGateChecks: QualityGateReport['checks']
-): { score: number; rating: 'Strong' | 'Good' | 'Review' | 'Regenerate' } {
+  qualityGateChecks: QualityGateReport['checks'],
+  options?: QualityScorerOptions
+): {
+  score: number;
+  rating: 'Strong' | 'Good' | 'Review' | 'Regenerate';
+  ceilingApplied?: 'Review' | 'Regenerate';
+} {
   if (!charters || charters.length === 0) {
     return { score: 0, rating: 'Regenerate' };
   }
@@ -57,7 +66,7 @@ export function calculateQualityScore(
     totalScore += 4;
   }
 
-  const finalScore = Math.round(Math.max(0, Math.min(100, totalScore)));
+  let finalScore = Math.round(Math.max(0, Math.min(100, totalScore)));
 
   let rating: 'Strong' | 'Good' | 'Review' | 'Regenerate';
   if (finalScore >= 90) {
@@ -70,5 +79,21 @@ export function calculateQualityScore(
     rating = 'Regenerate';
   }
 
-  return { score: finalScore, rating };
+  // ENFORCE VISUAL EVIDENCE RATING CEILING
+  // A charter generated without seeing critical storyboard evidence cannot claim "Strong" or "Good"
+  let ceilingApplied: 'Review' | 'Regenerate' | undefined;
+  const missingScreens = options?.missingInteractiveScreensCount ?? 0;
+  if (missingScreens >= 2) {
+    rating = 'Regenerate';
+    finalScore = Math.min(55, finalScore);
+    ceilingApplied = 'Regenerate';
+  } else if (missingScreens === 1) {
+    if (rating === 'Strong' || rating === 'Good') {
+      rating = 'Review';
+      finalScore = Math.min(74, finalScore);
+      ceilingApplied = 'Review';
+    }
+  }
+
+  return { score: finalScore, rating, ceilingApplied };
 }

@@ -161,6 +161,7 @@ export function validateCharterSuite(
   }
 
   // --- CHECK 4 Visual Evidence Integrity Calculation ---
+  let missingInteractiveCount = 0;
   const effectiveMeta = metadata || charters[0]?.generation_metadata;
   if (effectiveMeta && effectiveMeta.screenshots_unavailable && effectiveMeta.screenshots_unavailable.length > 0) {
     const unavail = effectiveMeta.screenshots_unavailable;
@@ -173,6 +174,7 @@ export function validateCharterSuite(
       return isUnavail && (s.user_actions.length > 0 || s.observed_behaviour.length > 0);
     });
 
+    missingInteractiveCount = interactiveUnavailable.length;
     if (interactiveUnavailable.length > 0) {
       const penalty = Math.min(30, interactiveUnavailable.length * 10);
       checks.evidence_grounded_claims.score = Math.max(0, checks.evidence_grounded_claims.score - penalty);
@@ -246,13 +248,21 @@ export function validateCharterSuite(
     issues.push('Charters contain too many rigid click-by-click scripts.');
   }
 
-  // Compute final quality score and rating
-  const { score, rating } = calculateQualityScore(charters, checks);
+  // Compute final quality score and rating with ceiling enforcement
+  const { score, rating, ceilingApplied } = calculateQualityScore(charters, checks, {
+    missingInteractiveScreensCount: missingInteractiveCount
+  });
+
+  if (ceilingApplied) {
+    checks.evidence_grounded_claims.details += ` [Quality Rating capped at "${rating}" due to ${missingInteractiveCount} missing interactive screenshot(s)].`;
+    issues.push(`Quality Rating capped at "${rating}" due to visual evidence gap (${missingInteractiveCount} interactive screen(s) unavailable).`);
+  }
 
   const isValid = checks.schema_integrity.passed &&
     checks.required_fields.passed &&
     checks.traceability_sourcing.score >= 80 &&
-    score >= 60;
+    score >= 60 &&
+    rating !== 'Regenerate';
 
   return {
     valid: isValid,

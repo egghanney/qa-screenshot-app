@@ -388,14 +388,29 @@ export function runMultimodalVerificationSuite(): {
     }
   ];
 
-  const gateReport = validateCharterSuite(mockCharters, mockPack, mockCharters[0].generation_metadata);
-  const evidenceScore = gateReport.checks.evidence_grounded_claims.score;
-  const hasDegradedIssue = gateReport.issues.some(i => i.includes('Visual evidence coverage degraded'));
-  const test4Passed = evidenceScore < 100 && hasDegradedIssue;
+  // Test 4: Quality Gate Missing Image Penalty & Rating Ceiling
+  const gateReport1 = validateCharterSuite(mockCharters, mockPack, mockCharters[0].generation_metadata);
+  const evidenceScore1 = gateReport1.checks.evidence_grounded_claims.score;
+  const hasDegradedIssue1 = gateReport1.issues.some(i => i.includes('Visual evidence coverage degraded'));
+  const hasCeilingNote1 = gateReport1.issues.some(i => i.includes('Quality Rating capped at "Review"'));
+  const ceiling1Passed = gateReport1.rating === 'Review' && gateReport1.quality_score <= 74;
+
+  // Critical visual degradation: 2 missing interactive screens -> Capped at Regenerate and invalid
+  const criticalMeta = {
+    ...mockCharters[0].generation_metadata,
+    screenshots_unavailable: [
+      'Screen #1 "Recipient Screen": Missing image URL',
+      'Screen #2 "Review & Confirm": Missing image URL'
+    ]
+  };
+  const gateReport2 = validateCharterSuite(mockCharters, mockPack, criticalMeta);
+  const ceiling2Passed = gateReport2.rating === 'Regenerate' && !gateReport2.valid && gateReport2.quality_score <= 55;
+
+  const test4Passed = evidenceScore1 < 100 && hasDegradedIssue1 && hasCeilingNote1 && ceiling1Passed && ceiling2Passed;
   testResults.push({
-    name: '4. Quality Gate Missing Screenshot Penalty',
+    name: '4. Quality Gate Missing Screenshot Penalty & Rating Ceiling',
     passed: test4Passed,
-    details: `Evidence score penalized to ${evidenceScore}/100, degradation issue recorded: ${hasDegradedIssue}`
+    details: `1 missing screen -> Capped at "${gateReport1.rating}" (score: ${gateReport1.quality_score}); 2 missing screens -> Capped at "${gateReport2.rating}" (valid: ${gateReport2.valid}, score: ${gateReport2.quality_score})`
   });
 
   // Test 5: Metadata Defaults & Schema Integrity
