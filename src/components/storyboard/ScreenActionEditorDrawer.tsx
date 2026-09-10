@@ -14,9 +14,14 @@ import {
   MoveRight, 
   CheckCircle2, 
   Eye, 
-  Layers
+  Layers,
+  ArrowLeft,
+  XCircle,
+  SlidersHorizontal,
+  ExternalLink,
+  CornerUpLeft
 } from 'lucide-react';
-import { StoryboardScreen, ScreenAction } from '@/lib/types';
+import { StoryboardScreen, ScreenAction, ScreenActionRole } from '@/lib/types';
 
 interface ScreenActionEditorDrawerProps {
   isOpen: boolean;
@@ -39,6 +44,7 @@ export function ScreenActionEditorDrawer({
   const [expectedResult, setExpectedResult] = useState('');
   const [newActionText, setNewActionText] = useState('');
   const [newActionType, setNewActionType] = useState<ScreenAction['type']>('tap');
+  const [newActionRole, setNewActionRole] = useState<ScreenActionRole>('sequential');
 
   useEffect(() => {
     if (screen) {
@@ -51,21 +57,28 @@ export function ScreenActionEditorDrawer({
       setExpectedResult(screen.expectedResult || '');
       setNewActionText('');
       setNewActionType('tap');
+      setNewActionRole('sequential');
     }
   }, [screen]);
 
   if (!isOpen || !screen) return null;
 
-  const handleAddAction = () => {
-    if (!newActionText.trim()) return;
+  const handleAddAction = (custom?: Partial<ScreenAction>) => {
+    const text = custom?.description !== undefined ? custom.description.trim() : newActionText.trim();
+    if (!text) return;
+    const role = custom?.role ?? newActionRole;
+    const type = custom?.type ?? newActionType;
     const newAct: ScreenAction = {
       id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       order: actions.length + 1,
-      type: newActionType,
-      description: newActionText.trim()
+      type,
+      role,
+      description: text
     };
     setActions([...actions, newAct]);
-    setNewActionText('');
+    if (!custom) {
+      setNewActionText('');
+    }
   };
 
   const handleDeleteAction = (actionId: string) => {
@@ -247,7 +260,7 @@ export function ScreenActionEditorDrawer({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Layers className="w-3.5 h-3.5 text-neon" />
-                <h4 className="text-xs font-bold text-white">Sequential User Actions ({actions.length})</h4>
+                <h4 className="text-xs font-bold text-white">User Actions & Controls ({actions.length})</h4>
               </div>
               <span className="text-[10px] text-txt-muted">Printed on downloaded storyboard</span>
             </div>
@@ -265,9 +278,28 @@ export function ScreenActionEditorDrawer({
                     className="p-2.5 rounded-xl bg-dark-secondary/70 border border-dark-tertiary flex items-center justify-between gap-2 text-xs group"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="w-4 h-4 rounded-full bg-dark-chassis text-neon text-[10px] font-mono font-bold flex items-center justify-center shrink-0 border border-neon/30">
-                        {idx + 1}
-                      </span>
+                      {/* Role-Specific Badge or Sequence Number */}
+                      {act.role === 'optional' ? (
+                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shrink-0">
+                          <SlidersHorizontal className="w-2.5 h-2.5" />
+                          <span>Opt</span>
+                        </span>
+                      ) : act.role === 'exit' ? (
+                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shrink-0">
+                          <CornerUpLeft className="w-2.5 h-2.5" />
+                          <span>Exit</span>
+                        </span>
+                      ) : act.role === 'link' ? (
+                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/40 flex items-center gap-1 shrink-0">
+                          <ExternalLink className="w-2.5 h-2.5" />
+                          <span>Link</span>
+                        </span>
+                      ) : (
+                        <span className="w-4 h-4 rounded-full bg-dark-chassis text-neon text-[10px] font-mono font-bold flex items-center justify-center shrink-0 border border-neon/30">
+                          {idx + 1}
+                        </span>
+                      )}
+
                       <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-dark-chassis text-txt-secondary border border-dark-tertiary shrink-0">
                         {act.type || 'tap'}
                       </span>
@@ -307,38 +339,128 @@ export function ScreenActionEditorDrawer({
               </div>
             )}
 
-            {/* Add New Action Input Bar */}
-            <div className="p-3 rounded-2xl bg-dark-secondary/60 border border-dark-tertiary space-y-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-txt-muted block">
-                + Add Micro-Action
+            {/* Quick-Add Shortcut Presets */}
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[10px] font-semibold text-txt-muted uppercase tracking-wider block">
+                Quick-Add Screen Controls
               </span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleAddAction({
+                    type: 'tap',
+                    role: 'exit',
+                    description: 'Tap Back button to return to previous screen'
+                  })}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Add Back Navigation Action"
+                >
+                  <ArrowLeft className="w-3 h-3 text-rose-400" />
+                  <span>+ Back Button</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddAction({
+                    type: 'tap',
+                    role: 'exit',
+                    description: 'Tap Close (X) to abort and dismiss modal'
+                  })}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Add Close/Dismiss Action"
+                >
+                  <XCircle className="w-3 h-3 text-rose-400" />
+                  <span>+ Close / Cancel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewActionRole('optional');
+                    setNewActionType('type');
+                    setNewActionText('Add optional note / memo');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Prepare Optional Action"
+                >
+                  <SlidersHorizontal className="w-3 h-3 text-amber-400" />
+                  <span>+ Optional Field</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewActionRole('link');
+                    setNewActionType('tap');
+                    setNewActionText('Tap link: Terms & Conditions / Help');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Prepare Link Action"
+                >
+                  <ExternalLink className="w-3 h-3 text-sky-400" />
+                  <span>+ Secondary Link</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Add New Action Input Bar */}
+            <div className="p-3.5 rounded-2xl bg-dark-secondary/60 border border-dark-tertiary space-y-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-txt-muted block">
+                + Custom Micro-Action
+              </span>
+
+              {/* Interaction Role Tabs */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-txt-muted font-medium block">Interaction Role</span>
+                <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-dark-chassis border border-dark-tertiary">
+                  {[
+                    { role: 'sequential', label: 'Sequential', color: 'text-neon' },
+                    { role: 'optional', label: 'Optional', color: 'text-amber-300' },
+                    { role: 'exit', label: 'Exit / Back', color: 'text-rose-300' },
+                    { role: 'link', label: 'Link', color: 'text-sky-300' }
+                  ].map(({ role, label, color }) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setNewActionRole(role as ScreenActionRole)}
+                      className={`py-1.5 px-1 rounded-lg text-center text-[10px] font-medium transition cursor-pointer truncate ${
+                        newActionRole === role
+                          ? 'bg-dark-secondary text-white font-bold border border-dark-tertiary shadow-sm'
+                          : 'text-txt-muted hover:text-white'
+                      }`}
+                    >
+                      <span className={newActionRole === role ? color : ''}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               
               {/* Action Type Chips */}
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { type: 'tap', label: 'Tap', icon: MousePointer },
-                  { type: 'type', label: 'Type', icon: Keyboard },
-                  { type: 'swipe', label: 'Swipe', icon: MoveRight },
-                  { type: 'verify', label: 'Verify', icon: CheckCircle2 }
-                ].map(({ type, label, icon: Icon }) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setNewActionType(type as any)}
-                    className={`px-2.5 py-1 rounded-pill text-[10px] font-semibold flex items-center gap-1 transition cursor-pointer ${
-                      newActionType === type
-                        ? 'bg-neon text-dark-chassis font-bold'
-                        : 'bg-dark-chassis text-txt-secondary hover:text-white border border-dark-tertiary'
-                    }`}
-                  >
-                    <Icon className="w-2.5 h-2.5" />
-                    <span>{label}</span>
-                  </button>
-                ))}
+              <div className="space-y-1">
+                <span className="text-[10px] text-txt-muted font-medium block">Action Type</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { type: 'tap', label: 'Tap', icon: MousePointer },
+                    { type: 'type', label: 'Type', icon: Keyboard },
+                    { type: 'swipe', label: 'Swipe', icon: MoveRight },
+                    { type: 'verify', label: 'Verify', icon: CheckCircle2 }
+                  ].map(({ type, label, icon: Icon }) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setNewActionType(type as any)}
+                      className={`px-2.5 py-1 rounded-pill text-[10px] font-semibold flex items-center gap-1 transition cursor-pointer ${
+                        newActionType === type
+                          ? 'bg-neon text-dark-chassis font-bold'
+                          : 'bg-dark-chassis text-txt-secondary hover:text-white border border-dark-tertiary'
+                      }`}
+                    >
+                      <Icon className="w-2.5 h-2.5" />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Input & Add button */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pt-1">
                 <input
                   type="text"
                   value={newActionText}
@@ -349,12 +471,20 @@ export function ScreenActionEditorDrawer({
                       handleAddAction();
                     }
                   }}
-                  placeholder={`e.g. ${newActionType === 'type' ? 'Enter "GHS 1.00"' : 'Tap "Confirm & Pay" button'}`}
+                  placeholder={
+                    newActionRole === 'optional'
+                      ? 'e.g. Toggle "Save card for future" or enter memo'
+                      : newActionRole === 'exit'
+                      ? 'e.g. Tap Back arrow or Close "X" to dismiss'
+                      : newActionRole === 'link'
+                      ? 'e.g. Tap "Forgot Password?" or Terms link'
+                      : `e.g. ${newActionType === 'type' ? 'Enter "GHS 1.00"' : 'Tap "Confirm & Pay" button'}`
+                  }
                   className="flex-1 px-3 py-2 rounded-xl bg-dark-chassis border border-dark-tertiary text-xs text-white focus:border-neon focus:outline-none transition"
                 />
                 <button
                   type="button"
-                  onClick={handleAddAction}
+                  onClick={() => handleAddAction()}
                   disabled={!newActionText.trim()}
                   className="px-3.5 py-2 rounded-xl bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
                 >

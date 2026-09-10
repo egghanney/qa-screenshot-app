@@ -412,7 +412,16 @@ export function QuickStoryboardStudioModal({
 
         // Format actions text
         const actionStr = item.actions.length > 0
-          ? item.actions.map((a, idx) => `${idx + 1}. [${a.type || 'tap'}] ${a.description}`).join(' • ')
+          ? item.actions.map((a, idx) => {
+              const prefix = a.role === 'optional'
+                ? '• [Optional]'
+                : a.role === 'exit'
+                ? '⤶ [Exit]'
+                : a.role === 'link'
+                ? '↗ [Link]'
+                : `${idx + 1}.`;
+              return `${prefix} [${a.type || 'tap'}] ${a.description}`;
+            }).join(' • ')
           : `User interactions on ${item.name}`;
 
         await supabase.from('qa_screens').insert({
@@ -1047,9 +1056,23 @@ export function QuickStoryboardStudioModal({
 
                           {/* Action Steps Count Snippet */}
                           {screen.actions && screen.actions.length > 0 ? (
-                            <div className="text-[10px] text-neon flex items-center gap-1">
-                              <Layers className="w-2.5 h-2.5" />
-                              <span>{screen.actions.length} action{screen.actions.length === 1 ? '' : 's'} defined</span>
+                            <div className="text-[10px] text-neon flex items-center gap-1 flex-wrap">
+                              <Layers className="w-2.5 h-2.5 shrink-0" />
+                              <span>
+                                {screen.actions.filter(a => !a.role || a.role === 'sequential').length > 0
+                                  ? `${screen.actions.filter(a => !a.role || a.role === 'sequential').length} step${screen.actions.filter(a => !a.role || a.role === 'sequential').length === 1 ? '' : 's'}`
+                                  : `${screen.actions.length} action${screen.actions.length === 1 ? '' : 's'}`}
+                              </span>
+                              {screen.actions.some(a => a.role === 'optional') && (
+                                <span className="text-amber-300">
+                                  • {screen.actions.filter(a => a.role === 'optional').length} opt
+                                </span>
+                              )}
+                              {screen.actions.some(a => a.role === 'exit' || a.role === 'link') && (
+                                <span className="text-rose-300">
+                                  • {screen.actions.filter(a => a.role === 'exit' || a.role === 'link').length} exit
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-[10px] text-txt-muted block">No actions added</span>

@@ -83,10 +83,13 @@ export interface AIScreenAnalysis {
   confidence: 'CONFIRMED' | 'INFERRED' | 'UNKNOWN';
 }
 
+export type ScreenActionRole = 'sequential' | 'optional' | 'exit' | 'link';
+
 export interface ScreenAction {
   id: string;
   order: number;
   type?: 'tap' | 'type' | 'swipe' | 'verify' | 'scroll' | 'wait' | 'other';
+  role?: ScreenActionRole;
   description: string;
 }
 

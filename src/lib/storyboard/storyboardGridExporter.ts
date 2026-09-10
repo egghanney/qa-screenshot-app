@@ -353,14 +353,23 @@ async function renderGridCanvas(
 
       // Render up to 3 action bullet lines
       const actionsList = (screen.actions && screen.actions.length > 0)
-        ? screen.actions.map(a => a.description)
-        : (screen.name ? [screen.name] : ['Interact with screen elements']);
+        ? screen.actions.map((a, actIdx) => {
+            const prefix = a.role === 'optional'
+              ? '• [Opt]'
+              : a.role === 'exit'
+              ? '⤶ [Exit]'
+              : a.role === 'link'
+              ? '↗ [Link]'
+              : `${actIdx + 1}.`;
+            return `${prefix} ${a.description}`;
+          })
+        : (screen.name ? [`1. ${screen.name}`] : ['1. Interact with screen elements']);
 
       ctx.fillStyle = isDark ? '#A6ABA1' : '#4B5563';
       ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
       actionsList.slice(0, 3).forEach((act, actIdx) => {
-        const bulletText = truncateText(ctx, `${actIdx + 1}. ${act}`, imageWidth);
+        const bulletText = truncateText(ctx, act, imageWidth);
         ctx.fillText(bulletText, imgX, actionStartY + 24 + actIdx * 16);
       });
 
