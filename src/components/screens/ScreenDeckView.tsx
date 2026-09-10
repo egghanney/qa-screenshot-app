@@ -5,7 +5,13 @@ import {
   ScreenItem, 
   ScreenStateType, 
   AIScreenAnalysis,
-  StoryboardExecutiveContext
+  StoryboardExecutiveContext,
+  StoryboardScreen,
+  Feature,
+  KnowledgeItem,
+  KnowledgeCategory,
+  ScreenAction,
+  ScreenActionRole
 } from '@/lib/types';
 import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
@@ -27,22 +33,27 @@ import {
   Layers,
   Camera,
   RefreshCw,
-  Download
+  Download,
+  BookOpen,
+  Sparkles
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { LiveScreenCaptureModal } from '@/components/capture/LiveScreenCaptureModal';
 import { SnappedScreen } from '@/lib/capture/useScreenCapture';
-import { exportStoryboardInSetsOf10, exportStoryboardMasterImage } from '@/lib/storyboard/storyboardGridExporter';
-import { StoryboardScreen } from '@/lib/types';
+import { exportStoryboardInSetsOf10, exportStoryboardMasterImage, computeStepBadges } from '@/lib/storyboard/storyboardGridExporter';
+import { ScreenActionEditorDrawer } from '@/components/storyboard/ScreenActionEditorDrawer';
+import { parseUserActionStringToActions, serializeActionsToUserActionString } from '@/lib/storyboard/actionSerializer';
 
 interface ScreenDeckViewProps {
   screens: ScreenItem[];
   featureId: string;
+  feature?: Feature;
+  knowledgeItems?: KnowledgeItem[];
   onRefresh: () => void;
   onAnalyzeScreen: (screen: ScreenItem) => void;
 }
 
-export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen }: ScreenDeckViewProps) {
+export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, onRefresh, onAnalyzeScreen }: ScreenDeckViewProps) {
   const [selectedScreen, setSelectedScreen] = useState<ScreenItem | null>(screens[0] || null);
   const [expandedInfoId, setExpandedInfoId] = useState<string | null>(screens[0]?.id || null);
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
@@ -153,64 +164,239 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
     }
   };
 
+  // Action Editor Side Drawer State
+  const [selectedScreenForActionEdit, setSelectedScreenForActionEdit] = useState<StoryboardScreen | null>(null);
+
+  // 8-Pillars Executive Blueprint Modal State
+  const [isBlueprintModalOpen, setIsBlueprintModalOpen] = useState(false);
+  const [blueprintContext, setBlueprintContext] = useState<StoryboardExecutiveContext>({});
+  const [isSavingBlueprint, setIsSavingBlueprint] = useState(false);
+
+  // Storyboard Export State
   const [isExportingStoryboard, setIsExportingStoryboard] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [includeActionsInExport, setIncludeActionsInExport] = useState(true);
+  const [includeContextInExport, setIncludeContextInExport] = useState(true);
+
+  const PILLAR_CONFIG: Array<{ key: keyof StoryboardExecutiveContext; category: KnowledgeCategory; label: string; placeholder: string }> = [
+    { key: 'featuresAndServices', category: 'Features & Services', label: '1. Features & Services', placeholder: 'Core user-facing capabilities, checkout steps, payment options...' },
+    { key: 'userTypes', category: 'User Types', label: '2. User Types & Roles', placeholder: 'Target customer personas, guest users, authenticated members...' },
+    { key: 'journeysAndNavigation', category: 'Journeys & Navigation', label: '3. Journeys & Navigation', placeholder: 'Entry routes, deep-link triggers, return paths...' },
+    { key: 'interactionReference', category: 'Interaction & Configuration Reference', label: '4. Interaction & Configuration', placeholder: 'Input controls, touch gestures, carousel swipe, sheet modals...' },
+    { key: 'businessRules', category: 'Business Rules & Constraints', label: '5. Business Rules & Constraints', placeholder: 'Threshold limits, mandatory validation, coupon rules...' },
+    { key: 'systemFailureStates', category: 'System & Failure States', label: '6. System & Failure States', placeholder: 'Offline behavior, connectivity timeout, stockout alerts...' },
+    { key: 'communicationsDependencies', category: 'Communications & Dependencies', label: '7. Communications & Dependencies', placeholder: 'Push notifications, SMS OTP, payment gateway webhooks...' },
+    { key: 'historicalKnowledgeRisk', category: 'Historical Knowledge & Risk', label: '8. Historical Knowledge & Risk', placeholder: 'Known regression points, edge cases, legacy device issues...' }
+  ];
+
+  const openActionEditorForScreen = (scr: ScreenItem) => {
+    const parsedActions = scr.actions && scr.actions.length > 0
+      ? scr.actions
+      : parseUserActionStringToActions(scr.user_action);
+
+    const nestLevel = scr.nest_level ?? (scr.notes?.includes('Level 2') ? 2 : (scr.notes?.includes('Sub-step') || scr.is_sub_screen ? 1 : 0));
+
+    setSelectedScreenForActionEdit({
+      id: scr.id,
+      previewUrl: scr.image_url,
+      name: scr.name,
+      isSubScreen: nestLevel > 0,
+      nestLevel,
+      stepBadge: `#${scr.screen_number}`,
+      actions: parsedActions,
+      expectedResult: scr.expected_behavior || ''
+    });
+  };
+
+  const handleSaveScreenActions = async (updated: StoryboardScreen) => {
+    try {
+      const serializedUserAction = serializeActionsToUserActionString(updated.actions);
+      const updatedNotes = updated.nestLevel === 2
+        ? `Sub-step Level 2 (${updated.stepBadge})`
+        : updated.nestLevel === 1
+        ? `Sub-step (${updated.stepBadge})`
+        : null;
+
+      const { error } = await supabase
+        .from('qa_screens')
+        .update({
+          name: updated.name,
+          user_action: serializedUserAction,
+          expected_behavior: updated.expectedResult || null,
+          notes: updatedNotes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', updated.id);
+
+      if (error) throw error;
+      setSelectedScreenForActionEdit(null);
+      onRefresh();
+    } catch (err: any) {
+      console.error('Failed to save screen actions:', err);
+      alert('Failed to save screen actions. Check console.');
+    }
+  };
+
+  const openBlueprintModal = async () => {
+    const compiled: StoryboardExecutiveContext = {};
+    try {
+      let kData = knowledgeItems;
+      if (!kData || kData.length === 0) {
+        const { data } = await supabase
+          .from('qa_knowledge_items')
+          .select('*')
+          .eq('feature_id', featureId);
+        kData = data || [];
+      }
+
+      if (kData && kData.length > 0) {
+        const catMap: Record<string, string[]> = {};
+        kData.forEach((k: any) => {
+          if (!catMap[k.category]) catMap[k.category] = [];
+          const line = k.title && k.content && k.title !== k.category ? `${k.title}: ${k.content}` : (k.content || k.title);
+          if (line) catMap[k.category].push(line);
+        });
+
+        PILLAR_CONFIG.forEach(cfg => {
+          if (catMap[cfg.category]?.length) {
+            compiled[cfg.key] = catMap[cfg.category].join('\n');
+          }
+        });
+      } else if (feature) {
+        if (feature.description) compiled.featuresAndServices = feature.description;
+        if (feature.purpose) compiled.journeysAndNavigation = feature.purpose;
+      }
+    } catch (e) {
+      console.warn('Error loading blueprint context:', e);
+    }
+    setBlueprintContext(compiled);
+    setIsBlueprintModalOpen(true);
+  };
+
+  const handleSaveBlueprint = async () => {
+    setIsSavingBlueprint(true);
+    try {
+      for (const cfg of PILLAR_CONFIG) {
+        const content = blueprintContext[cfg.key]?.trim();
+        if (content) {
+          const { data: existing } = await supabase
+            .from('qa_knowledge_items')
+            .select('id')
+            .eq('feature_id', featureId)
+            .eq('category', cfg.category)
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            await supabase
+              .from('qa_knowledge_items')
+              .update({
+                content,
+                verification_status: 'Verified',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existing[0].id);
+          } else {
+            await supabase
+              .from('qa_knowledge_items')
+              .insert({
+                feature_id: featureId,
+                category: cfg.category,
+                title: cfg.label.replace(/^\d+\.\s*/, ''),
+                content,
+                source: 'User',
+                confidence: 'CONFIRMED',
+                verification_status: 'Verified'
+              });
+          }
+        }
+      }
+      setIsBlueprintModalOpen(false);
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to save blueprint specifications:', err);
+      alert('Failed to save blueprint specifications. Check console.');
+    } finally {
+      setIsSavingBlueprint(false);
+    }
+  };
 
   const handleExportStoryboard = async (mode: 'sets_of_10' | 'master' = 'master') => {
     if (screens.length === 0) return;
     setIsExportingStoryboard(true);
     setIsExportMenuOpen(false);
     try {
-      const storyboardScreens: StoryboardScreen[] = screens.map((s) => ({
-        id: s.id,
-        previewUrl: s.image_url,
-        name: s.name || `Screen ${s.screen_number}`,
-        isSubScreen: !!s.is_sub_screen,
-        stepBadge: `#${s.screen_number}`,
-        actions: s.actions && s.actions.length > 0
+      const storyboardScreens: StoryboardScreen[] = screens.map((s) => {
+        const parsedActions = s.actions && s.actions.length > 0
           ? s.actions
-          : (s.user_action ? [{ id: '1', order: 1, type: 'tap', description: s.user_action }] : []),
-        expectedResult: s.expected_behavior || ''
-      }));
+          : parseUserActionStringToActions(s.user_action);
 
-      // Fetch knowledge items for this feature to provide executive context
+        const nestLevel = s.nest_level ?? (s.notes?.includes('Level 2') ? 2 : (s.notes?.includes('Sub-step') || s.is_sub_screen ? 1 : 0));
+
+        return {
+          id: s.id,
+          previewUrl: s.image_url,
+          name: s.name || `Screen ${s.screen_number}`,
+          isSubScreen: nestLevel > 0,
+          nestLevel,
+          stepBadge: `#${s.screen_number}`,
+          actions: parsedActions,
+          expectedResult: s.expected_behavior || ''
+        };
+      });
+
+      // Compute hierarchical badges (#1, #1a, #1a.1...)
+      const computedStoryboardScreens = computeStepBadges(storyboardScreens);
+
+      // Fetch and aggregate knowledge items for this feature to provide executive context
       const execContext: StoryboardExecutiveContext = {};
       try {
-        const { data: kData } = await supabase
-          .from('qa_knowledge_items')
-          .select('category, content')
-          .eq('feature_id', featureId);
+        let kData = knowledgeItems;
+        if (!kData || kData.length === 0) {
+          const { data } = await supabase
+            .from('qa_knowledge_items')
+            .select('*')
+            .eq('feature_id', featureId);
+          kData = data || [];
+        }
 
         if (kData && kData.length > 0) {
+          const catMap: Record<string, string[]> = {};
           kData.forEach((k: any) => {
-            if (k.category === 'Features & Services' && !execContext.featuresAndServices) execContext.featuresAndServices = k.content;
-            if (k.category === 'User Types' && !execContext.userTypes) execContext.userTypes = k.content;
-            if (k.category === 'Journeys & Navigation' && !execContext.journeysAndNavigation) execContext.journeysAndNavigation = k.content;
-            if (k.category === 'Interaction & Configuration Reference' && !execContext.interactionReference) execContext.interactionReference = k.content;
-            if (k.category === 'Business Rules & Constraints' && !execContext.businessRules) execContext.businessRules = k.content;
-            if (k.category === 'System & Failure States' && !execContext.systemFailureStates) execContext.systemFailureStates = k.content;
-            if (k.category === 'Communications & Dependencies' && !execContext.communicationsDependencies) execContext.communicationsDependencies = k.content;
-            if (k.category === 'Historical Knowledge & Risk' && !execContext.historicalKnowledgeRisk) execContext.historicalKnowledgeRisk = k.content;
+            if (!catMap[k.category]) catMap[k.category] = [];
+            const line = k.title && k.content && k.title !== k.category ? `${k.title}: ${k.content}` : (k.content || k.title);
+            if (line) catMap[k.category].push(line);
           });
+
+          PILLAR_CONFIG.forEach(cfg => {
+            if (catMap[cfg.category]?.length) {
+              execContext[cfg.key] = catMap[cfg.category].join('\n');
+            }
+          });
+        } else if (feature) {
+          if (feature.description) execContext.featuresAndServices = feature.description;
+          if (feature.purpose) execContext.journeysAndNavigation = feature.purpose;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Error extracting knowledge for export:', e);
+      }
+
+      const flowTitle = feature?.name ? `${feature.name} Storyboard Flow` : 'Screen Journey Deck Flow';
 
       if (mode === 'sets_of_10') {
-        await exportStoryboardInSetsOf10(storyboardScreens, {
-          title: 'Screen Journey Deck Flow',
+        await exportStoryboardInSetsOf10(computedStoryboardScreens, {
+          title: flowTitle,
           includeActions: includeActionsInExport,
           theme: 'light',
           context: execContext,
-          includeContext: true
+          includeContext: includeContextInExport
         });
       } else {
-        await exportStoryboardMasterImage(storyboardScreens, {
-          title: 'Screen Journey Deck Flow',
+        await exportStoryboardMasterImage(computedStoryboardScreens, {
+          title: flowTitle,
           includeActions: includeActionsInExport,
           theme: 'light',
           context: execContext,
-          includeContext: true
+          includeContext: includeContextInExport
         });
       }
     } catch (err) {
@@ -366,6 +552,16 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <button
             type="button"
+            onClick={openBlueprintModal}
+            className="px-3.5 py-1.5 rounded-pill bg-clinical-warm hover:bg-clinical-border text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-xs active:scale-95 cursor-pointer border border-clinical-border"
+            title="View and edit the 8 Core Product & QA Blueprint Pillars for this feature"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-neon" />
+            <span>Edit 8 Blueprint Pillars</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsLiveCaptureOpen(true)}
             disabled={isUploadingCaptures}
             className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs active:scale-95 cursor-pointer disabled:opacity-50"
@@ -443,7 +639,7 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                   </p>
                 </button>
 
-                <div className="pt-2 border-t border-dark-secondary flex items-center justify-between px-1">
+                <div className="pt-2 border-t border-dark-secondary flex flex-col gap-1.5 px-1">
                   <label className="text-[11px] text-txt-secondary cursor-pointer flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -451,7 +647,16 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                       onChange={(e) => setIncludeActionsInExport(e.target.checked)}
                       className="rounded accent-neon"
                     />
-                    <span>Print User Actions & Results</span>
+                    <span>Print User Actions & Roles</span>
+                  </label>
+                  <label className="text-[11px] text-txt-secondary cursor-pointer flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={includeContextInExport}
+                      onChange={(e) => setIncludeContextInExport(e.target.checked)}
+                      className="rounded accent-neon"
+                    />
+                    <span>Print 8-Pillar Executive Matrix</span>
                   </label>
                 </div>
               </div>
@@ -558,15 +763,22 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                     {/* Overlay Action Pills */}
                     <div className="absolute inset-0 bg-dark-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 gap-1.5">
                       <button
+                        onClick={(e) => { e.stopPropagation(); openActionEditorForScreen(scr); }}
+                        className="w-full py-1 px-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-[10px] font-bold flex items-center justify-center gap-1 shadow cursor-pointer"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        Edit Actions & Steps
+                      </button>
+                      <button
                         onClick={(e) => { e.stopPropagation(); startRedactionModal(scr); }}
-                        className="w-full py-1 px-2 rounded-pill bg-clinical-white/95 hover:bg-clinical-white text-dark-chassis text-[10px] font-medium flex items-center justify-center gap-1 shadow"
+                        className="w-full py-1 px-2 rounded-pill bg-clinical-white/95 hover:bg-clinical-white text-dark-chassis text-[10px] font-medium flex items-center justify-center gap-1 shadow cursor-pointer"
                       >
                         <Shield className="w-3 h-3 text-status-critical" />
                         Mask Sensitive Data
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onAnalyzeScreen(scr); }}
-                        className="w-full py-1 px-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-[10px] font-bold flex items-center justify-center gap-1 shadow"
+                        className="w-full py-1 px-2 rounded-pill bg-clinical-warm hover:bg-clinical-white text-dark-chassis text-[10px] font-semibold flex items-center justify-center gap-1 shadow cursor-pointer"
                       >
                         <BrainCircuit className="w-3 h-3" />
                         AI Analyze Screen
@@ -613,10 +825,109 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                   )}
                 </div>
 
-                {/* Transition Action Preview */}
-                <div className="px-3 py-1 text-[11px] text-txt-secondary line-clamp-2">
-                  <span className="font-semibold text-dark-chassis">Action:</span> {scr.user_action || 'Pending action...'}
-                </div>
+                {/* Structured Actions & Interactions Preview */}
+                {(() => {
+                  const cardActions = scr.actions && scr.actions.length > 0
+                    ? scr.actions
+                    : parseUserActionStringToActions(scr.user_action);
+
+                  return (
+                    <div className="px-3 py-1.5 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-dark-chassis tracking-tight">
+                          <Layers className="w-3 h-3 text-neon" />
+                          <span>ACTIONS</span>
+                          {cardActions.length > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-clinical-warm text-dark-chassis font-mono text-[9px] border border-clinical-border font-semibold">
+                              {cardActions.filter(a => !a.role || a.role === 'sequential').length > 0
+                                ? `${cardActions.filter(a => !a.role || a.role === 'sequential').length} step${cardActions.filter(a => !a.role || a.role === 'sequential').length === 1 ? '' : 's'}`
+                                : `${cardActions.length} action${cardActions.length === 1 ? '' : 's'}`}
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openActionEditorForScreen(scr);
+                          }}
+                          className="text-[10px] text-neon hover:text-neon-bright font-bold flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-dark-chassis transition cursor-pointer"
+                          title="Open Action Editor Side Drawer"
+                        >
+                          <Edit3 className="w-2.5 h-2.5" />
+                          <span>Edit</span>
+                        </button>
+                      </div>
+
+                      {cardActions.length === 0 ? (
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openActionEditorForScreen(scr);
+                          }}
+                          className="p-2 rounded-lg bg-clinical-warm/60 border border-dashed border-clinical-border text-[10px] text-txt-muted hover:border-dark-chassis hover:text-dark-chassis cursor-pointer transition flex items-center justify-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add interaction steps...</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {cardActions.slice(0, 3).map((act, actIdx) => (
+                            <div 
+                              key={act.id || actIdx}
+                              className="flex items-start gap-1.5 text-[10px] p-1 rounded-md bg-clinical-warm/60 border border-clinical-border/60"
+                            >
+                              {/* Role Badge */}
+                              {act.role === 'optional' ? (
+                                <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0 uppercase">
+                                  OPT
+                                </span>
+                              ) : act.role === 'exit' ? (
+                                <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-rose-100 text-rose-800 border border-rose-300 shrink-0 uppercase">
+                                  EXIT ⤶
+                                </span>
+                              ) : act.role === 'link' ? (
+                                <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-sky-100 text-sky-800 border border-sky-300 shrink-0 uppercase">
+                                  LINK ↗
+                                </span>
+                              ) : (
+                                <span className="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-dark-chassis text-neon shrink-0">
+                                  #{actIdx + 1}
+                                </span>
+                              )}
+
+                              {/* Section Tag */}
+                              {act.section && (
+                                <span className="px-1 py-0.2 rounded text-[8px] font-medium bg-clinical-white text-txt-secondary border border-clinical-border shrink-0 truncate max-w-[80px]">
+                                  {act.section}
+                                </span>
+                              )}
+
+                              {/* Description */}
+                              <span className="text-dark-chassis truncate flex-1 font-medium leading-tight">
+                                {act.description}
+                              </span>
+                            </div>
+                          ))}
+
+                          {cardActions.length > 3 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openActionEditorForScreen(scr);
+                              }}
+                              className="text-[9px] font-semibold text-neon hover:underline block text-left pt-0.5 cursor-pointer"
+                            >
+                              + {cardActions.length - 3} more action{cardActions.length - 3 === 1 ? '' : 's'}...
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Expandable Info Toggle */}
                 <div className="p-3 pt-2 mt-auto border-t border-clinical-border/60 flex items-center justify-between text-xs">
@@ -650,29 +961,66 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                 </div>
 
                 {/* Expanded Information Panel */}
-                {isExpanded && (
-                  <div className="p-3 bg-clinical-warm border-t border-clinical-border text-xs space-y-2 rounded-b-2xl">
-                    <div>
-                      <label className="text-[10px] font-semibold text-txt-secondary block">User Action</label>
-                      <input
-                        type="text"
-                        defaultValue={scr.user_action || ''}
-                        onBlur={(e) => handleUpdateScreen(scr.id, { user_action: e.target.value })}
-                        className="w-full px-2 py-1 bg-clinical-white border border-clinical-border rounded text-[11px]"
-                        placeholder="e.g. User taps Continue"
-                      />
-                    </div>
+                {isExpanded && (() => {
+                  const cardActions = scr.actions && scr.actions.length > 0
+                    ? scr.actions
+                    : parseUserActionStringToActions(scr.user_action);
 
-                    <div>
-                      <label className="text-[10px] font-semibold text-txt-secondary block">Expected Response</label>
-                      <input
-                        type="text"
-                        defaultValue={scr.expected_behavior || ''}
-                        onBlur={(e) => handleUpdateScreen(scr.id, { expected_behavior: e.target.value })}
-                        className="w-full px-2 py-1 bg-clinical-white border border-clinical-border rounded text-[11px]"
-                        placeholder="e.g. System validates and proceeds"
-                      />
-                    </div>
+                  return (
+                    <div className="p-3 bg-clinical-warm border-t border-clinical-border text-xs space-y-3 rounded-b-2xl">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[10px] font-bold text-dark-chassis">Interaction Steps & Roles ({cardActions.length})</label>
+                          <button
+                            type="button"
+                            onClick={() => openActionEditorForScreen(scr)}
+                            className="text-[10px] font-bold text-neon hover:text-neon-bright flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="w-2.5 h-2.5" />
+                            <span>Manage in Drawer</span>
+                          </button>
+                        </div>
+
+                        {cardActions.length === 0 ? (
+                          <p className="text-[11px] text-txt-muted italic">No interaction steps defined yet.</p>
+                        ) : (
+                          <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                            {cardActions.map((act, actIdx) => (
+                              <div key={act.id || actIdx} className="flex items-center gap-1.5 text-[10px] p-1 bg-clinical-white rounded border border-clinical-border">
+                                <span className="font-mono font-bold text-dark-chassis shrink-0">#{actIdx + 1}</span>
+                                {act.role && act.role !== 'sequential' && (
+                                  <span className="text-[8px] uppercase font-bold text-txt-muted">[{act.role}]</span>
+                                )}
+                                {act.section && (
+                                  <span className="text-[8px] font-semibold text-txt-secondary bg-clinical-warm px-1 rounded">[{act.section}]</span>
+                                )}
+                                <span className="text-[9px] font-mono text-txt-muted">[{act.type || 'tap'}]</span>
+                                <span className="truncate flex-1 font-medium">{act.description}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => openActionEditorForScreen(scr)}
+                          className="mt-2 w-full py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-[10px] font-bold flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add / Edit Steps in Action Drawer</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-dark-chassis block mb-1">Expected System Response</label>
+                        <input
+                          type="text"
+                          defaultValue={scr.expected_behavior || ''}
+                          onBlur={(e) => handleUpdateScreen(scr.id, { expected_behavior: e.target.value })}
+                          className="w-full px-2.5 py-1.5 bg-clinical-white border border-clinical-border rounded text-[11px]"
+                          placeholder="e.g. System validates and proceeds"
+                        />
+                      </div>
 
                     {/* AI Findings Tags if analyzed */}
                     {scr.ai_analysis && (
@@ -694,7 +1042,8 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
                       </div>
                     )}
                   </div>
-                )}
+                );
+              })()}
 
               </div>
             );
@@ -767,6 +1116,95 @@ export function ScreenDeckView({ screens, featureId, onRefresh, onAnalyzeScreen 
         title="Live Screen Capture Studio"
         description="Share your iOS Simulator, Android Emulator, or Web App to snap live screens directly into this deck."
       />
+
+      {/* Screen Action Editor Side Drawer */}
+      <ScreenActionEditorDrawer
+        isOpen={!!selectedScreenForActionEdit}
+        screen={selectedScreenForActionEdit}
+        onClose={() => setSelectedScreenForActionEdit(null)}
+        onSave={handleSaveScreenActions}
+        onDelete={(screenId) => {
+          deleteScreen(screenId);
+          setSelectedScreenForActionEdit(null);
+        }}
+      />
+
+      {/* Executive 8-Pillar Blueprint Modal */}
+      {isBlueprintModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-black/80 backdrop-blur-md">
+          <div className="bg-clinical-surface rounded-[28px] border border-clinical-border shadow-modal max-w-4xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-clinical-border pb-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-dark-chassis text-neon flex items-center justify-center font-bold">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-dark-chassis">8 Core Product & QA Blueprint Pillars</h3>
+                  <p className="text-xs text-txt-secondary">
+                    Feature-level specifications automatically synced into your QA Knowledge Base and printed on exported Storyboards.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsBlueprintModalOpen(false)} 
+                className="text-txt-muted hover:text-dark-chassis p-1 rounded-lg hover:bg-clinical-warm transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {PILLAR_CONFIG.map((pillar) => (
+                <div key={pillar.key} className="p-3 bg-clinical-white rounded-2xl border border-clinical-border space-y-1.5 flex flex-col">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-dark-chassis text-xs flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-neon shrink-0" />
+                      <span>{pillar.label}</span>
+                    </label>
+                    <span className="text-[10px] font-mono text-txt-muted">Pillar</span>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={blueprintContext[pillar.key] || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBlueprintContext(prev => ({ ...prev, [pillar.key]: val }));
+                    }}
+                    placeholder={pillar.placeholder}
+                    className="flex-1 w-full p-2.5 rounded-xl bg-clinical-warm border border-clinical-border text-dark-chassis text-xs leading-relaxed focus:outline-none focus:border-dark-chassis resize-none"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-clinical-border shrink-0">
+              <span className="text-[11px] text-txt-muted hidden sm:inline">
+                Specifications are saved directly to <code className="font-mono bg-clinical-warm px-1 rounded">qa_knowledge_items</code>.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsBlueprintModalOpen(false)}
+                  className="min-h-[40px] px-4 py-2 rounded-pill text-xs font-semibold border border-clinical-border bg-clinical-white text-dark-chassis hover:bg-clinical-warm transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveBlueprint}
+                  disabled={isSavingBlueprint}
+                  className="min-h-[40px] px-5 py-2 rounded-pill text-xs font-bold bg-neon hover:bg-neon-bright text-dark-chassis shadow-card transition active:scale-95 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingBlueprint ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  )}
+                  <span>{isSavingBlueprint ? 'Saving Specifications...' : 'Save Blueprint Specifications'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

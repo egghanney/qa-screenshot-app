@@ -762,6 +762,8 @@ function MainAppContent() {
               <ScreenDeckView
                 screens={screens}
                 featureId={feature.id}
+                feature={feature}
+                knowledgeItems={knowledge}
                 onRefresh={() => loadFeatureData(feature.id)}
                 onAnalyzeScreen={handleAnalyzeScreen}
               />

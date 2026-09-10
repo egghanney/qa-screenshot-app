@@ -45,6 +45,45 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
   const [newContent, setNewContent] = useState('');
   const [newConfidence, setNewConfidence] = useState<ConfidenceLevel>('CONFIRMED');
 
+  // Edit Row Modal
+  const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
+  const [editCategory, setEditCategory] = useState<KnowledgeCategory>('Business Rules & Constraints');
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editConfidence, setEditConfidence] = useState<ConfidenceLevel>('CONFIRMED');
+  const [editStatus, setEditStatus] = useState<VerificationStatus>('Verified');
+  const [editNotes, setEditNotes] = useState('');
+
+  const handleStartEdit = (item: KnowledgeItem) => {
+    setEditingItem(item);
+    setEditCategory(item.category);
+    setEditTitle(item.title);
+    setEditContent(item.content);
+    setEditConfidence(item.confidence);
+    setEditStatus(item.verification_status);
+    setEditNotes(item.notes || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem || !editTitle.trim() || !editContent.trim()) return;
+    try {
+      await supabase.from('qa_knowledge_items').update({
+        category: editCategory,
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        confidence: editConfidence,
+        verification_status: editStatus,
+        notes: editNotes.trim() || null,
+        updated_at: new Date().toISOString()
+      }).eq('id', editingItem.id);
+      setEditingItem(null);
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to update knowledge item:', err);
+      alert('Failed to update knowledge item. Check console.');
+    }
+  };
+
   const categories: KnowledgeCategory[] = [
     'Features & Services',
     'User Types',
@@ -317,6 +356,13 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
                   <td className="py-3 px-4 align-top text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition">
                       <button
+                        onClick={() => handleStartEdit(item)}
+                        className="p-1.5 rounded-pill bg-clinical-warm hover:bg-neon/20 text-dark-chassis transition"
+                        title="Edit Knowledge Item"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => handleUpdateStatus(item.id, 'Verified')}
                         className="p-1.5 rounded-pill bg-clinical-warm hover:bg-status-positive/20 text-dark-chassis transition"
                         title="Mark Verified"
@@ -403,6 +449,14 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
 
               {/* Mobile Pill Actions with touch targets & 100% pill integrity */}
               <div className="flex items-center gap-2 pt-2 border-t border-clinical-border/40">
+                <button
+                  onClick={() => handleStartEdit(item)}
+                  className="min-h-[44px] px-3.5 py-2 rounded-pill text-xs font-semibold bg-clinical-warm hover:bg-neon/20 text-dark-chassis border border-clinical-border flex items-center justify-center gap-1.5 transition active:scale-95"
+                  title="Edit Specification"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-dark-chassis" />
+                  <span>Edit</span>
+                </button>
                 <button
                   onClick={() => handleUpdateStatus(item.id, item.verification_status === 'Verified' ? 'Needs Confirmation' : 'Verified')}
                   className={`flex-1 min-h-[44px] px-3 py-2 rounded-pill text-xs font-bold border flex items-center justify-center gap-1.5 transition active:scale-95 ${
@@ -512,6 +566,121 @@ export function KnowledgeBaseView({ items, feature, onRefresh, onGenerateKnowled
                 className="min-h-[44px] px-5 py-2 rounded-pill text-xs font-bold bg-neon hover:bg-neon-bright text-dark-chassis shadow-card transition active:scale-95"
               >
                 Save Knowledge Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Knowledge Item Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-black/70 backdrop-blur-sm">
+          <div className="bg-clinical-surface rounded-[28px] border border-clinical-border shadow-modal max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-clinical-border pb-3">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-neon" />
+                <h3 className="text-sm font-bold text-dark-chassis">Edit Knowledge Specification</h3>
+              </div>
+              <button onClick={() => setEditingItem(null)} className="text-txt-muted hover:text-dark-chassis">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs max-h-[70vh] overflow-y-auto pr-1">
+              <div>
+                <label className="font-semibold block mb-1">Knowledge Category (8 Core Pillars)</label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value as any)}
+                  className="w-full p-2.5 rounded-xl bg-clinical-white border border-clinical-border font-medium text-dark-chassis"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. KYC Limit Tier 1"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-clinical-white border border-clinical-border font-semibold text-dark-chassis"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Specification / Content</label>
+                <textarea
+                  rows={4}
+                  placeholder="Exact confirmed specification, requirement, or business rule..."
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-clinical-white border border-clinical-border leading-relaxed text-dark-chassis"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Anti-Hallucination Confidence</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(['CONFIRMED', 'INFERRED', 'UNKNOWN'] as ConfidenceLevel[]).map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setEditConfidence(c)}
+                        className={`px-2.5 py-1 rounded-pill text-[11px] font-bold border transition ${
+                          editConfidence === c 
+                            ? 'bg-dark-chassis text-neon border-dark-chassis shadow-xs' 
+                            : 'bg-clinical-white text-txt-secondary border-clinical-border hover:bg-clinical-warm'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold block mb-1">Verification Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    className="w-full p-2 rounded-xl bg-clinical-white border border-clinical-border text-xs font-semibold"
+                  >
+                    <option value="Verified">Verified</option>
+                    <option value="Needs Confirmation">Needs Confirmation</option>
+                    <option value="Flagged">Flagged</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Notes / Audit Trace (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Updated from client requirement change"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-clinical-white border border-clinical-border text-txt-muted italic"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-clinical-border">
+              <button
+                onClick={() => setEditingItem(null)}
+                className="min-h-[44px] px-4 py-2 rounded-pill text-xs font-semibold border border-clinical-border bg-clinical-white text-dark-chassis hover:bg-clinical-warm transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="min-h-[44px] px-5 py-2 rounded-pill text-xs font-bold bg-neon hover:bg-neon-bright text-dark-chassis shadow-card transition active:scale-95 flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Save Changes</span>
               </button>
             </div>
           </div>
