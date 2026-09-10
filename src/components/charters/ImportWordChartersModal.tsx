@@ -5,6 +5,7 @@ import {
   X, 
   Upload, 
   FileText, 
+  FileSpreadsheet,
   Sparkles, 
   Layers, 
   CheckCircle2, 
@@ -18,9 +19,10 @@ import {
   Edit3, 
   RotateCcw,
   Check,
-  Info
+  Info,
+  ExternalLink
 } from 'lucide-react';
-import { Feature, Project, GeneratedCharter, ScenarioCategory } from '@/lib/types';
+import { Feature, Project, GeneratedCharter, ScenarioCategory, ScenarioStatus } from '@/lib/types';
 import { getStoredGeminiApiKey } from '@/lib/settings';
 import { supabase } from '@/lib/supabase/client';
 
@@ -42,10 +44,12 @@ export function ImportWordChartersModal({
   onOpenRunner
 }: ImportWordChartersModalProps) {
   const [file, setFile] = useState<File | null>(null);
+  const [fileType, setFileType] = useState<'excel' | 'word' | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [charters, setCharters] = useState<GeneratedCharter[]>([]);
   const [extractionMode, setExtractionMode] = useState<'gemini' | 'deterministic' | null>(null);
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [expandedCharterIdx, setExpandedCharterIdx] = useState<number | null>(0);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -54,15 +58,24 @@ export function ImportWordChartersModal({
 
   if (!isOpen) return null;
 
+  const validateAndSetFile = (selected: File) => {
+    const lower = selected.name.toLowerCase();
+    const isXls = lower.endsWith('.xlsx') || lower.endsWith('.xls');
+    const isDoc = lower.endsWith('.docx');
+
+    if (!isXls && !isDoc) {
+      setExtractError('Please select a valid Excel spreadsheet (.xlsx, .xls) or Word document (.docx).');
+      return;
+    }
+
+    setFile(selected);
+    setFileType(isXls ? 'excel' : 'word');
+    setExtractError(null);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const selected = e.target.files[0];
-      if (!selected.name.toLowerCase().endsWith('.docx')) {
-        setExtractError('Please select a valid Word document with a .docx extension.');
-        return;
-      }
-      setFile(selected);
-      setExtractError(null);
+      validateAndSetFile(e.target.files[0]);
     }
   };
 
@@ -70,13 +83,7 @@ export function ImportWordChartersModal({
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropped = e.dataTransfer.files[0];
-      if (!dropped.name.toLowerCase().endsWith('.docx')) {
-        setExtractError('Please drop a valid Word document (.docx).');
-        return;
-      }
-      setFile(dropped);
-      setExtractError(null);
+      validateAndSetFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -110,10 +117,12 @@ export function ImportWordChartersModal({
       }
 
       setCharters(data.charters || []);
-      setExtractionMode(data.extractionMode || 'gemini');
+      setExtractionMode(data.extractionMode || (fileType === 'excel' ? 'deterministic' : 'gemini'));
+      if (data.fileType) setFileType(data.fileType);
+      if (data.sheetNames) setSheetNames(data.sheetNames);
       setExpandedCharterIdx(0);
     } catch (err: any) {
-      console.error('Word extraction error:', err);
+      console.error('Extraction error:', err);
       setExtractError(err.message || 'An error occurred during extraction.');
     } finally {
       setIsExtracting(false);
@@ -122,9 +131,11 @@ export function ImportWordChartersModal({
 
   const handleReset = () => {
     setFile(null);
+    setFileType(null);
     setCharters([]);
     setExtractError(null);
     setExtractionMode(null);
+    setSheetNames([]);
     setExpandedCharterIdx(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -229,7 +240,7 @@ export function ImportWordChartersModal({
           .insert({
             project_id: projectId,
             feature_id: featureId,
-            charter_code: c.charter_code || `DOC-${String(i + 1).padStart(2, '0')}`,
+            charter_code: c.charter_code || `ET-${String(i + 1).padStart(2, '0')}`,
             title: c.title || 'Imported Charter',
             mission: c.mission || '',
             user_persona: c.user_persona || 'Customer',
@@ -250,9 +261,9 @@ export function ImportWordChartersModal({
             prompt_id: s.prompt_id || `P-${sIdx + 1}`,
             prompt_text: s.prompt_text || '',
             category: s.category || 'Golden Path',
-            status: 'Untested',
-            observations: '',
-            media_url: '',
+            status: s.status || 'Untested',
+            observations: s.observations || '',
+            media_url: s.media_url || '',
             sort_order: sIdx
           }));
 
@@ -292,21 +303,30 @@ export function ImportWordChartersModal({
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-clinical-border bg-slate-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-              <FileText className="w-5 h-5" />
+            <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${
+              fileType === 'excel' 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
+                : 'bg-blue-50 border-blue-200 text-blue-600'
+            }`}>
+              {fileType === 'excel' ? <FileSpreadsheet className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold tracking-tight">Import Charters from Word (.docx)</h2>
-                {extractionMode && (
+                <h2 className="text-base font-extrabold tracking-tight">Import Charters (Excel / Word)</h2>
+                {fileType === 'excel' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 bg-emerald-50 text-emerald-700 border-emerald-300">
+                    <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                    Excel Deterministic Parse
+                  </span>
+                ) : extractionMode ? (
                   <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 ${
                     extractionMode === 'gemini' 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                      ? 'bg-purple-50 text-purple-700 border-purple-300' 
                       : 'bg-amber-50 text-amber-700 border-amber-300'
                   }`}>
                     {extractionMode === 'gemini' ? (
                       <>
-                        <Sparkles className="w-3 h-3 text-emerald-600" />
+                        <Sparkles className="w-3 h-3 text-purple-600" />
                         AI Synthesized
                       </>
                     ) : (
@@ -316,10 +336,10 @@ export function ImportWordChartersModal({
                       </>
                     )}
                   </span>
-                )}
+                ) : null}
               </div>
               <p className="text-xs text-txt-muted">
-                Extract requirements, test scenarios, and heuristics directly into executable exploratory test charters.
+                Extract requirements, heuristics, and test scenarios from your Excel spreadsheets (.xlsx, .xls) or Word specifications (.docx).
               </p>
             </div>
           </div>
@@ -353,7 +373,9 @@ export function ImportWordChartersModal({
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition flex flex-col items-center justify-center gap-3 ${
                   file
-                    ? 'border-blue-500 bg-blue-50/30'
+                    ? fileType === 'excel'
+                      ? 'border-emerald-500 bg-emerald-50/30'
+                      : 'border-blue-500 bg-blue-50/30'
                     : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50/50 bg-slate-50/20'
                 }`}
               >
@@ -361,28 +383,40 @@ export function ImportWordChartersModal({
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
-                  accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".xlsx,.xls,.docx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   className="hidden"
                 />
 
-                <div className="w-14 h-14 rounded-2xl bg-blue-100/70 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
-                  {file ? <FileText className="w-7 h-7" /> : <Upload className="w-7 h-7" />}
+                <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center shadow-xs ${
+                  fileType === 'excel'
+                    ? 'bg-emerald-100/70 border-emerald-200 text-emerald-600'
+                    : fileType === 'word'
+                    ? 'bg-blue-100/70 border-blue-200 text-blue-600'
+                    : 'bg-slate-100 border-slate-200 text-slate-500'
+                }`}>
+                  {fileType === 'excel' ? (
+                    <FileSpreadsheet className="w-7 h-7" />
+                  ) : fileType === 'word' ? (
+                    <FileText className="w-7 h-7" />
+                  ) : (
+                    <Upload className="w-7 h-7" />
+                  )}
                 </div>
 
                 {file ? (
                   <div className="space-y-1">
                     <p className="text-sm font-bold text-dark-chassis">{file.name}</p>
                     <p className="text-xs text-txt-muted">
-                      {(file.size / 1024).toFixed(1)} KB • Ready to extract
+                      {(file.size / 1024).toFixed(1)} KB • {fileType === 'excel' ? 'Excel Spreadsheet' : 'Word Document'} • Ready to extract
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-1">
                     <p className="text-sm font-bold text-dark-chassis">
-                      Click to upload or drag & drop your Word document
+                      Click to upload or drag &amp; drop your Excel or Word file
                     </p>
                     <p className="text-xs text-txt-muted">
-                      Supports Word (.docx) specifications, QA test plans, PRDs, and charter notes
+                      Supports Excel workbooks (<strong>.xlsx</strong>, <strong>.xls</strong>) and Word documents (<strong>.docx</strong>)
                     </p>
                   </div>
                 )}
@@ -418,17 +452,27 @@ export function ImportWordChartersModal({
                   <button
                     onClick={handleExtractCharters}
                     disabled={isExtracting}
-                    className="px-5 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-50"
+                    className={`px-5 py-2.5 rounded-pill text-xs font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-50 ${
+                      fileType === 'excel'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-neon hover:bg-neon-bright text-dark-chassis'
+                    }`}
                   >
                     {isExtracting ? (
                       <>
-                        <Sparkles className="w-4 h-4 animate-spin text-dark-chassis" />
-                        Extracting &amp; Synthesizing Charters...
+                        <Sparkles className="w-4 h-4 animate-spin" />
+                        Extracting Charters...
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 text-dark-chassis" />
-                        Extract Charters with AI
+                        {fileType === 'excel' ? (
+                          <FileSpreadsheet className="w-4 h-4" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        <span>
+                          {fileType === 'excel' ? 'Extract Charters from Excel' : 'Extract Charters with AI'}
+                        </span>
                       </>
                     )}
                   </button>
@@ -441,12 +485,17 @@ export function ImportWordChartersModal({
               <div className="flex items-center justify-between pb-1 border-b border-clinical-border">
                 <div className="flex items-center gap-2 text-xs text-txt-muted">
                   <span>
-                    Found <strong className="text-dark-chassis">{charters.length}</strong> charters with{' '}
+                    Found <strong className="text-dark-chassis">{charters.length}</strong> charter{charters.length !== 1 ? 's' : ''} with{' '}
                     <strong className="text-dark-chassis">
                       {charters.reduce((acc, c) => acc + (c.scenarios?.length || 0), 0)}
                     </strong>{' '}
                     total exploration scenarios
                   </span>
+                  {sheetNames.length > 1 && (
+                    <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">
+                      across {sheetNames.length} sheets
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -480,7 +529,7 @@ export function ImportWordChartersModal({
                       >
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <span className="font-mono text-xs font-bold text-dark-secondary bg-slate-200/80 px-2 py-0.5 rounded-md">
-                            {charter.charter_code || `DOC-${cIdx + 1}`}
+                            {charter.charter_code || `ET-${cIdx + 1}`}
                           </span>
                           <span className="font-bold text-xs text-dark-chassis truncate">
                             {charter.title}
@@ -589,43 +638,93 @@ export function ImportWordChartersModal({
                               </button>
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-2.5">
                               {charter.scenarios.map((scenario, sIdx) => (
                                 <div 
                                   key={sIdx}
-                                  className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-2"
+                                  className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col gap-2"
                                 >
-                                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                                    <span className="font-mono text-[10px] text-txt-muted px-1.5 py-0.5 rounded bg-white border border-slate-200 shrink-0">
-                                      {scenario.prompt_id || `P-${sIdx + 1}`}
-                                    </span>
-                                    <select
-                                      value={scenario.category}
-                                      onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'category', e.target.value as ScenarioCategory)}
-                                      className="text-[11px] font-medium px-2 py-1 border border-slate-200 rounded bg-white text-dark-chassis outline-hidden shrink-0"
+                                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                                      <span className="font-mono text-[10px] text-txt-muted px-1.5 py-0.5 rounded bg-white border border-slate-200 shrink-0">
+                                        {scenario.prompt_id || `P-${sIdx + 1}`}
+                                      </span>
+                                      <select
+                                        value={scenario.category}
+                                        onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'category', e.target.value as ScenarioCategory)}
+                                        className="text-[11px] font-medium px-2 py-1 border border-slate-200 rounded bg-white text-dark-chassis outline-hidden shrink-0"
+                                      >
+                                        <option value="Golden Path">Golden Path</option>
+                                        <option value="Alternative Flow">Alternative Flow</option>
+                                        <option value="Boundary & Edge">Boundary &amp; Edge</option>
+                                        <option value="Failure & Recovery">Failure &amp; Recovery</option>
+                                      </select>
+                                      <select
+                                        value={scenario.status || 'Untested'}
+                                        onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'status', e.target.value as ScenarioStatus)}
+                                        className={`text-[11px] font-bold px-2 py-1 border rounded outline-hidden shrink-0 ${
+                                          scenario.status === 'Pass'
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                            : scenario.status === 'Fail'
+                                            ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                            : scenario.status === 'Blocked'
+                                            ? 'bg-amber-50 text-amber-700 border-amber-300'
+                                            : 'bg-white text-dark-chassis border-slate-200'
+                                        }`}
+                                      >
+                                        <option value="Untested">Untested</option>
+                                        <option value="Pass">Pass</option>
+                                        <option value="Fail">Fail</option>
+                                        <option value="Blocked">Blocked</option>
+                                      </select>
+                                    </div>
+
+                                    <input
+                                      type="text"
+                                      value={scenario.prompt_text}
+                                      onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'prompt_text', e.target.value)}
+                                      className="flex-1 w-full px-2.5 py-1 border border-slate-200 rounded bg-white text-xs text-dark-chassis focus:border-dark-chassis outline-hidden"
+                                      placeholder="Enter scenario test prompt..."
+                                    />
+
+                                    <button
+                                      onClick={() => handleRemoveScenario(cIdx, sIdx)}
+                                      className="p-1 hover:bg-rose-100 text-txt-muted hover:text-rose-600 rounded transition shrink-0"
+                                      title="Delete scenario"
                                     >
-                                      <option value="Golden Path">Golden Path</option>
-                                      <option value="Alternative Flow">Alternative Flow</option>
-                                      <option value="Boundary & Edge">Boundary &amp; Edge</option>
-                                      <option value="Failure & Recovery">Failure &amp; Recovery</option>
-                                    </select>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
 
-                                  <input
-                                    type="text"
-                                    value={scenario.prompt_text}
-                                    onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'prompt_text', e.target.value)}
-                                    className="flex-1 w-full px-2.5 py-1 border border-slate-200 rounded bg-white text-xs text-dark-chassis focus:border-dark-chassis outline-hidden"
-                                    placeholder="Enter scenario test prompt..."
-                                  />
-
-                                  <button
-                                    onClick={() => handleRemoveScenario(cIdx, sIdx)}
-                                    className="p-1 hover:bg-rose-100 text-txt-muted hover:text-rose-600 rounded transition shrink-0"
-                                    title="Delete scenario"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {/* Observations or Evidence URL row if present */}
+                                  {(scenario.observations || scenario.media_url) && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-[11px]">
+                                      {scenario.observations && (
+                                        <div className="text-txt-muted">
+                                          <span className="font-semibold text-dark-secondary">Notes: </span>
+                                          <input
+                                            type="text"
+                                            value={scenario.observations}
+                                            onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'observations', e.target.value)}
+                                            className="w-full px-2 py-0.5 border border-slate-200 rounded bg-white text-xs text-dark-chassis focus:border-dark-chassis outline-hidden mt-0.5"
+                                            placeholder="Notes..."
+                                          />
+                                        </div>
+                                      )}
+                                      {scenario.media_url && (
+                                        <div className="text-txt-muted">
+                                          <span className="font-semibold text-dark-secondary">Media URL: </span>
+                                          <input
+                                            type="text"
+                                            value={scenario.media_url}
+                                            onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'media_url', e.target.value)}
+                                            className="w-full px-2 py-0.5 border border-slate-200 rounded bg-white text-xs text-dark-chassis focus:border-dark-chassis outline-hidden mt-0.5"
+                                            placeholder="https://..."
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>

@@ -527,10 +527,10 @@ export function ExploratoryChartersView({
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="min-h-[38px] px-3.5 py-1.5 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs border border-clinical-border active:scale-95"
-            title="Import charters and scenarios directly from a Word document (.docx)"
+            title="Import charters and scenarios directly from an Excel spreadsheet (.xlsx, .xls) or Word document (.docx)"
           >
-            <FileText className="w-3.5 h-3.5 text-blue-600" />
-            <span className="hidden sm:inline">Import Word Doc</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">Import Charters</span>
             <span className="sm:hidden">Import</span>
           </button>
 
@@ -571,7 +571,7 @@ export function ExploratoryChartersView({
             No Exploratory Testing Charters Generated Yet
           </h3>
           <p className="text-xs text-txt-muted max-w-md mb-6 leading-relaxed">
-            Generate charters automatically with AI using your feature context and screenshots, or import existing specifications and test charters directly from a Word (.docx) document.
+            Generate charters automatically with AI using your feature context and screenshots, or import existing test charters directly from an Excel (.xlsx, .xls) spreadsheet or Word (.docx) document.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
@@ -586,8 +586,8 @@ export function ExploratoryChartersView({
               onClick={() => setIsImportModalOpen(true)}
               className="px-5 py-2.5 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis text-xs font-bold flex items-center gap-2 transition shadow-sm border border-clinical-border active:scale-95"
             >
-              <FileText className="w-4 h-4 text-blue-600" />
-              <span>Import Word Doc (.docx)</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Import Charters (Excel / Word)</span>
             </button>
           </div>
         </div>
