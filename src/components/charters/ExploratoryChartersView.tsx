@@ -15,6 +15,7 @@ import { MultiCharterRunnerModal } from './MultiCharterRunnerModal';
 import { CharterWhyGeneratedModal } from './CharterWhyGeneratedModal';
 import { CharterReviewModal } from './CharterReviewModal';
 import { ImportWordChartersModal } from './ImportWordChartersModal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
   BrainCircuit, 
@@ -91,6 +92,13 @@ export function ExploratoryChartersView({
   const [activeWhyCharter, setActiveWhyCharter] = useState<QACharter | null>(null);
   const [activeReviewCharter, setActiveReviewCharter] = useState<QACharter | null>(null);
   const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState<string | null>(null);
+
+  // Deletion modals state
+  const [isDeleteCharterModalOpen, setIsDeleteCharterModalOpen] = useState(false);
+  const [charterToDelete, setCharterToDelete] = useState<QACharter | null>(null);
+  const [isDeletingCharter, setIsDeletingCharter] = useState(false);
+  const [scenarioToDeleteId, setScenarioToDeleteId] = useState<string | null>(null);
+  const [isDeletingScenario, setIsDeletingScenario] = useState(false);
 
   // Local state for instant editing responsiveness
   const [localCharters, setLocalCharters] = useState<QACharter[]>(charters);
@@ -251,18 +259,58 @@ export function ExploratoryChartersView({
     }
   };
 
-  // Delete scenario row
-  const handleDeleteScenario = async (scenarioId: string) => {
-    if (!confirm('Are you sure you want to remove this scenario?')) return;
+  // Trigger scenario deletion with custom confirmation modal
+  const handleDeleteScenario = (scenarioId: string) => {
+    setScenarioToDeleteId(scenarioId);
+  };
+
+  const handleConfirmDeleteScenario = async () => {
+    if (!scenarioToDeleteId) return;
+    setIsDeletingScenario(true);
     try {
-      const res = await fetch(`/api/charters?scenario_id=${scenarioId}`, {
+      const res = await fetch(`/api/charters?scenario_id=${scenarioToDeleteId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
         await onRefreshCharters();
       }
+      setScenarioToDeleteId(null);
     } catch (err) {
       console.error('Error deleting scenario:', err);
+    } finally {
+      setIsDeletingScenario(false);
+    }
+  };
+
+  // Confirm charter deletion with custom confirmation modal
+  const handleConfirmDeleteCharter = async () => {
+    if (!charterToDelete) return;
+    setIsDeletingCharter(true);
+    try {
+      const res = await fetch(`/api/charters?charter_id=${charterToDelete.id}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete charter');
+
+      const deletedId = charterToDelete.id;
+      setIsDeleteCharterModalOpen(false);
+      setCharterToDelete(null);
+
+      // Refresh data
+      await onRefreshCharters();
+
+      // Switch to another remaining charter or clear selection
+      const remaining = localCharters.filter(c => c.id !== deletedId);
+      if (remaining.length > 0) {
+        setSelectedCharterId(remaining[0].id);
+      } else {
+        setSelectedCharterId('');
+      }
+    } catch (err) {
+      console.error('Error deleting charter:', err);
+      alert('Failed to delete charter. Please try again.');
+    } finally {
+      setIsDeletingCharter(false);
     }
   };
 
@@ -693,6 +741,19 @@ export function ExploratoryChartersView({
                       >
                         <ShieldCheck className="w-3.5 h-3.5 text-current" />
                         <span>{activeCharter.status || 'Draft'}</span>
+                      </button>
+
+                      {/* Delete Charter Action Button */}
+                      <button
+                        onClick={() => {
+                          setCharterToDelete(activeCharter);
+                          setIsDeleteCharterModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 rounded-pill text-[11px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1 transition shadow-2xs active:scale-95"
+                        title="Delete this entire charter and its scenarios"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Delete Charter</span>
                       </button>
                     </div>
                   </div>
@@ -1246,6 +1307,42 @@ export function ExploratoryChartersView({
           await onRefreshCharters();
         }}
         onOpenRunner={onOpenRunner ? () => onOpenRunner() : () => setIsLocalRunnerOpen(true)}
+      />
+
+      {/* Delete Charter Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isDeleteCharterModalOpen}
+        onClose={() => {
+          if (!isDeletingCharter) {
+            setIsDeleteCharterModalOpen(false);
+            setCharterToDelete(null);
+          }
+        }}
+        onConfirm={handleConfirmDeleteCharter}
+        title="Delete Exploratory Charter"
+        message="Are you sure you want to permanently delete this exploratory test charter? All associated test scenarios will be removed from the database."
+        itemHighlight={charterToDelete ? `${charterToDelete.charter_code} | ${charterToDelete.title}` : undefined}
+        confirmText="Delete Charter"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeletingCharter}
+      />
+
+      {/* Delete Scenario Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={!!scenarioToDeleteId}
+        onClose={() => {
+          if (!isDeletingScenario) {
+            setScenarioToDeleteId(null);
+          }
+        }}
+        onConfirm={handleConfirmDeleteScenario}
+        title="Remove Scenario Prompt"
+        message="Are you sure you want to remove this scenario row from the test charter? This action cannot be undone."
+        confirmText="Remove Scenario"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeletingScenario}
       />
     </div>
   );

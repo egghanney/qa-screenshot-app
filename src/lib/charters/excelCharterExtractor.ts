@@ -8,8 +8,42 @@ export interface ExcelExtractionResult {
 }
 
 /**
+ * Checks if a string is auxiliary metadata, a comment, note, URL, or boundary label
+ * that should NEVER be captured as a scenario prompt.
+ */
+function isNonScenarioText(text: string): boolean {
+  if (!text) return true;
+  const t = text.trim().toLowerCase();
+  if (t.length === 0) return true;
+
+  // Standalone URLs
+  if (/^https?:\/\//i.test(t) || /^www\./i.test(t)) return true;
+
+  // Metadata, comment, note, or section headers
+  if (
+    /^(comment|comments|note|notes|media|media\s*url|evidence|follow-up|traceability|screens?|screenshots?|assumptions?|out\s*of\s*scope|risk|risks|tester|date|author|reviewed\s*by|status|observations?|prompt\s*id|promptid)\s*[:—\-]/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+
+  // Exact standalone section labels
+  if (
+    /^(comments?|notes?|media|media\s*urls?|evidence|follow-up|traceability|risks?|prompt\s*id|promptid|status|observations?\s*&\s*notes?)$/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Extracts structured QA charters and scenarios from an Excel (.xlsx / .xls) buffer.
  * Supports vertically stacked charters within a single sheet and multi-tab workbooks.
+ * Discards all auxiliary notes, comments, media URLs, and stray cells.
  */
 export function extractChartersFromExcel(
   buffer: Buffer,
@@ -123,12 +157,26 @@ function parseSheetRows(
 
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r];
-    if (!row || row.length === 0) continue;
+    if (!row || row.length === 0) {
+      // If we encounter an empty row while reading scenarios, close the scenario table
+      if (inScenarioTable && currentScenarios.length > 0) {
+        inScenarioTable = false;
+      }
+      continue;
+    }
 
     const rowStrings = row.map(c => (c !== null && c !== undefined ? String(c).trim() : ''));
     const firstNonEmptyCell = rowStrings.find(c => c.length > 0) || '';
     const firstCell = rowStrings[0] || '';
     const secondCell = rowStrings[1] || '';
+
+    // If whole row is empty, close scenario table if open
+    if (!firstNonEmptyCell) {
+      if (inScenarioTable && currentScenarios.length > 0) {
+        inScenarioTable = false;
+      }
+      continue;
+    }
 
     // 1. Detect New Charter Header: e.g. "Charter 02 — Restaurant & Food Discovery" or "Charter 1: ..."
     const charterHeaderMatch = firstNonEmptyCell.match(/^Charter\s*(\d+)?\s*[-—:]\s*(.+)/i);
@@ -194,19 +242,31 @@ function parseSheetRows(
       continue;
     }
 
-    // 7. Detect Boundary markers like "Follow-up:", "Traceability:"
-    if (/^(Follow-up|Traceability):/i.test(firstNonEmptyCell)) {
+    // 7. Detect Boundary markers like "Follow-up:", "Traceability:", "Comments:", "Notes:"
+    if (
+      /^(Follow-up|Traceability|Comments?|Notes?|Media|Media\s*URL|Evidence|Screens?|Risks?|Assumptions?|Out\s*of\s*Scope|Defects?|Bugs?)\s*[:—\-]?/i.test(
+        firstNonEmptyCell
+      )
+    ) {
       inScenarioTable = false;
       continue;
     }
 
     // 8. Detect Scenario Table Header Row: e.g. "Prompt ID" | "Exploration Prompts & Investigative Scenarios" | "Status"
-    const promptIdIdx = rowStrings.findIndex(s => /Prompt\s*ID/i.test(s) || /^PromptID$/i.test(s) || /^Scenario\s*ID/i.test(s));
+    const promptIdIdx = rowStrings.findIndex(
+      s => /Prompt\s*ID/i.test(s) || /^PromptID$/i.test(s) || /^Scenario\s*ID/i.test(s)
+    );
     if (promptIdIdx !== -1) {
-      const promptTextIdx = rowStrings.findIndex((s, idx) => idx !== promptIdIdx && (/Prompt/i.test(s) || /Scenario/i.test(s) || /Investigative/i.test(s) || /Description/i.test(s)));
+      const promptTextIdx = rowStrings.findIndex(
+        (s, idx) =>
+          idx !== promptIdIdx &&
+          (/Prompt/i.test(s) || /Scenario/i.test(s) || /Investigative/i.test(s) || /Description/i.test(s))
+      );
       const statusIdx = rowStrings.findIndex(s => /^Status$/i.test(s));
       const obsIdx = rowStrings.findIndex(s => /Observation/i.test(s) || /Note/i.test(s));
-      const mediaIdx = rowStrings.findIndex(s => /Media/i.test(s) || /URL/i.test(s) || /Screenshot/i.test(s) || /Evidence/i.test(s));
+      const mediaIdx = rowStrings.findIndex(
+        s => /Media/i.test(s) || /URL/i.test(s) || /Screenshot/i.test(s) || /Evidence/i.test(s)
+      );
 
       colMap = {
         promptIdCol: promptIdIdx,
@@ -225,38 +285,62 @@ function parseSheetRows(
       const pId = rowStrings[colMap.promptIdCol] || '';
       const pText = rowStrings[colMap.promptTextCol] || '';
       const rawStatus = rowStrings[colMap.statusCol] || 'Untested';
-      const observations = rowStrings[colMap.observationsCol] || '';
-      const mediaUrl = rowStrings[colMap.mediaUrlCol] || '';
 
-      // Check if this row looks like a prompt row
-      if (pId || pText) {
-        // If row starts with a new header, close table
-        if (/^(Charter|Mission|ID|Follow-up|Traceability):/i.test(firstNonEmptyCell)) {
-          inScenarioTable = false;
-          r--; // Re-evaluate this row in the next cycle
-          continue;
-        }
-
-        // Validate or normalize status
-        let normalizedStatus: ScenarioStatus = 'Untested';
-        const lowerStatus = rawStatus.toLowerCase();
-        if (lowerStatus.includes('pass')) normalizedStatus = 'Pass';
-        else if (lowerStatus.includes('fail')) normalizedStatus = 'Fail';
-        else if (lowerStatus.includes('block')) normalizedStatus = 'Blocked';
-
-        // Infer scenario category intelligently
-        const category = inferScenarioCategory(pText, pId, currentScenarios.length);
-
-        currentScenarios.push({
-          prompt_id: pId || `P-${currentScenarios.length + 1}`,
-          prompt_text: pText || pId,
-          category,
-          status: normalizedStatus,
-          observations,
-          media_url: mediaUrl,
-          sort_order: currentScenarios.length
-        });
+      // If row starts with a header or boundary label, close table immediately
+      if (
+        /^(Charter|Mission|ID|Follow-up|Traceability|Comments?|Notes?|Media|Screens?|Risks?):/i.test(
+          firstNonEmptyCell
+        ) ||
+        isNonScenarioText(firstNonEmptyCell)
+      ) {
+        inScenarioTable = false;
+        r--; // Re-evaluate this row in the next cycle
+        continue;
       }
+
+      // Check if pText or pId is non-scenario text (URLs, comments, notes, section labels)
+      if (isNonScenarioText(pText) && isNonScenarioText(pId)) {
+        continue;
+      }
+
+      // Determine genuine prompt text
+      let validPromptText = '';
+      if (pText && !isNonScenarioText(pText)) {
+        validPromptText = pText.trim();
+      } else if (pId && !isNonScenarioText(pId) && pId.length > 5) {
+        validPromptText = pId.trim();
+      }
+
+      // If no valid prompt text exists, discard this row (it's not a scenario!)
+      if (!validPromptText) {
+        continue;
+      }
+
+      // Determine clean prompt ID
+      let validPromptId = pId.trim();
+      if (!validPromptId || isNonScenarioText(validPromptId) || validPromptId.length > 25) {
+        validPromptId = `P-${currentScenarios.length + 1}`;
+      }
+
+      // Normalize status
+      let normalizedStatus: ScenarioStatus = 'Untested';
+      const lowerStatus = rawStatus.toLowerCase();
+      if (lowerStatus.includes('pass')) normalizedStatus = 'Pass';
+      else if (lowerStatus.includes('fail')) normalizedStatus = 'Fail';
+      else if (lowerStatus.includes('block')) normalizedStatus = 'Blocked';
+
+      // Infer scenario category
+      const category = inferScenarioCategory(validPromptText, validPromptId, currentScenarios.length);
+
+      currentScenarios.push({
+        prompt_id: validPromptId,
+        prompt_text: validPromptText,
+        category,
+        status: normalizedStatus,
+        observations: '',
+        media_url: '',
+        sort_order: currentScenarios.length
+      });
     }
   }
 
