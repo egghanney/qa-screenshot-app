@@ -130,7 +130,16 @@ async function renderGridCanvas(
   const imageHeight = Math.round(imageWidth * 1.85); // standard phone ratio 9:16.6 ~ 570px
 
   const titleAreaHeight = 32;
-  const actionsAreaHeight = includeActions ? 110 : 0;
+
+  // Dynamically calculate actions area height based on max actions across screens (supporting up to 8 actions)
+  const maxActionsCount = screens.reduce((max, s) => Math.max(max, s.actions?.length || 0), 0);
+  const displayedActionCap = 8;
+  const effectiveMaxActions = Math.min(Math.max(maxActionsCount, 3), displayedActionCap);
+  const anyHasExpectedResult = screens.some(s => !!s.expectedResult);
+
+  const actionsAreaHeight = includeActions 
+    ? Math.max(110, 28 + effectiveMaxActions * 17 + (anyHasExpectedResult ? 22 : 8))
+    : 0;
   const cardHeight = cardPadding * 2 + imageHeight + titleAreaHeight + actionsAreaHeight;
 
   const gap = 24;
@@ -351,9 +360,10 @@ async function renderGridCanvas(
       ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.fillText('User Actions:', imgX, actionStartY + 8);
 
-      // Render up to 3 action bullet lines
+      // Render action lines (including section prefixes if present)
       const actionsList = (screen.actions && screen.actions.length > 0)
         ? screen.actions.map((a, actIdx) => {
+            const sectionTag = a.section ? `[${a.section}] ` : '';
             const prefix = a.role === 'optional'
               ? '• [Opt]'
               : a.role === 'exit'
@@ -361,24 +371,36 @@ async function renderGridCanvas(
               : a.role === 'link'
               ? '↗ [Link]'
               : `${actIdx + 1}.`;
-            return `${prefix} ${a.description}`;
+            return `${prefix} ${sectionTag}${a.description}`;
           })
         : (screen.name ? [`1. ${screen.name}`] : ['1. Interact with screen elements']);
 
       ctx.fillStyle = isDark ? '#A6ABA1' : '#4B5563';
       ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
-      actionsList.slice(0, 3).forEach((act, actIdx) => {
+      const maxToRender = actionsList.length > displayedActionCap ? displayedActionCap - 1 : displayedActionCap;
+      const renderedSlice = actionsList.slice(0, maxToRender);
+
+      renderedSlice.forEach((act, actIdx) => {
         const bulletText = truncateText(ctx, act, imageWidth);
-        ctx.fillText(bulletText, imgX, actionStartY + 24 + actIdx * 16);
+        ctx.fillText(bulletText, imgX, actionStartY + 24 + actIdx * 17);
       });
 
-      // Expected response (if present)
+      if (actionsList.length > displayedActionCap) {
+        const moreCount = actionsList.length - maxToRender;
+        ctx.fillStyle = isDark ? '#E8EA8B' : '#B45309';
+        ctx.font = 'italic 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(`+ ${moreCount} more action${moreCount === 1 ? '' : 's'} (view in QA Studio)`, imgX, actionStartY + 24 + maxToRender * 17);
+      }
+
+      const totalRenderedLines = actionsList.length > displayedActionCap ? displayedActionCap : renderedSlice.length;
+
+      // Expected response (positioned dynamically below the actions list)
       if (screen.expectedResult) {
         ctx.fillStyle = isDark ? '#60A5FA' : '#2563EB';
         ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         const expText = truncateText(ctx, `Expected: ${screen.expectedResult}`, imageWidth);
-        ctx.fillText(expText, imgX, actionStartY + 24 + Math.min(actionsList.length, 3) * 16 + 2);
+        ctx.fillText(expText, imgX, actionStartY + 24 + totalRenderedLines * 17 + 4);
       }
     }
   }

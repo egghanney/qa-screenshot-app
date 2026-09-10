@@ -90,6 +90,7 @@ export interface ScreenAction {
   order: number;
   type?: 'tap' | 'type' | 'swipe' | 'verify' | 'scroll' | 'wait' | 'other';
   role?: ScreenActionRole;
+  section?: string;
   description: string;
 }
 

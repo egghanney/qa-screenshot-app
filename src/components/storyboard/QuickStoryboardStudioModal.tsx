@@ -413,6 +413,7 @@ export function QuickStoryboardStudioModal({
         // Format actions text
         const actionStr = item.actions.length > 0
           ? item.actions.map((a, idx) => {
+              const sectionTag = a.section ? `[${a.section}] ` : '';
               const prefix = a.role === 'optional'
                 ? '• [Optional]'
                 : a.role === 'exit'
@@ -420,7 +421,7 @@ export function QuickStoryboardStudioModal({
                 : a.role === 'link'
                 ? '↗ [Link]'
                 : `${idx + 1}.`;
-              return `${prefix} [${a.type || 'tap'}] ${a.description}`;
+              return `${prefix} ${sectionTag}[${a.type || 'tap'}] ${a.description}`;
             }).join(' • ')
           : `User interactions on ${item.name}`;
 
@@ -1071,6 +1072,11 @@ export function QuickStoryboardStudioModal({
                               {screen.actions.some(a => a.role === 'exit' || a.role === 'link') && (
                                 <span className="text-rose-300">
                                   • {screen.actions.filter(a => a.role === 'exit' || a.role === 'link').length} exit
+                                </span>
+                              )}
+                              {new Set(screen.actions.map(a => a.section?.trim()).filter(Boolean)).size > 0 && (
+                                <span className="text-sky-300">
+                                  • {new Set(screen.actions.map(a => a.section?.trim()).filter(Boolean)).size} sec
                                 </span>
                               )}
                             </div>

@@ -45,6 +45,7 @@ export function ScreenActionEditorDrawer({
   const [newActionText, setNewActionText] = useState('');
   const [newActionType, setNewActionType] = useState<ScreenAction['type']>('tap');
   const [newActionRole, setNewActionRole] = useState<ScreenActionRole>('sequential');
+  const [newActionSection, setNewActionSection] = useState<string>('');
 
   useEffect(() => {
     if (screen) {
@@ -58,6 +59,7 @@ export function ScreenActionEditorDrawer({
       setNewActionText('');
       setNewActionType('tap');
       setNewActionRole('sequential');
+      setNewActionSection('');
     }
   }, [screen]);
 
@@ -68,11 +70,13 @@ export function ScreenActionEditorDrawer({
     if (!text) return;
     const role = custom?.role ?? newActionRole;
     const type = custom?.type ?? newActionType;
+    const section = (custom?.section !== undefined ? custom.section.trim() : newActionSection.trim()) || undefined;
     const newAct: ScreenAction = {
       id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       order: actions.length + 1,
       type,
       role,
+      section,
       description: text
     };
     setActions([...actions, newAct]);
@@ -272,79 +276,154 @@ export function ScreenActionEditorDrawer({
               </div>
             ) : (
               <div className="space-y-2">
-                {actions.map((act, idx) => (
-                  <div 
-                    key={act.id} 
-                    className="p-2.5 rounded-xl bg-dark-secondary/70 border border-dark-tertiary flex items-center justify-between gap-2 text-xs group"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      {/* Role-Specific Badge or Sequence Number */}
-                      {act.role === 'optional' ? (
-                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shrink-0">
-                          <SlidersHorizontal className="w-2.5 h-2.5" />
-                          <span>Opt</span>
-                        </span>
-                      ) : act.role === 'exit' ? (
-                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shrink-0">
-                          <CornerUpLeft className="w-2.5 h-2.5" />
-                          <span>Exit</span>
-                        </span>
-                      ) : act.role === 'link' ? (
-                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/40 flex items-center gap-1 shrink-0">
-                          <ExternalLink className="w-2.5 h-2.5" />
-                          <span>Link</span>
-                        </span>
-                      ) : (
-                        <span className="w-4 h-4 rounded-full bg-dark-chassis text-neon text-[10px] font-mono font-bold flex items-center justify-center shrink-0 border border-neon/30">
-                          {idx + 1}
-                        </span>
+                {actions.map((act, idx) => {
+                  const prevAct = idx > 0 ? actions[idx - 1] : null;
+                  const showSectionHeader = idx === 0 ? !!act.section : act.section !== prevAct?.section;
+                  return (
+                    <React.Fragment key={act.id}>
+                      {showSectionHeader && (
+                        <div className="pt-2 pb-0.5 flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neon flex items-center gap-1 bg-dark-chassis/80 px-2 py-0.5 rounded-md border border-neon/30">
+                            <Layers className="w-2.5 h-2.5" />
+                            <span>Section: {act.section || 'General'}</span>
+                          </span>
+                          <div className="flex-1 h-px bg-dark-tertiary/70" />
+                        </div>
                       )}
+                      <div 
+                        className="p-2.5 rounded-xl bg-dark-secondary/70 border border-dark-tertiary flex items-center justify-between gap-2 text-xs group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {/* Role-Specific Badge or Sequence Number */}
+                          {act.role === 'optional' ? (
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shrink-0">
+                              <SlidersHorizontal className="w-2.5 h-2.5" />
+                              <span>Opt</span>
+                            </span>
+                          ) : act.role === 'exit' ? (
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shrink-0">
+                              <CornerUpLeft className="w-2.5 h-2.5" />
+                              <span>Exit</span>
+                            </span>
+                          ) : act.role === 'link' ? (
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/40 flex items-center gap-1 shrink-0">
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              <span>Link</span>
+                            </span>
+                          ) : (
+                            <span className="w-4 h-4 rounded-full bg-dark-chassis text-neon text-[10px] font-mono font-bold flex items-center justify-center shrink-0 border border-neon/30">
+                              {idx + 1}
+                            </span>
+                          )}
 
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-dark-chassis text-txt-secondary border border-dark-tertiary shrink-0">
-                        {act.type || 'tap'}
-                      </span>
-                      <span className="text-xs text-white truncate">{act.description}</span>
-                    </div>
+                          {act.section && !showSectionHeader && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-dark-chassis/90 text-neon/80 border border-dark-tertiary shrink-0">
+                              {act.section}
+                            </span>
+                          )}
 
-                    <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100">
-                      <button
-                        type="button"
-                        onClick={() => handleMoveAction(idx, 'up')}
-                        disabled={idx === 0}
-                        className="p-1 rounded hover:bg-dark-chassis text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
-                        title="Move Up"
-                      >
-                        <ArrowUp className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMoveAction(idx, 'down')}
-                        disabled={idx === actions.length - 1}
-                        className="p-1 rounded hover:bg-dark-chassis text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
-                        title="Move Down"
-                      >
-                        <ArrowDown className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteAction(act.id)}
-                        className="p-1 rounded hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 cursor-pointer"
-                        title="Remove Action"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-dark-chassis text-txt-secondary border border-dark-tertiary shrink-0">
+                            {act.type || 'tap'}
+                          </span>
+                          <span className="text-xs text-white truncate">{act.description}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveAction(idx, 'up')}
+                            disabled={idx === 0}
+                            className="p-1 rounded hover:bg-dark-chassis text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
+                            title="Move Up"
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveAction(idx, 'down')}
+                            disabled={idx === actions.length - 1}
+                            className="p-1 rounded hover:bg-dark-chassis text-txt-muted hover:text-white disabled:opacity-20 cursor-pointer"
+                            title="Move Down"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAction(act.id)}
+                            className="p-1 rounded hover:bg-rose-500/20 text-txt-muted hover:text-rose-400 cursor-pointer"
+                            title="Remove Action"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
               </div>
             )}
 
-            {/* Quick-Add Shortcut Presets */}
+            {/* Smart Element & Section Presets */}
             <div className="space-y-1.5 pt-1">
-              <span className="text-[10px] font-semibold text-txt-muted uppercase tracking-wider block">
-                Quick-Add Screen Controls
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-txt-muted uppercase tracking-wider block">
+                  Smart Element Presets
+                </span>
+                <span className="text-[10px] text-txt-muted">1-Click Auto-Add</span>
+              </div>
               <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleAddAction({
+                    type: 'swipe',
+                    role: 'sequential',
+                    section: newActionSection || 'Most Ordered',
+                    description: 'Swipe carousel horizontally across items'
+                  })}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Add Carousel / Swiper Action"
+                >
+                  <span>🎠 Carousel / Swiper</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddAction({
+                    type: 'tap',
+                    role: 'optional',
+                    section: newActionSection || "Today's Special",
+                    description: 'Tap promotional deal banner'
+                  })}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Add Promo Banner Deal Action"
+                >
+                  <span>🏷️ Promo Banner</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddAction({
+                    type: 'tap',
+                    role: 'sequential',
+                    section: 'Sticky Floating Cart',
+                    description: 'Tap sticky bottom cart CTA bar'
+                  })}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Add Sticky Cart Action"
+                >
+                  <span>🛒 Sticky Cart Bar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddAction({
+                    type: 'type',
+                    role: 'sequential',
+                    section: 'Header / Search',
+                    description: 'Enter search keyword'
+                  })}
+                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                  title="Add Search Input Action"
+                >
+                  <span>🔍 Search Input</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleAddAction({
@@ -356,7 +435,7 @@ export function ScreenActionEditorDrawer({
                   title="Add Back Navigation Action"
                 >
                   <ArrowLeft className="w-3 h-3 text-rose-400" />
-                  <span>+ Back Button</span>
+                  <span>Back Button</span>
                 </button>
                 <button
                   type="button"
@@ -369,33 +448,7 @@ export function ScreenActionEditorDrawer({
                   title="Add Close/Dismiss Action"
                 >
                   <XCircle className="w-3 h-3 text-rose-400" />
-                  <span>+ Close / Cancel</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewActionRole('optional');
-                    setNewActionType('type');
-                    setNewActionText('Add optional note / memo');
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
-                  title="Prepare Optional Action"
-                >
-                  <SlidersHorizontal className="w-3 h-3 text-amber-400" />
-                  <span>+ Optional Field</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewActionRole('link');
-                    setNewActionType('tap');
-                    setNewActionText('Tap link: Terms & Conditions / Help');
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-dark-secondary/60 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
-                  title="Prepare Link Action"
-                >
-                  <ExternalLink className="w-3 h-3 text-sky-400" />
-                  <span>+ Secondary Link</span>
+                  <span>Close / Cancel</span>
                 </button>
               </div>
             </div>
@@ -405,6 +458,50 @@ export function ScreenActionEditorDrawer({
               <span className="text-[10px] font-bold uppercase tracking-wider text-txt-muted block">
                 + Custom Micro-Action
               </span>
+
+              {/* Section Selector & Input */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-txt-muted font-medium block">Screen Section (Optional)</span>
+                  {newActionSection && (
+                    <button
+                      type="button"
+                      onClick={() => setNewActionSection('')}
+                      className="text-[9px] text-txt-muted hover:text-rose-400 cursor-pointer"
+                    >
+                      Clear Section
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={newActionSection}
+                  onChange={(e) => setNewActionSection(e.target.value)}
+                  placeholder="e.g. Most Ordered, Today's Special, Sticky Cart"
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-dark-chassis border border-dark-tertiary text-[11px] text-white focus:border-neon focus:outline-none transition"
+                />
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {Array.from(new Set([
+                    ...actions.map(a => a.section?.trim()).filter((s): s is string => Boolean(s)),
+                    "Today's Special",
+                    "Most Ordered",
+                    "Sticky Cart"
+                  ])).slice(0, 5).map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setNewActionSection(sec)}
+                      className={`px-2 py-0.5 rounded-md text-[9px] font-mono transition cursor-pointer ${
+                        newActionSection === sec
+                          ? 'bg-neon/20 text-neon border border-neon/50 font-bold'
+                          : 'bg-dark-chassis text-txt-muted hover:text-white border border-dark-tertiary/60'
+                      }`}
+                    >
+                      {sec}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Interaction Role Tabs */}
               <div className="space-y-1">

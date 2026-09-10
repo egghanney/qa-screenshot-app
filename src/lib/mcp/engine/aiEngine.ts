@@ -140,10 +140,11 @@ export async function getFeatureContextPack(featureId: string): Promise<ContextP
     const actions: UserAction[] = [];
     if (s.actions && Array.isArray(s.actions) && s.actions.length > 0) {
       s.actions.forEach((a, aIdx) => {
+        const sectionTag = a.section ? `[Section: ${a.section}] ` : '';
         const roleTag = a.role && a.role !== 'sequential' ? `[${a.role.toUpperCase()}] ` : '';
         actions.push({
           sequence: a.order ?? aIdx + 1,
-          action: `${roleTag}${a.description || `Step ${aIdx + 1}`}`,
+          action: `${sectionTag}${roleTag}${a.description || `Step ${aIdx + 1}`}`,
           purpose: a.role ? `${a.role.toUpperCase()}: ${a.type || 'interaction'}` : (a.type || 'User interaction')
         });
       });
@@ -271,9 +272,10 @@ export async function getFeatureContextPack(featureId: string): Promise<ContextP
         const isExitOrLink = a.role === 'exit' || a.role === 'link';
         const isOptional = a.role === 'optional';
         const roleLabel = isExitOrLink ? 'Exit / Navigation Control' : isOptional ? 'Optional Action' : 'User Action';
+        const sectionPrefix = a.section ? `[Section: ${a.section}] ` : '';
         observed.push({
           id: `ev-act-${a.id || Math.random().toString()}`,
-          fact: `${roleLabel} on "${s.name}": ${a.description}`,
+          fact: `${sectionPrefix}${roleLabel} on "${s.name}": ${a.description}`,
           source: 'qa_screen_actions',
           screen_id: s.id,
           dimension: isExitOrLink ? 'journeys_navigation' : isOptional ? 'business_rules' : 'interactions_configuration',
