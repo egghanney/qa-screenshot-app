@@ -254,13 +254,12 @@ export function ImportWordChartersModal({
 
         if (cErr) throw cErr;
 
-        // 2. Insert Scenarios
+        // 2. Insert Scenarios (qa_charter_scenarios has columns: charter_id, prompt_id, prompt_text, status, observations, media_url, sort_order)
         if (c.scenarios && c.scenarios.length > 0 && savedCharter) {
           const scenarioRows = c.scenarios.map((s, sIdx) => ({
             charter_id: savedCharter.id,
             prompt_id: s.prompt_id || `P-${sIdx + 1}`,
             prompt_text: s.prompt_text || '',
-            category: s.category || 'Golden Path',
             status: s.status || 'Untested',
             observations: s.observations || '',
             media_url: s.media_url || '',
@@ -272,6 +271,43 @@ export function ImportWordChartersModal({
             .insert(scenarioRows);
 
           if (sErr) throw sErr;
+        }
+      }
+
+      // 3. Persist scenario categories in feature's advanced_context if featureId is present
+      if (featureId) {
+        try {
+          const { data: feat } = await supabase
+            .from('qa_features')
+            .select('advanced_context')
+            .eq('id', featureId)
+            .single();
+
+          const advContext = feat?.advanced_context || {};
+          const traceMap = { ...(advContext.latest_traceability_map || {}) };
+
+          charters.forEach(c => {
+            c.scenarios?.forEach(s => {
+              if (s.prompt_id) {
+                traceMap[s.prompt_id] = {
+                  ...(traceMap[s.prompt_id] || {}),
+                  category: s.category || 'Golden Path'
+                };
+              }
+            });
+          });
+
+          await supabase
+            .from('qa_features')
+            .update({
+              advanced_context: {
+                ...advContext,
+                latest_traceability_map: traceMap
+              }
+            })
+            .eq('id', featureId);
+        } catch (ctxErr) {
+          console.warn('Could not sync category metadata to feature advanced_context:', ctxErr);
         }
       }
 
