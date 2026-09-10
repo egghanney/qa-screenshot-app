@@ -68,8 +68,17 @@ async function resolveImagePart(imageInput: string): Promise<{ mimeType: string;
   }
 }
 
+// Helper to resolve effective API key
+export function getApiKey(override?: string): string {
+  if (override && override.trim()) return override.trim();
+  if (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) {
+    return process.env.GEMINI_API_KEY.trim();
+  }
+  return '';
+}
+
 // Helper to call Gemini API with multimodal vision and multi-image support
-async function callGeminiAPI(
+export async function callGeminiAPI(
   prompt: string, 
   images?: string | string[], 
   apiKeyOverride?: string
@@ -134,6 +143,17 @@ async function callGeminiAPI(
     console.warn('Error calling Gemini API:', err);
     return null;
   }
+}
+
+// Convenience helper to call Gemini with a prompt and system instruction
+export async function callGemini(
+  prompt: string,
+  systemInstruction?: string,
+  apiKeyOverride?: string
+): Promise<string | null> {
+  const effectiveKey = getApiKey(apiKeyOverride);
+  const fullPrompt = systemInstruction ? `${systemInstruction}\n\n${prompt}` : prompt;
+  return callGeminiAPI(fullPrompt, undefined, effectiveKey);
 }
 
 // Filename Sanitizer: Detects device screenshot timestamps and raw paths

@@ -14,6 +14,7 @@ import { ContextPackModal } from './ContextPackModal';
 import { MultiCharterRunnerModal } from './MultiCharterRunnerModal';
 import { CharterWhyGeneratedModal } from './CharterWhyGeneratedModal';
 import { CharterReviewModal } from './CharterReviewModal';
+import { ImportWordChartersModal } from './ImportWordChartersModal';
 import { getStoredGeminiApiKey } from '@/lib/settings';
 import { 
   BrainCircuit, 
@@ -86,6 +87,7 @@ export function ExploratoryChartersView({
   const [showDefectMenu, setShowDefectMenu] = useState(false);
   const [isWhyGeneratedOpen, setIsWhyGeneratedOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [activeWhyCharter, setActiveWhyCharter] = useState<QACharter | null>(null);
   const [activeReviewCharter, setActiveReviewCharter] = useState<QACharter | null>(null);
   const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState<string | null>(null);
@@ -523,6 +525,16 @@ export function ExploratoryChartersView({
           </button>
 
           <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="min-h-[38px] px-3.5 py-1.5 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs border border-clinical-border active:scale-95"
+            title="Import charters and scenarios directly from a Word document (.docx)"
+          >
+            <FileText className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Import Word Doc</span>
+            <span className="sm:hidden">Import</span>
+          </button>
+
+          <button
             onClick={() => {
               if (onOpenRunner) {
                 onOpenRunner();
@@ -559,16 +571,25 @@ export function ExploratoryChartersView({
             No Exploratory Testing Charters Generated Yet
           </h3>
           <p className="text-xs text-txt-muted max-w-md mb-6 leading-relaxed">
-            The AI engine will analyze your uploaded screenshots, visual journey paths, confirmed business rules, and unknown gaps to generate structured test charters ready for device exploration.
+            Generate charters automatically with AI using your feature context and screenshots, or import existing specifications and test charters directly from a Word (.docx) document.
           </p>
-          <button
-            onClick={handleGenerateCharters}
-            disabled={isGenerating || !currentFeature}
-            className="px-5 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-2 transition shadow-md active:scale-95"
-          >
-            <BrainCircuit className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-            {isGenerating ? 'Synthesizing Intelligence...' : 'Generate Test Charters Now'}
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={handleGenerateCharters}
+              disabled={isGenerating || !currentFeature}
+              className="px-5 py-2.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-2 transition shadow-md active:scale-95 disabled:opacity-50"
+            >
+              <BrainCircuit className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
+              {isGenerating ? 'Synthesizing Intelligence...' : 'Generate Test Charters Now'}
+            </button>
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="px-5 py-2.5 rounded-pill bg-white hover:bg-slate-100 text-dark-chassis text-xs font-bold flex items-center gap-2 transition shadow-sm border border-clinical-border active:scale-95"
+            >
+              <FileText className="w-4 h-4 text-blue-600" />
+              <span>Import Word Doc (.docx)</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -1213,6 +1234,18 @@ export function ExploratoryChartersView({
         onReviewSubmitted={async () => {
           await onRefreshCharters();
         }}
+      />
+
+      {/* Import Word Doc Charters Modal */}
+      <ImportWordChartersModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        currentFeature={currentFeature}
+        currentProject={currentProject}
+        onChartersSaved={async () => {
+          await onRefreshCharters();
+        }}
+        onOpenRunner={onOpenRunner ? () => onOpenRunner() : () => setIsLocalRunnerOpen(true)}
       />
     </div>
   );

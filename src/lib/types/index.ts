@@ -297,7 +297,7 @@ export interface ScreenComparison {
   created_at: string;
 }
 
-export type CharterStatus = 'Draft' | 'In Progress' | 'Completed' | 'Approved' | 'Rejected';
+export type CharterStatus = 'Draft' | 'In Progress' | 'Completed' | 'Approved' | 'Rejected' | 'Active';
 export type ScenarioStatus = 'Pass' | 'Fail' | 'Blocked' | 'Untested';
 
 export type ScenarioCategory = 'Golden Path' | 'Alternative Flow' | 'Boundary & Edge' | 'Failure & Recovery';
@@ -397,7 +397,7 @@ export interface ContextPack {
 export interface QACharter {
   id: string;
   feature_id?: string | null;
-  project_id: string;
+  project_id?: string | null;
   charter_code: string;
   title: string;
   mission: string;
