@@ -266,49 +266,71 @@ export function ExploratoryChartersView({
 
   const handleConfirmDeleteScenario = async () => {
     if (!scenarioToDeleteId) return;
+    const targetScenarioId = scenarioToDeleteId;
+    const previousCharters = [...localCharters];
+
+    // Optimistically remove scenario immediately (0ms feedback)
+    setScenarioToDeleteId(null);
+    setLocalCharters(prev =>
+      prev.map(c => ({
+        ...c,
+        scenarios: c.scenarios ? c.scenarios.filter(s => s.id !== targetScenarioId) : []
+      }))
+    );
+
     setIsDeletingScenario(true);
     try {
-      const res = await fetch(`/api/charters?scenario_id=${scenarioToDeleteId}`, {
+      const res = await fetch(`/api/charters?scenario_id=${targetScenarioId}`, {
         method: 'DELETE'
       });
-      if (res.ok) {
+      if (!res.ok) throw new Error('Failed to delete scenario');
+
+      if (onRefreshCharters) {
         await onRefreshCharters();
       }
-      setScenarioToDeleteId(null);
     } catch (err) {
       console.error('Error deleting scenario:', err);
+      // Revert optimistic update
+      setLocalCharters(previousCharters);
+      alert('Failed to delete scenario. The scenario has been restored.');
     } finally {
       setIsDeletingScenario(false);
     }
   };
 
-  // Confirm charter deletion with custom confirmation modal
+  // Confirm charter deletion with custom confirmation modal (Optimistic 0ms)
   const handleConfirmDeleteCharter = async () => {
     if (!charterToDelete) return;
+    const targetCharterId = charterToDelete.id;
+    const previousCharters = [...localCharters];
+    const previousSelectedId = selectedCharterId;
+
+    // Optimistically close modal and remove charter immediately (0ms feedback)
+    setIsDeleteCharterModalOpen(false);
+    setCharterToDelete(null);
+
+    const remaining = localCharters.filter(c => c.id !== targetCharterId);
+    setLocalCharters(remaining);
+    if (selectedCharterId === targetCharterId) {
+      setSelectedCharterId(remaining[0]?.id || '');
+    }
+
     setIsDeletingCharter(true);
     try {
-      const res = await fetch(`/api/charters?charter_id=${charterToDelete.id}`, {
+      const res = await fetch(`/api/charters?charter_id=${targetCharterId}`, {
         method: 'DELETE'
       });
       if (!res.ok) throw new Error('Failed to delete charter');
 
-      const deletedId = charterToDelete.id;
-      setIsDeleteCharterModalOpen(false);
-      setCharterToDelete(null);
-
-      // Refresh data
-      await onRefreshCharters();
-
-      // Switch to another remaining charter or clear selection
-      const remaining = localCharters.filter(c => c.id !== deletedId);
-      if (remaining.length > 0) {
-        setSelectedCharterId(remaining[0].id);
-      } else {
-        setSelectedCharterId('');
+      if (onRefreshCharters) {
+        await onRefreshCharters();
       }
     } catch (err) {
       console.error('Error deleting charter:', err);
-      alert('Failed to delete charter. Please try again.');
+      // Revert optimistic update
+      setLocalCharters(previousCharters);
+      setSelectedCharterId(previousSelectedId);
+      alert('Failed to delete charter. The charter has been restored.');
     } finally {
       setIsDeletingCharter(false);
     }

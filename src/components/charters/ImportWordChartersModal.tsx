@@ -731,36 +731,6 @@ export function ImportWordChartersModal({
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
-
-                                  {/* Observations or Evidence URL row if present */}
-                                  {(scenario.observations || scenario.media_url) && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-[11px]">
-                                      {scenario.observations && (
-                                        <div className="text-txt-muted">
-                                          <span className="font-semibold text-dark-secondary">Notes: </span>
-                                          <input
-                                            type="text"
-                                            value={scenario.observations}
-                                            onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'observations', e.target.value)}
-                                            className="w-full px-2 py-0.5 border border-slate-200 rounded bg-white text-xs text-dark-chassis focus:border-dark-chassis outline-hidden mt-0.5"
-                                            placeholder="Notes..."
-                                          />
-                                        </div>
-                                      )}
-                                      {scenario.media_url && (
-                                        <div className="text-txt-muted">
-                                          <span className="font-semibold text-dark-secondary">Media URL: </span>
-                                          <input
-                                            type="text"
-                                            value={scenario.media_url}
-                                            onChange={(e) => handleUpdateScenario(cIdx, sIdx, 'media_url', e.target.value)}
-                                            className="w-full px-2 py-0.5 border border-slate-200 rounded bg-white text-xs text-dark-chassis focus:border-dark-chassis outline-hidden mt-0.5"
-                                            placeholder="https://..."
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
                                 </div>
                               ))}
                             </div>

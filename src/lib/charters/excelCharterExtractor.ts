@@ -19,9 +19,14 @@ function isNonScenarioText(text: string): boolean {
   // Standalone URLs
   if (/^https?:\/\//i.test(t) || /^www\./i.test(t)) return true;
 
-  // Metadata, comment, note, or section headers
+  // Any text matching or containing observations, notes, comments, media, follow-ups
+  if (/observations?\s*(&|and|\+)?\s*notes?/i.test(t)) {
+    return true;
+  }
+
+  // Metadata, comment, note, or section headers with or without punctuation
   if (
-    /^(comment|comments|note|notes|media|media\s*url|evidence|follow-up|traceability|screens?|screenshots?|assumptions?|out\s*of\s*scope|risk|risks|tester|date|author|reviewed\s*by|status|observations?|prompt\s*id|promptid)\s*[:—\-]/i.test(
+    /^(comment|comments|note|notes|media|media\s*urls?|evidence|follow-up|traceability|screens?|screenshots?|assumptions?|out\s*of\s*scope|risks?|tester|date|author|reviewed\s*by|status|observations?|prompt\s*id|promptid)(\s*[:—\-].*)?$/i.test(
       t
     )
   ) {
@@ -30,7 +35,7 @@ function isNonScenarioText(text: string): boolean {
 
   // Exact standalone section labels
   if (
-    /^(comments?|notes?|media|media\s*urls?|evidence|follow-up|traceability|risks?|prompt\s*id|promptid|status|observations?\s*&\s*notes?)$/i.test(
+    /^(comments?|notes?|media|media\s*urls?|evidence|follow-up|traceability|risks?|prompt\s*id|promptid|status|observations?)$/i.test(
       t
     )
   ) {
@@ -242,17 +247,7 @@ function parseSheetRows(
       continue;
     }
 
-    // 7. Detect Boundary markers like "Follow-up:", "Traceability:", "Comments:", "Notes:"
-    if (
-      /^(Follow-up|Traceability|Comments?|Notes?|Media|Media\s*URL|Evidence|Screens?|Risks?|Assumptions?|Out\s*of\s*Scope|Defects?|Bugs?)\s*[:—\-]?/i.test(
-        firstNonEmptyCell
-      )
-    ) {
-      inScenarioTable = false;
-      continue;
-    }
-
-    // 8. Detect Scenario Table Header Row: e.g. "Prompt ID" | "Exploration Prompts & Investigative Scenarios" | "Status"
+    // 7. Detect Scenario Table Header Row: e.g. "Prompt ID" | "Exploration Prompts & Investigative Scenarios" | "Status"
     const promptIdIdx = rowStrings.findIndex(
       s => /Prompt\s*ID/i.test(s) || /^PromptID$/i.test(s) || /^Scenario\s*ID/i.test(s)
     );
@@ -280,6 +275,17 @@ function parseSheetRows(
       continue;
     }
 
+    // 8. Detect Boundary markers like "Follow-up:", "Traceability:", "Comments:", "Notes:", "Observations & Notes"
+    if (
+      /^(Follow-up|Traceability|Comments?|Notes?|Media|Media\s*URL|Evidence|Screens?|Risks?|Assumptions?|Out\s*of\s*Scope|Defects?|Bugs?|Observations?(\s*(&|and|\+)?\s*Notes?)?)\s*[:—\-]?/i.test(
+        firstNonEmptyCell
+      ) ||
+      isNonScenarioText(firstNonEmptyCell)
+    ) {
+      inScenarioTable = false;
+      continue;
+    }
+
     // 9. If inside Scenario Table, extract scenario row
     if (inScenarioTable && colMap) {
       const pId = rowStrings[colMap.promptIdCol] || '';
@@ -288,7 +294,7 @@ function parseSheetRows(
 
       // If row starts with a header or boundary label, close table immediately
       if (
-        /^(Charter|Mission|ID|Follow-up|Traceability|Comments?|Notes?|Media|Screens?|Risks?):/i.test(
+        /^(Charter|Mission|ID|Follow-up|Traceability|Comments?|Notes?|Media|Media\s*URL|Evidence|Screens?|Risks?|Assumptions?|Out\s*of\s*Scope|Defects?|Bugs?|Observations?(\s*(&|and|\+)?\s*Notes?)?)\s*[:—\-]?/i.test(
           firstNonEmptyCell
         ) ||
         isNonScenarioText(firstNonEmptyCell)
@@ -311,8 +317,8 @@ function parseSheetRows(
         validPromptText = pId.trim();
       }
 
-      // If no valid prompt text exists, discard this row (it's not a scenario!)
-      if (!validPromptText) {
+      // If no valid prompt text exists or it matches non-scenario text, discard row
+      if (!validPromptText || isNonScenarioText(validPromptText)) {
         continue;
       }
 
