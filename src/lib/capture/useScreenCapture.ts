@@ -23,6 +23,7 @@ export interface UseScreenCaptureReturn {
   startCapture: () => Promise<boolean>;
   stopCapture: () => void;
   snapFrame: () => Promise<SnappedScreen | null>;
+  undoLastSnap: () => void;
   addLocalFiles: (files: FileList | File[]) => void;
   deleteSnappedScreen: (id: string) => void;
   clearSnappedScreens: () => void;
@@ -30,7 +31,8 @@ export interface UseScreenCaptureReturn {
   isMobile: boolean;
   isPipSupported: boolean;
   isPipActive: boolean;
-  openPipWindow: (onSnapCallback?: () => void) => Promise<Window | null>;
+  pipWindow: Window | null;
+  openPipWindow: (options?: { width?: number; height?: number }) => Promise<Window | null>;
   closePipWindow: () => void;
 }
 
@@ -42,6 +44,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
   const [snappedScreens, setSnappedScreens] = useState<SnappedScreen[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPipActive, setIsPipActive] = useState(false);
+  const [pipWindow, setPipWindow] = useState<Window | null>(null);
   const [isScreenCaptureSupported, setIsScreenCaptureSupported] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -82,6 +85,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
       pipWindowRef.current.close();
       pipWindowRef.current = null;
       setIsPipActive(false);
+      setPipWindow(null);
     }
   }, []);
 
@@ -160,6 +164,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
       pipWindowRef.current.close();
       pipWindowRef.current = null;
       setIsPipActive(false);
+      setPipWindow(null);
     }
   }, [stream]);
 
@@ -234,46 +239,85 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     });
   }, []);
 
+  const undoLastSnap = useCallback(() => {
+    setSnappedScreens((prev) => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      if (last?.previewUrl) {
+        URL.revokeObjectURL(last.previewUrl);
+      }
+      return prev.slice(0, prev.length - 1);
+    });
+  }, []);
+
   // Document Picture-in-Picture Floating Controller
-  const openPipWindow = useCallback(async (onSnapCallback?: () => void): Promise<Window | null> => {
+  const openPipWindow = useCallback(async (options?: { width?: number; height?: number }): Promise<Window | null> => {
     if (!isPipSupported) return null;
 
     try {
+      if (pipWindowRef.current && !pipWindowRef.current.closed) {
+        pipWindowRef.current.close();
+      }
+
+      const pipWidth = options?.width || 380;
+      const pipHeight = options?.height || 160;
+
       // @ts-ignore - Document Picture-in-Picture API
-      const pipWindow = await window.documentPictureInPicture.requestWindow({
-        width: 340,
-        height: 190
+      const pWin = await window.documentPictureInPicture.requestWindow({
+        width: pipWidth,
+        height: pipHeight
       });
 
-      pipWindowRef.current = pipWindow;
+      pipWindowRef.current = pWin;
       setIsPipActive(true);
+      setPipWindow(pWin);
 
-      // Copy stylesheet links from main document to PiP window so styling matches
+      // Base body styling for the floating window
+      pWin.document.title = 'QA Studio — Snipping Tool';
+      pWin.document.body.style.margin = '0';
+      pWin.document.body.style.padding = '0';
+      pWin.document.body.style.background = '#1D1E1C';
+      pWin.document.body.style.overflow = 'hidden';
+      pWin.document.body.style.userSelect = 'none';
+      pWin.document.body.style.fontFamily =
+        'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+      // Copy stylesheet links and style tags from main document to PiP window
       Array.from(document.styleSheets).forEach((styleSheet) => {
         try {
           if (styleSheet.href) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
             link.href = styleSheet.href;
-            pipWindow.document.head.appendChild(link);
+            pWin.document.head.appendChild(link);
           } else if (styleSheet.cssRules) {
             const style = document.createElement('style');
             Array.from(styleSheet.cssRules).forEach((rule) => {
               style.appendChild(document.createTextNode(rule.cssText));
             });
-            pipWindow.document.head.appendChild(style);
+            pWin.document.head.appendChild(style);
           }
         } catch (e) {
-          // Cross-origin stylesheets
+          // Cross-origin stylesheet access
         }
       });
 
-      pipWindow.addEventListener('pagehide', () => {
-        pipWindowRef.current = null;
-        setIsPipActive(false);
+      // Also copy all existing <style> and <link rel="stylesheet"> elements from document.head
+      document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
+        try {
+          pWin.document.head.appendChild(node.cloneNode(true));
+        } catch (e) {
+          // ignore
+        }
       });
 
-      return pipWindow;
+      pWin.addEventListener('pagehide', () => {
+        pipWindowRef.current = null;
+        setIsPipActive(false);
+        setPipWindow(null);
+      });
+
+      return pWin;
     } catch (err) {
       console.error('Failed to open Picture-in-Picture window:', err);
       return null;
@@ -285,6 +329,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
       pipWindowRef.current.close();
       pipWindowRef.current = null;
       setIsPipActive(false);
+      setPipWindow(null);
     }
   }, []);
 
@@ -341,6 +386,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     startCapture,
     stopCapture,
     snapFrame,
+    undoLastSnap,
     addLocalFiles,
     deleteSnappedScreen,
     clearSnappedScreens,
@@ -348,6 +394,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
     isMobile,
     isPipSupported,
     isPipActive,
+    pipWindow,
     openPipWindow,
     closePipWindow
   };

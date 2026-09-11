@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Camera, 
   Video, 
@@ -18,9 +19,11 @@ import {
   ShieldCheck,
   AlertCircle,
   Upload,
-  FolderPlus
+  FolderPlus,
+  RotateCcw
 } from 'lucide-react';
 import { useScreenCapture, SnappedScreen } from '@/lib/capture/useScreenCapture';
+import { FloatingSnippingBar } from '@/components/capture/FloatingSnippingBar';
 
 interface LiveScreenCaptureModalProps {
   isOpen: boolean;
@@ -47,6 +50,7 @@ export function LiveScreenCaptureModal({
     startCapture,
     stopCapture,
     snapFrame,
+    undoLastSnap,
     addLocalFiles,
     deleteSnappedScreen,
     clearSnappedScreens,
@@ -54,13 +58,13 @@ export function LiveScreenCaptureModal({
     isMobile,
     isPipSupported,
     isPipActive,
+    pipWindow,
     openPipWindow,
     closePipWindow
   } = useScreenCapture();
 
   const [previewScreen, setPreviewScreen] = useState<SnappedScreen | null>(null);
   const [justSnapped, setJustSnapped] = useState(false);
-  const pipCountRef = useRef<HTMLSpanElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,13 +96,6 @@ export function LiveScreenCaptureModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isStreaming, previewScreen]);
 
-  // Update PiP window counter when snappedScreens changes
-  useEffect(() => {
-    if (pipCountRef.current) {
-      pipCountRef.current.textContent = `${snappedScreens.length} captured`;
-    }
-  }, [snappedScreens.length]);
-
   const triggerSnap = async () => {
     setJustSnapped(true);
     setTimeout(() => setJustSnapped(false), 250);
@@ -106,100 +103,9 @@ export function LiveScreenCaptureModal({
     return snap;
   };
 
-  // Launch Picture-in-Picture floating pill controller
+  // Launch Picture-in-Picture floating snipping tool controller
   const handleLaunchPip = async () => {
-    const pipWin = await openPipWindow();
-    if (!pipWin) return;
-
-    // Render lightweight floating controller directly into PiP document body
-    pipWin.document.body.innerHTML = `
-      <div style="
-        background: #1D1E1C;
-        color: #ffffff;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        padding: 14px;
-        height: 100vh;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        user-select: none;
-      ">
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #323531; padding-bottom: 8px;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <div style="width: 8px; height: 8px; border-radius: 50%; background: #00FF88; box-shadow: 0 0 8px #00FF88;"></div>
-            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #ffffff;">QA STUDIO CAPTURE</span>
-          </div>
-          <span id="pip-counter" style="font-size: 10px; font-family: monospace; font-weight: 700; color: #00FF88; background: rgba(0,255,136,0.15); padding: 2px 6px; border-radius: 10px; border: 1px solid rgba(0,255,136,0.3);">
-            ${snappedScreens.length} captured
-          </span>
-        </div>
-
-        <div style="padding: 10px 0;">
-          <button id="pip-snap-btn" style="
-            width: 100%;
-            background: #00FF88;
-            color: #1D1E1C;
-            border: none;
-            border-radius: 9999px;
-            padding: 12px 16px;
-            font-size: 13px;
-            font-weight: 800;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,255,136,0.3);
-            transition: transform 0.1s, background 0.1s;
-          ">
-            <span>📸 Snap Screen (Space)</span>
-          </button>
-        </div>
-
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <span style="font-size: 9px; color: #8F9489;">Tap while testing your app</span>
-          <button id="pip-done-btn" style="
-            background: #282A27;
-            color: #D6D8D2;
-            border: 1px solid #3B3E39;
-            border-radius: 9999px;
-            padding: 4px 10px;
-            font-size: 10px;
-            font-weight: 600;
-            cursor: pointer;
-          ">
-            Done & Close
-          </button>
-        </div>
-      </div>
-    `;
-
-    pipCountRef.current = pipWin.document.getElementById('pip-counter') as HTMLSpanElement;
-
-    const snapBtn = pipWin.document.getElementById('pip-snap-btn');
-    if (snapBtn) {
-      snapBtn.addEventListener('click', async () => {
-        snapBtn.style.transform = 'scale(0.95)';
-        setTimeout(() => { snapBtn.style.transform = 'scale(1)'; }, 100);
-        await triggerSnap();
-      });
-    }
-
-    const doneBtn = pipWin.document.getElementById('pip-done-btn');
-    if (doneBtn) {
-      doneBtn.addEventListener('click', () => {
-        closePipWindow();
-      });
-    }
-
-    // Keyboard shortcut in PiP window
-    pipWin.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' || e.key === 'Enter') {
-        e.preventDefault();
-        triggerSnap();
-      }
-    });
+    await openPipWindow({ width: 380, height: 160 });
   };
 
   const handleFinish = () => {
@@ -207,6 +113,11 @@ export function LiveScreenCaptureModal({
     onScreensCaptured(snappedScreens);
     stopCapture();
     closePipWindow();
+    try {
+      window.focus();
+    } catch (e) {
+      // ignore
+    }
     onClose();
   };
 
@@ -214,14 +125,21 @@ export function LiveScreenCaptureModal({
     stopCapture();
     closePipWindow();
     clearSnappedScreens();
+    try {
+      window.focus();
+    } catch (e) {
+      // ignore
+    }
     onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !(isPipActive && pipWindow)) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-dark-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-4xl max-h-[92vh] flex flex-col bg-dark-chassis text-white rounded-[28px] sm:rounded-[32px] border border-dark-secondary shadow-modal overflow-hidden animate-in zoom-in-95 duration-150">
+    <>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-dark-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-4xl max-h-[92vh] flex flex-col bg-dark-chassis text-white rounded-[28px] sm:rounded-[32px] border border-dark-secondary shadow-modal overflow-hidden animate-in zoom-in-95 duration-150">
         
         {/* Header Bar */}
         <div className="px-5 py-4 border-b border-dark-secondary/80 flex items-center justify-between gap-3 shrink-0 bg-dark-chassis relative">
@@ -290,6 +208,53 @@ export function LiveScreenCaptureModal({
                   Select Mobile Screenshots
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Always-on-Top Floating Snipping Bar Banner */}
+          {isStreaming && isPipSupported && !isPipActive && (
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-dark-secondary via-dark-tertiary/60 to-dark-secondary border border-neon/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-neon/15 border border-neon/30 flex items-center justify-center text-neon shrink-0">
+                  <ExternalLink className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-white">Testing another tab or app?</span>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-neon text-dark-chassis">
+                      ALWAYS ON TOP
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-txt-muted mt-0.5">
+                    Launch the Floating Snipping Tool so you can take screenshots while navigating other web pages, iOS Simulator, or Android emulator.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleLaunchPip}
+                className="w-full sm:w-auto px-4 py-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis font-extrabold text-xs flex items-center justify-center gap-2 transition active:scale-95 shadow-md shadow-neon/20 cursor-pointer shrink-0"
+              >
+                <ExternalLink className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Launch Floating Snipping Bar</span>
+              </button>
+            </div>
+          )}
+
+          {isStreaming && isPipActive && (
+            <div className="p-3 rounded-2xl bg-neon/10 border border-neon/30 flex items-center justify-between gap-2.5 text-xs text-neon animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-neon animate-pulse" />
+                <span className="font-semibold text-white">Floating Snipping Bar is active on your screen</span>
+                <span className="text-[10px] text-txt-muted hidden sm:inline">— Switch to any tab or app and click "Snap Screen"!</span>
+              </div>
+              <button
+                type="button"
+                onClick={closePipWindow}
+                className="text-[11px] text-txt-muted hover:text-white underline cursor-pointer"
+              >
+                Close Floating Bar
+              </button>
             </div>
           )}
 
@@ -435,6 +400,19 @@ export function LiveScreenCaptureModal({
                   </span>
                 </button>
 
+                {/* Undo Last Capture Button */}
+                {snappedScreens.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={undoLastSnap}
+                    className="px-3 py-2 rounded-pill bg-dark-chassis hover:bg-dark-tertiary text-txt-muted hover:text-white text-xs font-semibold border border-dark-tertiary transition cursor-pointer flex items-center gap-1.5"
+                    title="Undo last capture"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Undo</span>
+                  </button>
+                )}
+
                 {/* Pop Out PiP Button */}
                 {isPipSupported && (
                   <button
@@ -446,11 +424,11 @@ export function LiveScreenCaptureModal({
                         ? 'bg-dark-chassis text-neon border-neon/40'
                         : 'bg-dark-secondary hover:bg-dark-tertiary text-txt-secondary hover:text-white border-dark-tertiary'
                     }`}
-                    title="Pop out a tiny floating controller so you can snap while interacting with your simulator"
+                    title="Pop out a floating snipping bar so you can snap while interacting with any other app"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">
-                      {isPipActive ? 'Floating Widget Active' : 'Pop Out Floating Controller'}
+                      {isPipActive ? 'Floating Widget Active' : 'Pop Out Floating Bar'}
                     </span>
                   </button>
                 )}
@@ -618,5 +596,21 @@ export function LiveScreenCaptureModal({
 
       </div>
     </div>
+    )}
+
+    {/* Document Picture-in-Picture Floating Bar Portal */}
+    {isPipActive && pipWindow && createPortal(
+      <FloatingSnippingBar
+        snappedScreens={snappedScreens}
+        onSnap={snapFrame}
+        onUndo={undoLastSnap}
+        onFinish={handleFinish}
+        onClose={closePipWindow}
+        videoResolution={videoResolution}
+        isStreaming={isStreaming}
+      />,
+      pipWindow.document.body
+    )}
+  </>
   );
 }
