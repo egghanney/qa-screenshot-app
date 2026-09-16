@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     openapi: '3.1.0',
     info: {
       title: 'QA Studio MCP & Storyboard API',
-      description: 'Connects ChatGPT Custom GPT directly to QA Studio on Vercel to inspect storyboard evidence and generate 27-charter exploratory test suites.',
+      description: 'Connects ChatGPT Custom GPT directly to QA Studio on Vercel to inspect storyboard evidence, generate exploratory test suites, and sync charters directly into the database.',
       version: '1.0.0'
     },
     servers: [
@@ -23,11 +23,46 @@ export async function GET(req: NextRequest) {
       }
     ],
     paths: {
+      '/api/features': {
+        get: {
+          operationId: 'listFeatures',
+          summary: 'List all features in QA Studio',
+          description: 'Returns a list of all feature journeys in QA Studio with their titles, IDs, and screen counts so the user can select which flow to explore.',
+          responses: {
+            '200': {
+              description: 'List of features with screen counts.',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      total: { type: 'integer' },
+                      features: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string' },
+                            name: { type: 'string' },
+                            purpose: { type: 'string' },
+                            screen_count: { type: 'integer' }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       '/api/prompt-pack': {
         get: {
           operationId: 'getPromptPack',
           summary: 'Get Senior QA Prompt Pack and Screen Evidence Index',
-          description: 'Fetches the complete Senior QA prompt pre-loaded with numbered screen evidence (#1 to #17), actions, and blueprint pillars from QA Studio.',
+          description: 'Fetches the complete Senior QA prompt pre-loaded with numbered screen evidence (#1 to #N), user actions, and blueprint pillars from QA Studio.',
           parameters: [
             {
               name: 'feature',
@@ -48,7 +83,7 @@ export async function GET(req: NextRequest) {
                 enum: ['all', 'part1', 'part2'],
                 default: 'part1'
               },
-              description: 'Select "part1" for Charters 01-14, "part2" for Charters 15-27, or "all".'
+              description: 'Select "part1" for first batch of charters, "part2" for second batch, or "all".'
             }
           ],
           responses: {
@@ -73,32 +108,48 @@ export async function GET(req: NextRequest) {
           }
         }
       },
-      '/api/mcp': {
+      '/api/charters/sync': {
         post: {
-          operationId: 'getMcpSeniorQaPromptPack',
-          summary: 'Retrieve Senior QA Prompt Pack via JSON-RPC MCP',
-          description: 'Calls the MCP server over HTTP to fetch the Senior QA prompt pack.',
+          operationId: 'saveChartersToStudio',
+          summary: 'Save generated exploratory charters directly into QA Studio',
+          description: 'Uploads and persists the generated charter suite and scenarios directly into the QA Studio database under the specified feature.',
           requestBody: {
             required: true,
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['jsonrpc', 'id', 'method', 'params'],
+                  required: ['feature', 'charters'],
                   properties: {
-                    jsonrpc: { type: 'string', default: '2.0' },
-                    id: { type: 'integer', default: 1 },
-                    method: { type: 'string', default: 'prompts/get' },
-                    params: {
-                      type: 'object',
-                      required: ['name'],
-                      properties: {
-                        name: { type: 'string', default: 'generate_senior_qa_storyboard_suite' },
-                        arguments: {
-                          type: 'object',
-                          properties: {
-                            feature: { type: 'string', default: 'latest' },
-                            part: { type: 'string', enum: ['all', 'part1', 'part2'], default: 'part1' }
+                    feature: {
+                      type: 'string',
+                      description: 'Feature name (e.g. "Buy Food") or feature UUID'
+                    },
+                    charters: {
+                      type: 'array',
+                      description: 'Array of generated charter objects with scenarios',
+                      items: {
+                        type: 'object',
+                        required: ['title', 'mission', 'scenarios'],
+                        properties: {
+                          charter_code: { type: 'string' },
+                          title: { type: 'string' },
+                          mission: { type: 'string' },
+                          user_persona: { type: 'string' },
+                          starting_condition: { type: 'string' },
+                          expected_outcome: { type: 'string' },
+                          priority: { type: 'string' },
+                          scenarios: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              required: ['prompt_id', 'prompt_text'],
+                              properties: {
+                                prompt_id: { type: 'string' },
+                                prompt_text: { type: 'string' },
+                                traceability: { type: 'object' }
+                              }
+                            }
                           }
                         }
                       }
@@ -110,15 +161,16 @@ export async function GET(req: NextRequest) {
           },
           responses: {
             '200': {
-              description: 'Successful MCP response',
+              description: 'Successfully saved charters to QA Studio database',
               content: {
                 'application/json': {
                   schema: {
                     type: 'object',
                     properties: {
-                      jsonrpc: { type: 'string' },
-                      id: { type: 'integer' },
-                      result: { type: 'object' }
+                      success: { type: 'boolean' },
+                      charters_saved: { type: 'integer' },
+                      scenarios_saved: { type: 'integer' },
+                      message: { type: 'string' }
                     }
                   }
                 }
@@ -130,7 +182,7 @@ export async function GET(req: NextRequest) {
       '/api/charters': {
         get: {
           operationId: 'getSavedCharters',
-          summary: 'Fetch saved charters and evidence context',
+          summary: 'Fetch saved charters and evidence context from QA Studio',
           description: 'Retrieves existing saved charters from the database.',
           parameters: [
             {
