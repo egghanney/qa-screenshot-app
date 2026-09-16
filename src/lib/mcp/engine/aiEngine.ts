@@ -51,30 +51,92 @@ import OpenAI from 'openai';
 const idempotencyCache = new Map<string, { charterSuite: CharterSuite; qualityGateReport: QualityGateReport; contextPack: ContextPack }>();
 
 // ==========================================
-// 1. Context Pack Retrieval & Assembly
+// 1. Feature Record Resolution & Context Pack Retrieval
 // ==========================================
 
-export async function getFeatureContextPack(featureId: string): Promise<ContextPack> {
-  // Fetch feature record
-  const { data: featData, error: fErr } = await supabase
-    .from('qa_features')
-    .select('*')
-    .eq('id', featureId)
-    .single();
+/**
+ * Resolves a feature record by UUID, "latest", or human-friendly name (e.g. "Buy Food", "food").
+ */
+export async function resolveFeatureRecord(identifier: string): Promise<Feature> {
+  const trimmed = (identifier || '').trim();
 
-  if (fErr || !featData) {
-    throw new Error(`Feature with ID "${featureId}" not found in database.`);
+  // 1. "latest" or empty: Return the most recently updated or created feature
+  if (!trimmed || trimmed.toLowerCase() === 'latest') {
+    const { data, error } = await supabase
+      .from('qa_features')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      throw new Error('No features found in database. Please create a feature or upload a storyboard flow first.');
+    }
+    return data[0] as Feature;
   }
 
-  const feature = featData as Feature;
+  // 2. Exact UUID lookup
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+  if (isUuid) {
+    const { data, error } = await supabase
+      .from('qa_features')
+      .select('*')
+      .eq('id', trimmed)
+      .maybeSingle();
 
-  // Fetch screens, journey nodes/edges, knowledge items, and test runs concurrently
+    if (!error && data) {
+      return data as Feature;
+    }
+  }
+
+  // 3. Exact name match (case-insensitive)
+  const { data: exactNameData } = await supabase
+    .from('qa_features')
+    .select('*')
+    .ilike('name', trimmed)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (exactNameData && exactNameData.length > 0) {
+    return exactNameData[0] as Feature;
+  }
+
+  // 4. Substring / fuzzy match on name (e.g. "food" matches "Buy Food Storyboard Flow")
+  const { data: substringData } = await supabase
+    .from('qa_features')
+    .select('*')
+    .ilike('name', `%${trimmed}%`)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (substringData && substringData.length > 0) {
+    return substringData[0] as Feature;
+  }
+
+  // 5. If not found, fetch available feature names to provide a helpful error
+  const { data: allFeatures } = await supabase
+    .from('qa_features')
+    .select('id, name')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const suggestions = (allFeatures || []).map(f => `• "${f.name}" (ID: ${f.id})`).join('\n');
+  throw new Error(
+    `Feature matching "${trimmed}" not found in database.\nAvailable features in QA Studio:\n${suggestions || 'No features found.'}`
+  );
+}
+
+export async function getFeatureContextPack(featureId: string): Promise<ContextPack> {
+  // Fetch & resolve feature record by ID, name, or "latest"
+  const feature = await resolveFeatureRecord(featureId);
+  const resolvedId = feature.id;
+
+  // Fetch screens, journey nodes/edges, knowledge items, and test runs concurrently using resolved ID
   const [screensRes, nodesRes, edgesRes, knowledgeRes, testRunsRes] = await Promise.all([
-    supabase.from('qa_screens').select('*').eq('feature_id', featureId).order('screen_number', { ascending: true }),
-    supabase.from('qa_journey_nodes').select('*').eq('feature_id', featureId),
-    supabase.from('qa_journey_edges').select('*').eq('feature_id', featureId),
-    supabase.from('qa_knowledge_items').select('*').eq('feature_id', featureId),
-    supabase.from('qa_test_runs').select('*').contains('feature_ids', [featureId]).order('created_at', { ascending: false }).limit(5)
+    supabase.from('qa_screens').select('*').eq('feature_id', resolvedId).order('screen_number', { ascending: true }),
+    supabase.from('qa_journey_nodes').select('*').eq('feature_id', resolvedId),
+    supabase.from('qa_journey_edges').select('*').eq('feature_id', resolvedId),
+    supabase.from('qa_knowledge_items').select('*').eq('feature_id', resolvedId),
+    supabase.from('qa_test_runs').select('*').contains('feature_ids', [resolvedId]).order('created_at', { ascending: false }).limit(5)
   ]);
 
   const screens = (screensRes.data || []) as ScreenItem[];
@@ -1496,21 +1558,23 @@ async function persistChartersToDb(
       }
     };
 
+    const resolvedFeatureId = contextPack.feature.id;
+
     await supabase
       .from('qa_features')
       .update({ advanced_context: updatedAdvancedContext })
-      .eq('id', featureId);
+      .eq('id', resolvedFeatureId);
 
     // 4. Delete existing charters to prevent duplicate clutter on regeneration
     const { data: existingCharters } = await supabase
       .from('qa_charters')
       .select('id')
-      .eq('feature_id', featureId);
+      .eq('feature_id', resolvedFeatureId);
 
     if (existingCharters && existingCharters.length > 0) {
       const ids = existingCharters.map(c => c.id);
       await supabase.from('qa_charter_scenarios').delete().in('charter_id', ids);
-      await supabase.from('qa_charters').delete().eq('feature_id', featureId);
+      await supabase.from('qa_charters').delete().eq('feature_id', resolvedFeatureId);
     }
 
     // 5. Insert new charters & scenarios
@@ -1529,7 +1593,7 @@ async function persistChartersToDb(
           expected_outcome: c.expected_outcome,
           scope: 'feature',
           status: 'Draft',
-          feature_id: featureId,
+          feature_id: resolvedFeatureId,
           project_id: feature.project_id
         })
         .select('*')

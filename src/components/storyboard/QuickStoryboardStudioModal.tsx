@@ -32,7 +32,8 @@ import {
   Users,
   Compass,
   Cpu,
-  FileText
+  FileText,
+  Bot
 } from 'lucide-react';
 import { StoryboardScreen, Project, StoryboardExecutiveContext, KnowledgeCategory } from '@/lib/types';
 import { 
@@ -42,6 +43,7 @@ import {
 } from '@/lib/storyboard/storyboardGridExporter';
 import { ScreenActionEditorDrawer } from '@/components/storyboard/ScreenActionEditorDrawer';
 import { LiveScreenCaptureModal } from '@/components/capture/LiveScreenCaptureModal';
+import { ChatGPTExportModal } from '@/components/storyboard/ChatGPTExportModal';
 import { SnappedScreen } from '@/lib/capture/useScreenCapture';
 import { supabase } from '@/lib/supabase/client';
 
@@ -72,6 +74,7 @@ export function QuickStoryboardStudioModal({
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [includeActionsInExport, setIncludeActionsInExport] = useState(true);
   const [includeContextInExport, setIncludeContextInExport] = useState(true);
+  const [isChatGptModalOpen, setIsChatGptModalOpen] = useState(false);
 
   // 8-Pillar Executive Flow Context State
   const [isExecutiveCardOpen, setIsExecutiveCardOpen] = useState(false);
@@ -561,6 +564,19 @@ export function QuickStoryboardStudioModal({
               </button>
             )}
 
+            {/* ChatGPT Prompt Pack Action Button */}
+            {computedScreens.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsChatGptModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-pill bg-[#10A37F] hover:bg-[#1A7F64] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm shadow-[#10A37F]/30 cursor-pointer active:scale-95 shrink-0"
+                title="Generate 27-Charter Suite using ChatGPT"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>ChatGPT Pack</span>
+              </button>
+            )}
+
             {/* Download Storyboard Dropdown */}
             {computedScreens.length > 0 && (
               <div className="relative">
@@ -609,6 +625,26 @@ export function QuickStoryboardStudioModal({
                       </div>
                       <p className="text-[10px] text-txt-muted mt-0.5 leading-tight">
                         Continuous multi-row composite image of full flow
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsExportMenuOpen(false);
+                        setIsChatGptModalOpen(true);
+                      }}
+                      className="w-full text-left p-2 rounded-xl bg-dark-chassis hover:bg-[#10A37F]/15 border border-[#10A37F]/40 hover:border-[#10A37F] transition group cursor-pointer"
+                    >
+                      <div className="text-xs font-bold text-white group-hover:text-[#10A37F] flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Bot className="w-3.5 h-3.5 text-[#10A37F]" />
+                          <span>ChatGPT Prompt Pack</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-neon font-bold">27 Charters</span>
+                      </div>
+                      <p className="text-[10px] text-txt-muted mt-0.5 leading-tight">
+                        Copy Senior QA prompt pack + evidence index for ChatGPT
                       </p>
                     </button>
 
@@ -1293,6 +1329,15 @@ export function QuickStoryboardStudioModal({
           onScreensCaptured={handleLiveCaptureScreens}
           title={`Live Capture — ${flowTitle}`}
           description="Capture sequential screens directly into your storyboard."
+        />
+
+        {/* ChatGPT Senior QA Prompt Pack Modal */}
+        <ChatGPTExportModal
+          isOpen={isChatGptModalOpen}
+          onClose={() => setIsChatGptModalOpen(false)}
+          flowTitle={flowTitle}
+          screens={computedScreens}
+          executiveContext={executiveContext}
         />
 
       </div>

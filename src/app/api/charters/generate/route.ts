@@ -7,7 +7,9 @@ import { QACharter, CharterScenario } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 const GenerateChartersRequestSchema = z.object({
-  feature_id: z.string().min(1, 'feature_id is required'),
+  feature_id: z.string().optional(),
+  feature: z.string().optional(),
+  feature_name: z.string().optional(),
   count: z.number().int().positive().default(4),
   multimodal: z.boolean().default(false),
   project_id: z.string().optional(),
@@ -26,11 +28,10 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const { feature_id, api_key, count, model, multimodal } = parseResult.data;
+    const { feature_id, feature, feature_name, api_key, count, model, multimodal } = parseResult.data;
+    const targetFeatureId = (feature || feature_name || feature_id || 'latest').trim();
     const reqId = `req-${Date.now().toString(36)}`;
-    console.log(`[charter-generate] id=${reqId} feature_id=${feature_id} count=${count} multimodal=${multimodal}`);
-
-    const targetFeatureId = feature_id;
+    console.log(`[charter-generate] id=${reqId} targetFeature=${targetFeatureId} count=${count} multimodal=${multimodal}`);
 
     // 1. Invoke the AI Engine Orchestration Service directly in-process
     const { 
@@ -46,11 +47,13 @@ export async function POST(req: Request) {
       forceRegenerate: true
     });
 
+    const resolvedId = contextPack.feature.id;
+
     // 2. Query saved charters with their scenarios
     const { data: dbCharters, error: fetchErr } = await supabase
       .from('qa_charters')
       .select('*, qa_charter_scenarios(*)')
-      .eq('feature_id', targetFeatureId)
+      .eq('feature_id', resolvedId)
       .order('created_at', { ascending: true });
 
     if (fetchErr) {

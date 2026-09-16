@@ -1,18 +1,29 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { QACharter, CharterScenario } from '@/lib/types';
+import { resolveFeatureRecord } from '@/lib/mcp/engine/aiEngine';
 
 // GET: Fetch charters with scenarios for a feature or project
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const featureId = searchParams.get('feature_id');
+    const featureParam = searchParams.get('feature') || searchParams.get('feature_id') || searchParams.get('feature_name');
     const projectId = searchParams.get('project_id');
+
+    let resolvedFeatureId: string | null = null;
+    if (featureParam) {
+      try {
+        const feat = await resolveFeatureRecord(featureParam);
+        resolvedFeatureId = feat.id;
+      } catch {
+        resolvedFeatureId = featureParam;
+      }
+    }
 
     let query = supabase.from('qa_charters').select('*');
 
-    if (featureId) {
-      query = query.eq('feature_id', featureId);
+    if (resolvedFeatureId) {
+      query = query.eq('feature_id', resolvedFeatureId);
     } else if (projectId && projectId !== 'all') {
       query = query.eq('project_id', projectId);
     }
@@ -37,16 +48,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: sErr.message }, { status: 500 });
     }
 
-    // Fetch feature context for traceability and context pack if featureId provided
+    // Fetch feature context for traceability and context pack if feature provided
     let traceMap: Record<string, any> = {};
     let contextPack: any = null;
     let validationReport: any = null;
 
-    if (featureId) {
+    if (resolvedFeatureId) {
       const { data: feat } = await supabase
         .from('qa_features')
         .select('advanced_context')
-        .eq('id', featureId)
+        .eq('id', resolvedFeatureId)
         .single();
       if (feat?.advanced_context) {
         traceMap = feat.advanced_context.latest_traceability_map || {};

@@ -58,3 +58,53 @@ export function setStoredGeminiApiKey(apiKey: string): void {
     console.warn('Failed to persist Gemini API key to localStorage:', e);
   }
 }
+
+const STORAGE_KEY_OPENAI = 'QA_OPENAI_API_KEY';
+const STORAGE_KEY_OPENAI_LEGACY = 'AETHER_OPENAI_API_KEY';
+
+export function getStoredOpenAiApiKey(): string {
+  if (typeof window === 'undefined') return '';
+  
+  try {
+    const directKey = localStorage.getItem(STORAGE_KEY_OPENAI) || localStorage.getItem(STORAGE_KEY_OPENAI_LEGACY);
+    if (directKey && directKey.trim()) {
+      return directKey.trim();
+    }
+
+    const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS) || localStorage.getItem(STORAGE_KEY_SETTINGS_LEGACY);
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      if (parsed.openaiApiKey && typeof parsed.openaiApiKey === 'string' && parsed.openaiApiKey.trim()) {
+        return parsed.openaiApiKey.trim();
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to read OpenAI API key from localStorage:', e);
+  }
+
+  return '';
+}
+
+export function setStoredOpenAiApiKey(apiKey: string): void {
+  if (typeof window === 'undefined') return;
+
+  const cleanKey = apiKey.trim();
+
+  try {
+    localStorage.setItem(STORAGE_KEY_OPENAI, cleanKey);
+
+    let settingsObj: Record<string, any> = {};
+    const existing = localStorage.getItem(STORAGE_KEY_SETTINGS);
+    if (existing) {
+      try {
+        settingsObj = JSON.parse(existing);
+      } catch {
+        settingsObj = {};
+      }
+    }
+    settingsObj.openaiApiKey = cleanKey;
+    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settingsObj));
+  } catch (e) {
+    console.warn('Failed to persist OpenAI API key to localStorage:', e);
+  }
+}

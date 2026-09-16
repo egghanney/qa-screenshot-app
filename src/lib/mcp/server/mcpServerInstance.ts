@@ -10,6 +10,12 @@ import {
 import { validateCharterSuite } from '../validation/charterQualityGate';
 import { supabase } from '@/lib/supabase/client';
 import { Charter, ExecutionResults, ExecutionResultsSchema } from '../contracts/schemas';
+import { 
+  SENIOR_QA_SYSTEM_PROMPT_TEMPLATE, 
+  buildCompleteChatGptPromptPack, 
+  buildSplitChatGptPromptPack 
+} from '@/lib/storyboard/chatgptPromptPackGenerator';
+import { StoryboardScreen, StoryboardExecutiveContext } from '@/lib/types';
 
 // PII & Secret Sanitizer to prevent leaking sensitive credentials in MCP responses
 export function sanitizeOutput(content: string): string {
@@ -40,7 +46,7 @@ export function createMcpServer(): McpServer {
     'get_context_pack',
     'Retrieve the complete structured Feature Context Pack including 8 Blueprint Pillars, ordered User Actions, Screen Evidence, and Normalized Evidence Index.',
     {
-      feature_id: z.string().describe('The unique ID of the QA feature')
+      feature_id: z.string().describe('Feature name (e.g. "Buy Food"), "latest", or unique UUID of the QA feature')
     },
     async ({ feature_id }) => {
       try {
@@ -67,7 +73,7 @@ export function createMcpServer(): McpServer {
     'analyze_feature',
     'Perform in-depth behavioral analysis on a feature, deriving topological journeys, states, boundaries, cross-screen data consistency, and sourced risks.',
     {
-      feature_id: z.string().describe('The unique ID of the QA feature')
+      feature_id: z.string().describe('Feature name (e.g. "Buy Food"), "latest", or unique UUID of the QA feature')
     },
     async ({ feature_id }) => {
       try {
@@ -94,7 +100,7 @@ export function createMcpServer(): McpServer {
     'generate_charters',
     'Generate focused exploratory testing charters grounded 100% in feature evidence, blueprint pillars, and risk vectors with strict traceability.',
     {
-      feature_id: z.string().describe('The unique ID of the QA feature'),
+      feature_id: z.string().describe('Feature name (e.g. "Buy Food"), "latest", or unique UUID of the QA feature'),
       count: z.number().min(1).max(10).optional().describe('Number of charters to generate (default 4)'),
       idempotency_key: z.string().optional().describe('Optional idempotency key to prevent duplicate runs'),
       model: z.string().optional().describe('Optional AI model override (e.g. gpt-4o or gemini-3.6-flash)'),
@@ -135,7 +141,7 @@ export function createMcpServer(): McpServer {
     'validate_charters',
     'Run the deterministic 9-check code quality gate on candidate charters against the feature\'s evidence index.',
     {
-      feature_id: z.string().describe('The unique ID of the QA feature'),
+      feature_id: z.string().describe('Feature name (e.g. "Buy Food"), "latest", or unique UUID of the QA feature'),
       charters_json: z.string().describe('JSON string of candidate Charter[] array')
     },
     async ({ feature_id, charters_json }) => {
@@ -166,14 +172,17 @@ export function createMcpServer(): McpServer {
     'get_execution_results',
     'Fetch recent test execution results, observations, failures, and blocked scenarios for a feature.',
     {
-      feature_id: z.string().describe('The unique ID of the QA feature')
+      feature_id: z.string().describe('Feature name (e.g. "Buy Food"), "latest", or unique UUID of the QA feature')
     },
     async ({ feature_id }) => {
       try {
+        const pack = await getFeatureContextPack(feature_id);
+        const resolvedId = pack.feature.id;
+
         const { data: runs, error } = await supabase
           .from('qa_test_runs')
           .select('*')
-          .contains('feature_ids', [feature_id])
+          .contains('feature_ids', [resolvedId])
           .order('created_at', { ascending: false })
           .limit(5);
 
@@ -559,6 +568,84 @@ export function createMcpServer(): McpServer {
         }
       ]
     })
+  );
+
+  // Prompt 7: generate_senior_qa_storyboard_suite
+  server.prompt(
+    'generate_senior_qa_storyboard_suite',
+    'Senior QA Exploratory Testing Prompt Suite: Generates a comprehensive 27-charter suite with >=6 exploration prompts per charter grounded in user storyboard evidence.',
+    {
+      feature: z.string().optional().describe('Feature name (e.g. "Buy Food"), "latest" for most recent flow, or feature UUID (default: "latest")'),
+      feature_id: z.string().optional().describe('Legacy alias for feature: Name, "latest", or UUID'),
+      part: z.enum(['all', 'part1', 'part2']).optional().describe('Select "all" for complete unified prompt pack, "part1" for Charters 01-14, or "part2" for Charters 15-27 (recommended to avoid ChatGPT token limits)')
+    },
+    async ({ feature, feature_id, part }) => {
+      let promptText = '';
+      const selectedPart = part || 'all';
+      const targetFeature = (feature || feature_id || 'latest').trim();
+
+      try {
+        const pack = await getFeatureContextPack(targetFeature);
+        const screens: StoryboardScreen[] = (pack.screens || []).map((s, idx) => ({
+          id: s.screen_id || `screen-${idx + 1}`,
+          name: s.screen_name || `Screen #${idx + 1}`,
+          previewUrl: s.image_url || '',
+          isSubScreen: false,
+          stepBadge: `#${s.screen_number || idx + 1}`,
+          actions: (s.user_actions || []).map((a, aIdx) => ({
+            id: `act-${idx + 1}-${aIdx + 1}`,
+            order: a.sequence || aIdx + 1,
+            type: 'tap' as const,
+            description: a.action
+          })),
+          expectedResult: s.observed_behaviour?.join('; ') || ''
+        }));
+
+        const execContext: StoryboardExecutiveContext = {
+          featuresAndServices: pack.feature.goal || pack.framework.features_services?.join(', '),
+          userTypes: pack.framework.user_types?.join(', '),
+          journeysAndNavigation: pack.framework.journeys_navigation?.join('; '),
+          interactionReference: pack.framework.interactions_configuration?.join('; '),
+          businessRules: pack.framework.business_rules_constraints?.join('; '),
+          systemFailureStates: pack.framework.system_failure_states?.join('; '),
+          communicationsDependencies: pack.framework.communications_dependencies?.join('; '),
+          historicalKnowledgeRisk: pack.framework.historical_knowledge_risk?.join('; ')
+        };
+
+        const flowTitle = pack.feature.name || 'Feature Journey';
+
+        if (selectedPart === 'part1') {
+          const split = buildSplitChatGptPromptPack(flowTitle, screens, execContext);
+          promptText = split.part1;
+        } else if (selectedPart === 'part2') {
+          const split = buildSplitChatGptPromptPack(flowTitle, screens, execContext);
+          promptText = split.part2;
+        } else {
+          promptText = buildCompleteChatGptPromptPack(flowTitle, screens, execContext);
+        }
+      } catch (e: any) {
+        if (selectedPart === 'part1') {
+          promptText = `${SENIOR_QA_SYSTEM_PROMPT_TEMPLATE}\n\n[Note: ${e.message}]\n[Please paste your Storyboard Screen Evidence Ledger here]\n\n==================================================\nPART 1 INSTRUCTION: Generate Charters 01 to 14 with at least 6 exploration scenarios per charter table.`;
+        } else if (selectedPart === 'part2') {
+          promptText = `==================================================\nPART 2 INSTRUCTION: Generate Charters 15 to 27 with at least 6 exploration scenarios per charter table, followed by Cross-Cutting Exploration, Coverage Summary, Priority Summary, and Unknowns.`;
+        } else {
+          promptText = `${SENIOR_QA_SYSTEM_PROMPT_TEMPLATE}\n\n[Note: ${e.message}]\n[Please paste your Storyboard Screen Evidence Ledger here]\n\n==================================================\nINSTRUCTION: Generate all 27 Charters with at least 6 scenarios per charter table.`;
+        }
+      }
+
+      return {
+        description: `Senior QA 27-Charter Storyboard Suite Prompt (${selectedPart})`,
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: sanitizeOutput(promptText)
+            }
+          }
+        ]
+      };
+    }
   );
 
   return server;

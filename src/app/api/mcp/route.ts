@@ -38,21 +38,20 @@ async function handleMcpRequest(req: NextRequest): Promise<Response> {
 
   await server.connect(transport);
 
-  // 3. Normalize Accept header to satisfy Streamable HTTP 2026-07-28 / 2024-11-05 spec
-  let effectiveReq: Request = req;
-  const acceptHeader = req.headers.get('accept') || '';
-  if (!acceptHeader.includes('text/event-stream')) {
-    const newHeaders = new Headers(req.headers);
-    newHeaders.set('accept', acceptHeader ? `${acceptHeader}, text/event-stream` : 'application/json, text/event-stream');
-
-    effectiveReq = new Request(req.url, {
-      method: req.method,
-      headers: newHeaders,
-      body: req.body,
-      // @ts-ignore
-      duplex: 'half'
-    });
+  // 3. Normalize Accept header to satisfy Streamable HTTP spec for all clients (ChatGPT, Claude, Cursor, curl)
+  const newHeaders = new Headers(req.headers);
+  newHeaders.set('accept', 'application/json, text/event-stream');
+  if (req.method === 'POST' && (!newHeaders.get('content-type') || newHeaders.get('content-type')?.includes('*/*'))) {
+    newHeaders.set('content-type', 'application/json');
   }
+
+  const effectiveReq = new Request(req.url, {
+    method: req.method,
+    headers: newHeaders,
+    body: req.method === 'GET' || req.method === 'HEAD' ? undefined : req.body,
+    // @ts-ignore
+    duplex: 'half'
+  });
 
   // 4. Handle request via MCP Transport
   const response = await transport.handleRequest(effectiveReq);

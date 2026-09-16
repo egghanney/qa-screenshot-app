@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Key, Check, BrainCircuit } from 'lucide-react';
-import { getStoredGeminiApiKey, setStoredGeminiApiKey } from '@/lib/settings';
+import { getStoredGeminiApiKey, setStoredGeminiApiKey, getStoredOpenAiApiKey, setStoredOpenAiApiKey } from '@/lib/settings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -11,11 +11,13 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('');
+  const [openAiApiKey, setOpenAiApiKey] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setApiKey(getStoredGeminiApiKey());
+      setOpenAiApiKey(getStoredOpenAiApiKey());
     }
   }, [isOpen]);
 
@@ -23,6 +25,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleSave = () => {
     setStoredGeminiApiKey(apiKey);
+    setStoredOpenAiApiKey(openAiApiKey);
     setSaved(true);
     setTimeout(() => {
       setSaved(false);
@@ -44,6 +47,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <button onClick={onClose} className="text-txt-muted hover:text-dark-chassis">
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* OpenAI API Key */}
+        <div className="space-y-2 text-xs">
+          <label className="font-bold text-dark-chassis flex items-center gap-1.5">
+            <Key className="w-3.5 h-3.5 text-dark-chassis" />
+            OpenAI API Key (ChatGPT / GPT-4o)
+          </label>
+          <input
+            type="password"
+            placeholder="sk-proj-..."
+            value={openAiApiKey}
+            onChange={(e) => setOpenAiApiKey(e.target.value)}
+            className="w-full px-3 py-2 bg-qa-white border border-qa-border rounded-xl text-xs font-mono focus:outline-none focus:border-dark-chassis"
+          />
+          <p className="text-[11px] text-txt-secondary leading-relaxed">
+            Configure your OpenAI key for automated ChatGPT/GPT-4o charter suite generation, or use the 1-click &ldquo;ChatGPT Pack&rdquo; in Storyboard Studio to copy/paste directly into ChatGPT Web.
+          </p>
         </div>
 
         {/* Gemini API Key */}
