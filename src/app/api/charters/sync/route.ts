@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
     // 3. Insert new charters and scenarios
     let savedChartersCount = 0;
     let savedScenariosCount = 0;
+    const traceabilityMap: Record<string, any> = {};
+    const errors: string[] = [];
 
     for (let i = 0; i < charters.length; i++) {
       const c = charters[i];
@@ -58,22 +60,76 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (cErr || !inserted) {
-        console.error(`Error saving charter ${charterCode}:`, cErr);
+        const msg = `Error saving charter ${charterCode}: ${cErr?.message || 'unknown error'}`;
+        console.error(msg);
+        errors.push(msg);
         continue;
       }
       savedChartersCount++;
 
-      // Insert scenarios
-      const rawScenarios = Array.isArray(c.scenarios) ? c.scenarios : [];
-      const scenariosToInsert = rawScenarios.map((s: any, sIdx: number) => ({
-        charter_id: inserted.id,
-        prompt_id: s.prompt_id || `${String(i + 1).padStart(2, '0')}-P${String(sIdx + 1).padStart(2, '0')}`,
-        prompt_text: s.prompt_text || s.exploration_prompt || s.scenario || '',
-        status: 'Untested',
-        observations: '',
-        sort_order: sIdx + 1,
-        traceability: s.traceability || null
-      }));
+      // Support flexible key names from ChatGPT
+      const rawScenarios: any[] = Array.isArray(c.scenarios)
+        ? c.scenarios
+        : Array.isArray(c.exploration_prompts)
+        ? c.exploration_prompts
+        : Array.isArray(c.prompts)
+        ? c.prompts
+        : Array.isArray(c.investigative_scenarios)
+        ? c.investigative_scenarios
+        : Array.isArray(c.scenarios_table)
+        ? c.scenarios_table
+        : Array.isArray(c.table)
+        ? c.table
+        : [];
+
+      const scenariosToInsert = rawScenarios
+        .map((s: any, sIdx: number) => {
+          const promptText = typeof s === 'string'
+            ? s.trim()
+            : (
+                s.prompt_text ||
+                s.prompt ||
+                s.exploration_prompt ||
+                s.scenario ||
+                s.text ||
+                s.description ||
+                s.exploration_prompts_and_investigative_scenarios ||
+                s.content ||
+                ''
+              ).trim();
+
+          const promptId = (typeof s === 'object' && (s.prompt_id || s.id || s.promptId))
+            ? String(s.prompt_id || s.id || s.promptId).trim()
+            : `${String(i + 1).padStart(2, '0')}-P${String(sIdx + 1).padStart(2, '0')}`;
+
+          // Collect traceability if present
+          if (typeof s === 'object' && s.traceability) {
+            traceabilityMap[promptId] = s.traceability;
+          } else if (c.traceability) {
+            traceabilityMap[promptId] = c.traceability;
+          }
+
+          if (!promptText) return null;
+
+          return {
+            charter_id: inserted.id,
+            prompt_id: promptId,
+            prompt_text: promptText,
+            status: (typeof s === 'object' && s.status) ? s.status : 'Untested',
+            observations: (typeof s === 'object' && s.observations) ? s.observations : '',
+            media_url: (typeof s === 'object' && s.media_url) ? s.media_url : '',
+            sort_order: sIdx
+          };
+        })
+        .filter((s): s is {
+          charter_id: any;
+          prompt_id: string;
+          prompt_text: string;
+          status: string;
+          observations: string;
+          media_url: string;
+          sort_order: number;
+        } => s !== null);
 
       if (scenariosToInsert.length > 0) {
         const { error: sErr } = await supabase
@@ -83,26 +139,38 @@ export async function POST(req: NextRequest) {
         if (!sErr) {
           savedScenariosCount += scenariosToInsert.length;
         } else {
-          console.error(`Error saving scenarios for ${charterCode}:`, sErr);
+          const sMsg = `Error saving scenarios for ${charterCode}: ${sErr.message}`;
+          console.error(sMsg);
+          errors.push(sMsg);
         }
       }
     }
 
-    // 4. Update feature metadata timestamp
+    // 4. Update feature metadata and traceability map in advanced_context
+    const existingAdvancedContext = (feature.advanced_context as any) || {};
     await supabase
       .from('qa_features')
       .update({
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        advanced_context: {
+          ...existingAdvancedContext,
+          latest_traceability_map: {
+            ...(existingAdvancedContext.latest_traceability_map || {}),
+            ...traceabilityMap
+          },
+          last_synced_from_gpt: new Date().toISOString()
+        }
       })
       .eq('id', resolvedId);
 
     return NextResponse.json({
-      success: true,
+      success: errors.length === 0,
       feature_id: resolvedId,
       feature_name: feature.name,
       charters_saved: savedChartersCount,
       scenarios_saved: savedScenariosCount,
-      message: `Successfully synced ${savedChartersCount} charters and ${savedScenariosCount} scenarios to QA Studio.`
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Successfully synced ${savedChartersCount} charters and ${savedScenariosCount} scenarios to QA Studio for "${feature.name}".`
     }, {
       headers: {
         'Access-Control-Allow-Origin': '*',
