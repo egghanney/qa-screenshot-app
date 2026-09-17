@@ -132,11 +132,21 @@ export async function GET(req: NextRequest) {
       promptText = buildCompleteChatGptPromptPack(flowTitle, screens, execContext);
     }
 
+    const n = Math.max(screens.length, 1);
+    const totalCharters = n + 10;
+    const pad2 = (num: number) => String(num).padStart(2, '0');
+
     return NextResponse.json({
       success: true,
       feature_id: pack.feature.id,
       feature_name: flowTitle,
       total_screens: screens.length,
+      total_charters: totalCharters,
+      charter_breakdown: {
+        screen_charters: `Charters 01-${pad2(n)}`,
+        variant_charters: `Charters ${pad2(n + 1)}-${pad2(n + 5)}`,
+        resilience_charters: `Charters ${pad2(n + 6)}-${pad2(totalCharters)}`
+      },
       active_defects_count: liveDefects.length,
       live_defects: liveDefects,
       part,

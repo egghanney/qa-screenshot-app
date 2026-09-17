@@ -1,6 +1,37 @@
 import { StoryboardScreen, StoryboardExecutiveContext } from '@/lib/types';
 
-export const SENIOR_QA_SYSTEM_PROMPT_TEMPLATE = `You are a Senior QA Engineer specializing in exploratory testing of complex mobile applications, financial applications, e-commerce, and customer-facing digital products.
+/**
+ * Builds the Senior QA System Prompt dynamically configured to the exact screen count.
+ * Dynamic formula: Total Charters = Math.max(screenCount, 1) + 10
+ * - Part A: Charters 01 to pad2(N) (Screen-by-Screen Deep Exploration for Screens #1 to #N)
+ * - Part B: Charters pad2(N+1) to pad2(N+5) (Variant & Alternative Path Exploration)
+ * - Part C: Charters pad2(N+6) to pad2(N+10) (Deep System Resilience & Cross-Cutting)
+ */
+export function buildSeniorQaSystemPrompt(screenCount: number = 17): string {
+  const n = Math.max(Number(screenCount) || 0, 1);
+  const pad2 = (num: number) => String(num).padStart(2, '0');
+
+  const partAStart = '01';
+  const partAEnd = pad2(n);
+
+  const partBStart = pad2(n + 1);
+  const partBEnd = pad2(n + 5);
+
+  const partCStart = pad2(n + 6);
+  const partCEnd = pad2(n + 10);
+
+  const totalCharters = n + 10;
+  const totalChartersPad = pad2(totalCharters);
+
+  const splitPoint = n <= 10 ? n : Math.min(n, Math.ceil(totalCharters / 2));
+  const splitPointPad = pad2(splitPoint);
+  const splitNextPad = pad2(splitPoint + 1);
+
+  const stagingInstruction = totalCharters <= 18
+    ? `3. CHARTER GENERATION STAGING: Output an immediate scope confirmation prelude (Feature Name, Screen Count, Active Defects Count), then generate all ${totalCharters} charters in a complete, comprehensive run.`
+    : `3. CHARTER GENERATION STAGING: When generating the ${totalCharters} charters, output an immediate scope confirmation prelude (Feature Name, Screen Count, Active Defects Count), then generate Part 1 (Charters 01-${splitPointPad}) followed by Part 2 (Charters ${splitNextPad}-${totalChartersPad}) to maintain pristine formatting and avoid single-turn token limits.`;
+
+  return `You are a Senior QA Engineer specializing in exploratory testing of complex mobile applications, financial applications, e-commerce, and customer-facing digital products.
 
 I will provide you with a USER STORYBOARD containing numbered screenshots of a feature journey, together with any additional feature/product context I provide.
 
@@ -118,15 +149,11 @@ Examples may include:
 - Payment method
 - Funding source
 - Address
-- Reference
-- Transaction/order ID
-- Status
-- Date/time
-- Delivery information
-- Instructions
-- Notifications
+- Delivery method
+- Status values
+- Identifiers (order ID, transaction ID, reference number)
 
-Only include data actually relevant to the feature.
+Trace how each key piece of data moves from screen to screen.
 
 Then identify data that must remain consistent across screens.
 
@@ -145,48 +172,7 @@ Generate exploratory coverage for situations where:
 - Multiple transactions/orders could become confused
 
 ==================================================
-5. IDENTIFY RISKS
-==================================================
-
-Analyze the feature for meaningful exploratory risks.
-
-Consider:
-
-- Incorrect user input
-- Invalid input
-- Empty input
-- Boundary values
-- Repeated actions
-- Rapid actions
-- Back navigation
-- Closing/aborting flows
-- Interrupted journeys
-- Network interruption
-- Processing delays
-- Timeout
-- Retry
-- Duplicate submission
-- Multiple transactions
-- State inconsistency
-- Data inconsistency
-- Payment failure
-- Dependency failure
-- Notification failure
-- Authentication failure
-- Authorization issues
-- Recovery behavior
-- Unexpected navigation
-- Visual/UI problems
-- Accessibility concerns where observable
-- Security/privacy concerns where relevant
-- Customer-impacting errors
-
-Do not generate risks simply to increase the number of charters.
-
-Prioritize meaningful, realistic risks supported by the feature.
-
-==================================================
-DEFECT & REGRESSION FOCUS (ACTIVE DEFECT LEDGER)
+5. ACTIVE DEFECT TARGETING & LEDGER RECONCILIATION
 ==================================================
 
 When active defects or live failure evidence are listed under Blueprint Pillar #8 (Historical Knowledge & Risks):
@@ -195,17 +181,17 @@ When active defects or live failure evidence are listed under Blueprint Pillar #
 3. LEDGER RECONCILIATION: Ensure every logged failure in the ledger is directly addressed by at least one dedicated exploration scenario in the charter suite.
 
 ==================================================
-6. GENERATE EXPLORATORY CHARTERS (27 CHARTERS MANDATE)
+6. GENERATE EXPLORATORY CHARTERS (${totalCharters} CHARTERS ADAPTIVE SUITE)
 ==================================================
 
-Generate a COMPREHENSIVE suite of EXACTLY 27 exploratory test charters.
+Generate a COMPREHENSIVE suite of EXACTLY ${totalCharters} exploratory test charters.
 Do NOT compress or merge them into a smaller set.
 Every single charter must contain AT LEAST 6 detailed exploration prompts/scenarios.
 
-The 27 charters must cover:
-- Part A: Screen-by-Screen Deep Exploration (Charters 01 to 17 - one dedicated charter per numbered screen in the storyboard).
-- Part B: Variant & Alternative Path Exploration (Charters 18 to 22 - Fulfillment variants, Advance scheduling, Payment matrix, Drop-off directives, Geofence boundaries).
-- Part C: Deep System Resilience, Security & Cross-Cutting Exploration (Charters 23 to 27 - End-to-end financial arithmetic ledger, Concurrency/idempotency/button mash, Network dropouts/airplane mode, Interruption/session recovery, Back-stack traversal/cart re-entrancy).
+The ${totalCharters} charters must cover:
+- Part A: Screen-by-Screen Deep Exploration (Charters ${partAStart} to ${partAEnd} - one dedicated charter per numbered screen in the storyboard, Screens #1 through #${n}).
+- Part B: Variant & Alternative Path Exploration (Charters ${partBStart} to ${partBEnd} - Fulfillment variants, edge cases, error states, and boundary conditions).
+- Part C: Deep System Resilience, Security & Cross-Cutting Exploration (Charters ${partCStart} to ${partCEnd} - End-to-end financial arithmetic ledger, Concurrency/idempotency/button mash, Network dropouts/airplane mode, Interruption/session recovery, Back-stack traversal/cart re-entrancy).
 
 Do NOT create simple scripted test cases.
 
@@ -272,7 +258,7 @@ The goal is exploratory testing, not step-by-step scripted execution.
 8. CROSS-CUTTING CHARTERS
 ==================================================
 
-Charters 23 through 27 must thoroughly address cross-cutting behavior across multiple screens:
+Charters ${partCStart} through ${partCEnd} must thoroughly address cross-cutting behavior across multiple screens:
 1. End-to-End Data Consistency & Arithmetic Ledger
 2. State Transition Integrity & Concurrency
 3. Duplicate Submission / Retry / Button-Mash Resilience
@@ -289,7 +275,7 @@ Return the result in exactly this order:
 # STORYBOARD JOURNEY MAP
 # SCREEN EVIDENCE SUMMARY
 # KEY RISKS
-# EXPLORATORY TEST CHARTERS (Charters 01 through 27)
+# EXPLORATORY TEST CHARTERS (Charters ${partAStart} through ${totalChartersPad})
 # CROSS-CUTTING EXPLORATION
 # COVERAGE SUMMARY
 # PRIORITY SUMMARY
@@ -323,9 +309,15 @@ To provide an executive-grade, responsive user experience without silent freezes
    - print("[1/3] Loading dataset...")
    - print("[2/3] Processing matrix and formatting columns...")
    - print("[3/3] Finalizing workbook / chart...")
-3. CHARTER GENERATION STAGING: When generating the 27 charters, output an immediate scope confirmation prelude (Feature Name, Screen Count, Active Defects Count), then generate Part 1 (Charters 01-14) followed by Part 2 (Charters 15-27) to maintain pristine formatting and avoid single-turn token limits.
+${stagingInstruction}
 4. TWO-BEAT DELIVERY: For files (Excel/CSV) and charts, present an instant markdown executive summary table in chat first, accompanied by the downloadable file link or chart image.
 `;
+}
+
+/**
+ * Backwards-compatible default template (17 screens, 27 charters).
+ */
+export const SENIOR_QA_SYSTEM_PROMPT_TEMPLATE = buildSeniorQaSystemPrompt(17);
 
 /**
  * Builds a structured evidence index from the active storyboard screens.
@@ -417,15 +409,18 @@ Position: Step ${index + 1} of ${screens.length}${screen.isSubScreen ? ' (Sub-sc
 }
 
 /**
- * Builds the complete unified prompt pack for ChatGPT.
+ * Builds the complete unified prompt pack for ChatGPT configured dynamically to the screen count.
  */
 export function buildCompleteChatGptPromptPack(
   flowTitle: string,
   screens: StoryboardScreen[],
   executiveContext?: StoryboardExecutiveContext
 ): string {
+  const n = Math.max(screens.length, 1);
+  const totalCharters = n + 10;
+  const systemPrompt = buildSeniorQaSystemPrompt(screens.length);
   const evidence = buildStoryboardEvidenceMarkdown(flowTitle, screens, executiveContext);
-  return `${SENIOR_QA_SYSTEM_PROMPT_TEMPLATE}\n${evidence}\n\n==================================================\nEXECUTION INSTRUCTION FOR CHATGPT\n==================================================\nPlease analyze the above storyboard evidence and generate the complete 27-charter suite with at least 6 exploration prompts per table, following the exact 16-section structure specified above.`;
+  return `${systemPrompt}\n${evidence}\n\n==================================================\nEXECUTION INSTRUCTION FOR CHATGPT\n==================================================\nPlease analyze the above storyboard evidence and generate the complete ${totalCharters}-charter suite with at least 6 exploration prompts per table, following the exact 16-section structure specified above.`;
 }
 
 /**
@@ -436,30 +431,35 @@ export function buildSplitChatGptPromptPack(
   flowTitle: string,
   screens: StoryboardScreen[],
   executiveContext?: StoryboardExecutiveContext
-): { part1: string; part2: string } {
+): { part1: string; part2: string; totalCharters: number; splitPoint: number } {
+  const n = Math.max(screens.length, 1);
+  const totalCharters = n + 10;
+  const pad2 = (num: number) => String(num).padStart(2, '0');
+  const splitPoint = n <= 10 ? n : Math.min(n, Math.ceil(totalCharters / 2));
+
+  const systemPrompt = buildSeniorQaSystemPrompt(screens.length);
   const evidence = buildStoryboardEvidenceMarkdown(flowTitle, screens, executiveContext);
 
-  const part1 = `${SENIOR_QA_SYSTEM_PROMPT_TEMPLATE}
+  const part1 = `${systemPrompt}
 ${evidence}
 
 ==================================================
-PART 1 EXECUTION INSTRUCTION (CHARTERS 01 TO 14)
+PART 1 EXECUTION INSTRUCTION (CHARTERS 01 TO ${pad2(splitPoint)})
 ==================================================
 Please generate:
 1. # FEATURE UNDER TEST
 2. # STORYBOARD JOURNEY MAP
 3. # SCREEN EVIDENCE SUMMARY
 4. # KEY RISKS
-5. # EXPLORATORY TEST CHARTERS: Output Charters 01 through 14 (Screen-by-Screen Deep Exploration for Screens #1 to #14), with at least 6 exploration scenarios per charter table.
+5. # EXPLORATORY TEST CHARTERS: Output Charters 01 through ${pad2(splitPoint)} (Screen-by-Screen Deep Exploration for Screens #1 to #${splitPoint}), with at least 6 exploration scenarios per charter table.
 
-Stop after Charter 14 and wait for my instruction to output Part 2 (Charters 15 through 27).
+Stop after Charter ${pad2(splitPoint)} and wait for my instruction to output Part 2 (Charters ${pad2(splitPoint + 1)} through ${pad2(totalCharters)}).
 `;
 
   const part2 = `Now generate Part 2 of the Senior QA Exploratory Test Charter Suite:
-1. # EXPLORATORY TEST CHARTERS: Output Charters 15 through 27:
-   - Charters 15 to 17 (Screen-by-Screen for Screens #15 to #17)
-   - Charters 18 to 22 (Variant & Alternative Path Exploration)
-   - Charters 23 to 27 (Deep System Resilience, Financial Arithmetic Ledger & Concurrency)
+1. # EXPLORATORY TEST CHARTERS: Output Charters ${pad2(splitPoint + 1)} through ${pad2(totalCharters)}:
+${splitPoint < n ? `   - Charters ${pad2(splitPoint + 1)} to ${pad2(n)} (Screen-by-Screen for Screens #${splitPoint + 1} to #${n})\n` : ''}   - Charters ${pad2(n + 1)} to ${pad2(n + 5)} (Variant & Alternative Path Exploration)
+   - Charters ${pad2(n + 6)} to ${pad2(totalCharters)} (Deep System Resilience, Financial Arithmetic Ledger & Concurrency)
    With at least 6 exploration scenarios per charter table.
 2. # CROSS-CUTTING EXPLORATION
 3. # COVERAGE SUMMARY
@@ -468,5 +468,6 @@ Stop after Charter 14 and wait for my instruction to output Part 2 (Charters 15 
 6. # TESTER EXECUTION GUIDANCE
 `;
 
-  return { part1, part2 };
+  return { part1, part2, totalCharters, splitPoint };
 }
+

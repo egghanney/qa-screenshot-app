@@ -641,7 +641,9 @@ export function QuickStoryboardStudioModal({
                           <Bot className="w-3.5 h-3.5 text-[#10A37F]" />
                           <span>ChatGPT Prompt Pack</span>
                         </span>
-                        <span className="text-[10px] font-mono text-neon font-bold">27 Charters</span>
+                        <span className="text-[10px] font-mono text-neon font-bold">
+                          {computedScreens.length > 0 ? `${computedScreens.length + 10} Charters` : 'Adaptive'}
+                        </span>
                       </div>
                       <p className="text-[10px] text-txt-muted mt-0.5 leading-tight">
                         Copy Senior QA prompt pack + evidence index for ChatGPT

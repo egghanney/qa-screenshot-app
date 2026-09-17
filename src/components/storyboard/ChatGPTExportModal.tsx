@@ -40,7 +40,10 @@ export function ChatGPTExportModal({
   if (!isOpen) return null;
 
   const completePack = buildCompleteChatGptPromptPack(flowTitle, screens, executiveContext);
-  const { part1, part2 } = buildSplitChatGptPromptPack(flowTitle, screens, executiveContext);
+  const { part1, part2, totalCharters, splitPoint } = buildSplitChatGptPromptPack(flowTitle, screens, executiveContext);
+  const totalScreens = screens.length;
+  const pad2 = (num: number) => String(num).padStart(2, '0');
+  const isSingleTurnReady = totalCharters <= 18;
 
   const handleCopy = async (text: string, mode: 'all' | 'part1' | 'part2') => {
     try {
@@ -80,11 +83,11 @@ export function ChatGPTExportModal({
                   ChatGPT Senior QA Prompt Pack
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#F2F52A]/15 text-[#F2F52A] border border-[#F2F52A]/30">
-                  27 CHARTERS MANDATE
+                  {totalCharters} CHARTERS (ADAPTIVE)
                 </span>
               </div>
               <p className="text-[11px] text-[#8F9489]">
-                Ready-to-paste bundle coupling your 17-screen evidence index with the Senior QA exploratory testing prompt.
+                Ready-to-paste bundle coupling your {totalScreens}-screen evidence index with the Senior QA exploratory testing prompt.
               </p>
             </div>
           </div>
@@ -151,8 +154,16 @@ export function ChatGPTExportModal({
           <div className="p-3 rounded-xl bg-[#282A27]/80 border border-[#3B3E39] flex items-start gap-2.5 text-xs text-[#D6D8D2]">
             <AlertCircle className="w-4 h-4 text-[#F2F52A] shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold text-white">Why the 2-Part Split? </span>
-              A full 27-charter suite with $\ge$6 scenarios each requires ~8,000 output tokens. Standard ChatGPT Web tends to compress output into 8 charters if requested in a single turn. Using the **2-Part Split** guarantees ChatGPT outputs all 27 charters at maximum depth without truncation!
+              <span className="font-semibold text-white">Adaptive Charter Sizing: </span>
+              {isSingleTurnReady ? (
+                <span>
+                  This feature has {totalScreens} screens ({totalCharters} exploratory charters total). It is lean enough to generate in a <strong>single turn</strong> without splitting! You can copy the Complete Pack directly, or use the 2-Part Split if you prefer staged review.
+                </span>
+              ) : (
+                <span>
+                  A full {totalCharters}-charter suite with &ge;6 scenarios each requires substantial output tokens. Using the <strong>2-Part Split</strong> guarantees ChatGPT outputs all {totalCharters} charters at maximum depth without truncation!
+                </span>
+              )}
             </div>
           </div>
 
@@ -195,7 +206,7 @@ export function ChatGPTExportModal({
                       1
                     </span>
                     <span className="font-bold text-xs text-white">
-                      Part 1: Context, Journey & Charters 01 through 14
+                      Part 1: Context, Journey & Charters 01 through {pad2(splitPoint)}
                     </span>
                   </div>
                   <button
@@ -207,7 +218,7 @@ export function ChatGPTExportModal({
                   </button>
                 </div>
                 <p className="text-[11px] text-[#8F9489]">
-                  Paste this into ChatGPT first. ChatGPT will analyze your 17 screens and generate Charters 01 to 14, then stop.
+                  Paste this into ChatGPT first. ChatGPT will analyze your {totalScreens} screens and generate Charters 01 to {pad2(splitPoint)}, then stop.
                 </p>
                 <div className="h-36 rounded-xl bg-black/70 border border-[#323531] p-2.5 overflow-y-auto font-mono text-[10px] text-[#8F9489]">
                   <pre className="whitespace-pre-wrap">{part1.slice(0, 1500)}...</pre>
@@ -222,7 +233,7 @@ export function ChatGPTExportModal({
                       2
                     </span>
                     <span className="font-bold text-xs text-white">
-                      Part 2: Charters 15 through 27, Cross-Cutting & Coverage
+                      Part 2: Charters {pad2(splitPoint + 1)} through {pad2(totalCharters)}, Cross-Cutting & Coverage
                     </span>
                   </div>
                   <button
@@ -234,7 +245,7 @@ export function ChatGPTExportModal({
                   </button>
                 </div>
                 <p className="text-[11px] text-[#8F9489]">
-                  After ChatGPT finishes Part 1, send this Part 2 follow-up prompt to get the remaining Charters 15 through 27 and coverage matrix.
+                  After ChatGPT finishes Part 1, send this Part 2 follow-up prompt to get the remaining Charters {pad2(splitPoint + 1)} through {pad2(totalCharters)} and coverage matrix.
                 </p>
                 <div className="h-28 rounded-xl bg-black/70 border border-[#323531] p-2.5 overflow-y-auto font-mono text-[10px] text-[#8F9489]">
                   <pre className="whitespace-pre-wrap">{part2}</pre>

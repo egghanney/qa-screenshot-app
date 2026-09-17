@@ -122,6 +122,15 @@ export async function GET(req: NextRequest) {
                       feature_id: { type: 'string' },
                       feature_name: { type: 'string' },
                       total_screens: { type: 'integer' },
+                      total_charters: { type: 'integer', description: 'Adaptive charter count (Screens + 10)' },
+                      charter_breakdown: {
+                        type: 'object',
+                        properties: {
+                          screen_charters: { type: 'string' },
+                          variant_charters: { type: 'string' },
+                          resilience_charters: { type: 'string' }
+                        }
+                      },
                       part: { type: 'string' },
                       prompt: { type: 'string' }
                     }

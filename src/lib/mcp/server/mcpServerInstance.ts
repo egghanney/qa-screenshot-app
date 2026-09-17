@@ -573,11 +573,11 @@ export function createMcpServer(): McpServer {
   // Prompt 7: generate_senior_qa_storyboard_suite
   server.prompt(
     'generate_senior_qa_storyboard_suite',
-    'Senior QA Exploratory Testing Prompt Suite: Generates a comprehensive 27-charter suite with >=6 exploration prompts per charter grounded in user storyboard evidence.',
+    'Adaptive Senior QA Exploratory Testing Prompt Suite: Generates a comprehensive N+10 charter suite (screen-by-screen deep dive, variants, and resilience) grounded in storyboard evidence.',
     {
       feature: z.string().optional().describe('Feature name (e.g. "Buy Food"), "latest" for most recent flow, or feature UUID (default: "latest")'),
       feature_id: z.string().optional().describe('Legacy alias for feature: Name, "latest", or UUID'),
-      part: z.enum(['all', 'part1', 'part2']).optional().describe('Select "all" for complete unified prompt pack, "part1" for Charters 01-14, or "part2" for Charters 15-27 (recommended to avoid ChatGPT token limits)')
+      part: z.enum(['all', 'part1', 'part2']).optional().describe('Select "all" for complete unified prompt pack, "part1" for Part 1, or "part2" for Part 2')
     },
     async ({ feature, feature_id, part }) => {
       let promptText = '';
@@ -634,7 +634,7 @@ export function createMcpServer(): McpServer {
       }
 
       return {
-        description: `Senior QA 27-Charter Storyboard Suite Prompt (${selectedPart})`,
+        description: `Adaptive Senior QA Storyboard Suite Prompt (${selectedPart})`,
         messages: [
           {
             role: 'user',
