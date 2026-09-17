@@ -294,6 +294,75 @@ export async function GET(req: NextRequest) {
             }
           }
         }
+      },
+      '/api/knowledge/risk': {
+        post: {
+          operationId: 'recordHistoricalRisk',
+          summary: 'Record an external defect or unhandled risk into Storyboard Pillar #8',
+          description: 'Records an unhandled edge case, customer-reported bug, or external defect directly into Storyboard Pillar #8 (Historical Knowledge & Risks) in QA Studio. CRITICAL HUMAN-IN-THE-LOOP GUARDRAIL: You MUST ONLY invoke this action after presenting a structured defect proposal to the user and receiving explicit affirmative confirmation (e.g., "Yes, record it"). Never call this action silently or automatically without user consent.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['title', 'description'],
+                  properties: {
+                    feature: {
+                      type: 'string',
+                      description: 'Feature name (e.g. "Buy Food") or feature UUID. Defaults to latest active feature if omitted.'
+                    },
+                    title: {
+                      type: 'string',
+                      description: 'Concise summary of the defect or risk (e.g. "Telecel Cash Gateway Timeout").'
+                    },
+                    description: {
+                      type: 'string',
+                      description: 'Detailed symptoms, failure observations, and expected vs actual behavior.'
+                    },
+                    screen_reference: {
+                      type: 'string',
+                      description: 'Optional screen number or name where the defect occurs (e.g. "Screen #5 - Payment Checkout").'
+                    },
+                    evidence_url: {
+                      type: 'string',
+                      description: 'Optional screenshot URL, image link, or external ticket reference.'
+                    },
+                    reported_by: {
+                      type: 'string',
+                      description: 'Attribution identifier (e.g. "HOD Inquiry", "Support Ticket #402").'
+                    },
+                    severity: {
+                      type: 'string',
+                      enum: ['critical', 'high', 'medium', 'low'],
+                      description: 'Optional severity classification.'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Successfully recorded defect in Pillar #8',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      feature_id: { type: 'string' },
+                      feature_name: { type: 'string' },
+                      item_id: { type: 'string' },
+                      action: { type: 'string', enum: ['created', 'merged'] },
+                      message: { type: 'string' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   };
