@@ -45,7 +45,7 @@ export async function GET(req: Request) {
       }
 
       if (targetId) {
-        query = query.contains('feature_ids', [targetId]);
+        query = query.contains('feature_ids', JSON.stringify([targetId]));
       }
     }
 
