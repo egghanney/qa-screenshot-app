@@ -6,6 +6,7 @@ import {
   ScreenStateType, 
   AIScreenAnalysis,
   StoryboardExecutiveContext,
+  StoryboardPillarKey,
   StoryboardScreen,
   Feature,
   KnowledgeItem,
@@ -169,8 +170,9 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
 
   // 8-Pillars Executive Blueprint Modal State
   const [isBlueprintModalOpen, setIsBlueprintModalOpen] = useState(false);
-  const [blueprintContext, setBlueprintContext] = useState<StoryboardExecutiveContext>({});
+  const [blueprintContext, setBlueprintContext] = useState<Partial<Record<StoryboardPillarKey, string>>>({});
   const [isSavingBlueprint, setIsSavingBlueprint] = useState(false);
+  const [activeDefectCount, setActiveDefectCount] = useState<number>(0);
 
   // Storyboard Export State
   const [isExportingStoryboard, setIsExportingStoryboard] = useState(false);
@@ -178,7 +180,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
   const [includeActionsInExport, setIncludeActionsInExport] = useState(true);
   const [includeContextInExport, setIncludeContextInExport] = useState(true);
 
-  const PILLAR_CONFIG: Array<{ key: keyof StoryboardExecutiveContext; category: KnowledgeCategory; label: string; placeholder: string }> = [
+  const PILLAR_CONFIG: Array<{ key: StoryboardPillarKey; category: KnowledgeCategory; label: string; placeholder: string }> = [
     { key: 'featuresAndServices', category: 'Features & Services', label: '1. Features & Services', placeholder: 'Core user-facing capabilities, checkout steps, payment options...' },
     { key: 'userTypes', category: 'User Types', label: '2. User Types & Roles', placeholder: 'Target customer personas, guest users, authenticated members...' },
     { key: 'journeysAndNavigation', category: 'Journeys & Navigation', label: '3. Journeys & Navigation', placeholder: 'Entry routes, deep-link triggers, return paths...' },
@@ -238,7 +240,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
   };
 
   const openBlueprintModal = async () => {
-    const compiled: StoryboardExecutiveContext = {};
+    const compiled: Partial<Record<StoryboardPillarKey, string>> = {};
     try {
       let kData = knowledgeItems;
       if (!kData || kData.length === 0) {
@@ -265,6 +267,34 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
       } else if (feature) {
         if (feature.description) compiled.featuresAndServices = feature.description;
         if (feature.purpose) compiled.journeysAndNavigation = feature.purpose;
+      }
+
+      // Query active defect count from recent test runs for this feature
+      if (featureId) {
+        try {
+          const { data: runs } = await supabase
+            .from('qa_test_runs')
+            .select('metadata, failed_count, blocked_count')
+            .contains('feature_ids', JSON.stringify([featureId]))
+            .limit(5);
+
+          if (runs && runs.length > 0) {
+            const failedIds = new Set<string>();
+            runs.forEach(r => {
+              const results = r.metadata?.scenario_results || {};
+              Object.entries(results).forEach(([id, sc]: [string, any]) => {
+                if (sc?.status === 'Fail' || sc?.status === 'Blocked') {
+                  failedIds.add(id);
+                }
+              });
+            });
+            setActiveDefectCount(failedIds.size);
+          } else {
+            setActiveDefectCount(0);
+          }
+        } catch (err) {
+          console.warn('Could not query active defects count:', err);
+        }
       }
     } catch (e) {
       console.warn('Error loading blueprint context:', e);
@@ -1173,6 +1203,15 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
                     placeholder={pillar.placeholder}
                     className="flex-1 w-full p-2.5 rounded-xl bg-clinical-warm border border-clinical-border text-dark-chassis text-xs leading-relaxed focus:outline-none focus:border-dark-chassis resize-none"
                   />
+                  {pillar.key === 'historicalKnowledgeRisk' && (
+                    <div className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <span>⚡</span>
+                        <span>Live Defect Bridge: {activeDefectCount > 0 ? `${activeDefectCount} active defect(s) detected in Studio runs` : 'Ready for test run failures'}</span>
+                      </span>
+                      <span className="text-[10px] opacity-75">Auto-injected into AI Charters</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

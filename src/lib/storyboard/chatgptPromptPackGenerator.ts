@@ -186,6 +186,15 @@ Do not generate risks simply to increase the number of charters.
 Prioritize meaningful, realistic risks supported by the feature.
 
 ==================================================
+DEFECT & REGRESSION FOCUS (ACTIVE DEFECT LEDGER)
+==================================================
+
+When active defects or live failure evidence are listed under Blueprint Pillar #8 (Historical Knowledge & Risks):
+1. SURGICAL TARGETING: You MUST dedicate specific exploratory charters and scenarios to reproduce, isolate boundary limits, test recovery paths, and verify regression stability around those exact observed bugs and screenshots.
+2. EMPIRICAL SCREENSHOT EVIDENCE: If screenshot proof or media URLs are provided, treat the defect as confirmed empirical behavior: formulate prompts that probe whether the visual anomaly persists under alternate input conditions, device orientations, network speeds, or state resets.
+3. LEDGER RECONCILIATION: Ensure every logged failure in the ledger is directly addressed by at least one dedicated exploration scenario in the charter suite.
+
+==================================================
 6. GENERATE EXPLORATORY CHARTERS (27 CHARTERS MANDATE)
 ==================================================
 
@@ -326,8 +335,25 @@ export function buildStoryboardEvidenceMarkdown(
     if (executiveContext.communicationsDependencies) {
       output += `- 7. Communications & Dependencies: ${executiveContext.communicationsDependencies}\n`;
     }
-    if (executiveContext.historicalKnowledgeRisk) {
-      output += `- 8. Historical Knowledge & Risks: ${executiveContext.historicalKnowledgeRisk}\n`;
+    if (executiveContext.historicalKnowledgeRisk || (executiveContext.liveDefects && executiveContext.liveDefects.length > 0)) {
+      output += `- 8. Historical Knowledge & Risks: ${executiveContext.historicalKnowledgeRisk || 'Observed runtime risks and empirical defect history'}\n`;
+    }
+    if (executiveContext.liveDefects && executiveContext.liveDefects.length > 0) {
+      output += `\n  [LIVE DEFECT EVIDENCE & ACTIVE STUDIO FAILURES (DEFECT BRIDGE)]:\n`;
+      output += `  (The following failure observations and screenshot evidence were actively logged during test runs in QA Studio. You MUST dedicate specific exploratory charters and scenarios to reproduce, isolate, and verify regression resistance around these exact bugs.)\n\n`;
+      executiveContext.liveDefects.forEach((defect, dIdx) => {
+        const promptLabel = defect.promptId ? ` (Prompt ${defect.promptId})` : '';
+        const screenLabel = defect.screenReference ? ` on [${defect.screenReference}]` : '';
+        output += `  • Defect #${dIdx + 1} [${defect.status.toUpperCase()}]${promptLabel}${screenLabel}:\n`;
+        output += `    - Observation: "${defect.observations}"\n`;
+        if (defect.mediaUrl) {
+          output += `    - Screenshot Proof: ${defect.mediaUrl}\n`;
+        }
+        if (defect.runName) {
+          const runDate = defect.executedAt ? ` on ${new Date(defect.executedAt).toLocaleDateString()}` : '';
+          output += `    - Test Session: "${defect.runName}"${runDate}\n`;
+        }
+      });
     }
     output += `\n`;
   }

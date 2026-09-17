@@ -166,6 +166,28 @@ export interface JourneyEdgeData {
   created_at?: string;
 }
 
+export interface ActiveDefectEvidence {
+  runId?: string;
+  runName: string;
+  scenarioId?: string;
+  promptId?: string;
+  status: string;
+  observations: string;
+  mediaUrl?: string;
+  executedAt?: string;
+  screenReference?: string;
+}
+
+export type StoryboardPillarKey = 
+  | 'featuresAndServices'
+  | 'userTypes'
+  | 'journeysAndNavigation'
+  | 'interactionReference'
+  | 'businessRules'
+  | 'systemFailureStates'
+  | 'communicationsDependencies'
+  | 'historicalKnowledgeRisk';
+
 export interface StoryboardExecutiveContext {
   featuresAndServices?: string;
   userTypes?: string;
@@ -175,6 +197,7 @@ export interface StoryboardExecutiveContext {
   systemFailureStates?: string;
   communicationsDependencies?: string;
   historicalKnowledgeRisk?: string;
+  liveDefects?: ActiveDefectEvidence[];
 }
 
 export type KnowledgeCategory = 

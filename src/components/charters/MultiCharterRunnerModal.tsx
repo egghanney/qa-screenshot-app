@@ -713,10 +713,15 @@ export function MultiCharterRunnerModal({
 
       // 2. Sync run progress & scenario snapshot to PostgreSQL (qa_test_runs)
       if (activeDbRunId) {
+        const targetSc = runnableScenarios.find(s => s.id === scenarioId);
+        const targetCh = loadedCharters.find(c => c.id === targetSc?.charter_id);
         const scenarioUpdate = {
           status: updates.status || 'Untested',
           observations: updates.observations,
           media_url: updates.media_url,
+          prompt_id: targetSc?.prompt_id,
+          charter_code: targetCh?.charter_code,
+          charter_title: targetCh?.title,
           executed_at: new Date().toISOString()
         };
 

@@ -35,7 +35,7 @@ import {
   FileText,
   Bot
 } from 'lucide-react';
-import { StoryboardScreen, Project, StoryboardExecutiveContext, KnowledgeCategory } from '@/lib/types';
+import { StoryboardScreen, Project, StoryboardExecutiveContext, StoryboardPillarKey, KnowledgeCategory } from '@/lib/types';
 import { 
   computeStepBadges, 
   exportStoryboardMasterImage, 
@@ -442,7 +442,7 @@ export function QuickStoryboardStudioModal({
       }
 
       // 3.5 Sync Executive Context Matrix to qa_knowledge_items
-      const categoryMap: Array<{ key: keyof StoryboardExecutiveContext; category: KnowledgeCategory; defaultTitle: string }> = [
+      const categoryMap: Array<{ key: StoryboardPillarKey; category: KnowledgeCategory; defaultTitle: string }> = [
         { key: 'featuresAndServices', category: 'Features & Services', defaultTitle: 'Core Capabilities & Services' },
         { key: 'userTypes', category: 'User Types', defaultTitle: 'Target User Roles & Personas' },
         { key: 'journeysAndNavigation', category: 'Journeys & Navigation', defaultTitle: 'Navigation & Flow Triggers' },

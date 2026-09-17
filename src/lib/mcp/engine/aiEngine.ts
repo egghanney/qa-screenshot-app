@@ -136,7 +136,7 @@ export async function getFeatureContextPack(featureId: string): Promise<ContextP
     supabase.from('qa_journey_nodes').select('*').eq('feature_id', resolvedId),
     supabase.from('qa_journey_edges').select('*').eq('feature_id', resolvedId),
     supabase.from('qa_knowledge_items').select('*').eq('feature_id', resolvedId),
-    supabase.from('qa_test_runs').select('*').contains('feature_ids', [resolvedId]).order('created_at', { ascending: false }).limit(5)
+    supabase.from('qa_test_runs').select('*').contains('feature_ids', JSON.stringify([resolvedId])).order('created_at', { ascending: false }).limit(5)
   ]);
 
   const screens = (screensRes.data || []) as ScreenItem[];
@@ -276,7 +276,8 @@ export async function getFeatureContextPack(featureId: string): Promise<ContextP
     if (results) {
       Object.entries(results).forEach(([id, r]: [string, any]) => {
         if (r.status === 'Fail' || r.status === 'Blocked') {
-          previousFindings.push(`Prompt ${id} [${r.status}]: ${r.observations || 'No observation notes'}`);
+          const mediaEvidence = r.media_url ? ` (Evidence: ${r.media_url})` : '';
+          previousFindings.push(`Prompt ${id} [${r.status}]: ${r.observations || 'No observation notes'}${mediaEvidence}`);
         }
       });
     }
