@@ -22,18 +22,43 @@ export async function GET(req: NextRequest) {
       '/api/features': {
         get: {
           operationId: 'listFeatures',
-          summary: 'List all features in QA Studio',
-          description: 'Returns a list of all feature journeys in QA Studio with their titles, IDs, and screen counts so the user can select which flow to explore.',
+          summary: 'List all applications and feature journeys in QA Studio',
+          description: 'Returns all Applications and their Feature Journeys in QA Studio. Use this to list apps, inspect feature journeys under each app, and check screen counts.',
           responses: {
             '200': {
-              description: 'List of features with screen counts.',
+              description: 'List of applications and features with screen counts.',
               content: {
                 'application/json': {
                   schema: {
                     type: 'object',
                     properties: {
                       success: { type: 'boolean' },
-                      total: { type: 'integer' },
+                      total_applications: { type: 'integer' },
+                      total_features: { type: 'integer' },
+                      applications: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string' },
+                            name: { type: 'string' },
+                            platform: { type: 'string' },
+                            total_features: { type: 'integer' },
+                            total_screens: { type: 'integer' },
+                            features: {
+                              type: 'array',
+                              items: {
+                                type: 'object',
+                                properties: {
+                                  id: { type: 'string' },
+                                  name: { type: 'string' },
+                                  screen_count: { type: 'integer' }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
                       features: {
                         type: 'array',
                         items: {
@@ -41,6 +66,9 @@ export async function GET(req: NextRequest) {
                           properties: {
                             id: { type: 'string' },
                             name: { type: 'string' },
+                            app_id: { type: 'string' },
+                            app_name: { type: 'string' },
+                            platform: { type: 'string' },
                             purpose: { type: 'string' },
                             screen_count: { type: 'integer' }
                           }
@@ -232,7 +260,7 @@ export async function GET(req: NextRequest) {
               schema: {
                 type: 'string'
               },
-              description: 'Optional project UUID to filter runs.'
+              description: 'Optional project UUID or App name (e.g. "Hubtel") to filter runs across the entire application.'
             },
             {
               name: 'limit',

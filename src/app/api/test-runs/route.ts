@@ -11,7 +11,7 @@ const corsHeaders = {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const projectId = searchParams.get('projectId');
+    const projectParam = (searchParams.get('projectId') || searchParams.get('project') || searchParams.get('app'))?.trim();
     const featureParam = (searchParams.get('feature') || searchParams.get('feature_id'))?.trim();
     const limitParam = parseInt(searchParams.get('limit') || '20', 10);
     const limit = Math.min(Math.max(1, isNaN(limitParam) ? 20 : limitParam), 100);
@@ -23,8 +23,25 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (projectId && projectId !== 'all') {
-      query = query.eq('project_id', projectId);
+    if (projectParam && projectParam !== 'all') {
+      const isProjUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectParam);
+      let targetProjId = isProjUuid ? projectParam : null;
+
+      if (!targetProjId) {
+        const { data: proj } = await supabase
+          .from('qa_projects')
+          .select('id')
+          .ilike('name', `%${projectParam}%`)
+          .limit(1)
+          .maybeSingle();
+        if (proj?.id) {
+          targetProjId = proj.id;
+        }
+      }
+
+      if (targetProjId) {
+        query = query.eq('project_id', targetProjId);
+      }
     }
 
     if (featureParam) {
