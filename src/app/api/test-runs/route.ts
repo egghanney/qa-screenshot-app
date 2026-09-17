@@ -1,32 +1,84 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 
-// GET: Fetch test runs for a project or all projects
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
+
+// GET: Fetch test runs with optional feature, project, and limit filters
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get('projectId');
+    const featureParam = (searchParams.get('feature') || searchParams.get('feature_id'))?.trim();
+    const limitParam = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = Math.min(Math.max(1, isNaN(limitParam) ? 20 : limitParam), 100);
+    const includeCharters = searchParams.get('include_charters') === 'true';
 
     let query = supabase
       .from('qa_test_runs')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
     if (projectId && projectId !== 'all') {
       query = query.eq('project_id', projectId);
+    }
+
+    if (featureParam) {
+      // Find feature by UUID or name
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(featureParam);
+      let targetId = isUuid ? featureParam : null;
+
+      if (!targetId) {
+        const { data: feat } = await supabase
+          .from('qa_features')
+          .select('id')
+          .ilike('name', `%${featureParam}%`)
+          .limit(1)
+          .maybeSingle();
+        if (feat?.id) {
+          targetId = feat.id;
+        }
+      }
+
+      if (targetId) {
+        query = query.contains('feature_ids', [targetId]);
+      }
     }
 
     const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching qa_test_runs:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
     }
 
-    return NextResponse.json({ success: true, runs: data || [] });
+    // By default, strip the heavy charters_snapshot from list responses so ChatGPT/clients stay lightweight & fast
+    const sanitizedRuns = (data || []).map(r => {
+      if (!includeCharters && r.metadata && r.metadata.charters_snapshot) {
+        const { charters_snapshot, ...restMeta } = r.metadata;
+        return {
+          ...r,
+          metadata: {
+            ...restMeta,
+            charters_snapshot_count: Array.isArray(charters_snapshot) ? charters_snapshot.length : 0
+          }
+        };
+      }
+      return r;
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      total: sanitizedRuns.length,
+      runs: sanitizedRuns 
+    }, { headers: corsHeaders });
   } catch (err: any) {
     console.error('Unexpected error in GET /api/test-runs:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -74,13 +126,13 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('Error creating qa_test_runs:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
     }
 
-    return NextResponse.json({ success: true, run: data });
+    return NextResponse.json({ success: true, run: data }, { headers: corsHeaders });
   } catch (err: any) {
     console.error('Unexpected error in POST /api/test-runs:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -91,7 +143,7 @@ export async function PATCH(req: Request) {
     const { id, ...updates } = body;
 
     if (!id) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+      return NextResponse.json({ error: 'id is required' }, { status: 400, headers: corsHeaders });
     }
 
     const payload: Record<string, any> = {
@@ -136,13 +188,13 @@ export async function PATCH(req: Request) {
 
     if (error) {
       console.error('Error updating qa_test_runs:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
     }
 
-    return NextResponse.json({ success: true, run: data });
+    return NextResponse.json({ success: true, run: data }, { headers: corsHeaders });
   } catch (err: any) {
     console.error('Unexpected error in PATCH /api/test-runs:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -163,12 +215,19 @@ export async function DELETE(req: Request) {
 
     if (error) {
       console.error('Error deleting qa_test_runs:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: corsHeaders });
   } catch (err: any) {
     console.error('Unexpected error in DELETE /api/test-runs:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500, headers: corsHeaders });
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders
+  });
 }

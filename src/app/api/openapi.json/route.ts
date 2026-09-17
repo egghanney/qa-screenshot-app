@@ -213,6 +213,87 @@ export async function GET(req: NextRequest) {
             }
           }
         }
+      },
+      '/api/test-runs': {
+        get: {
+          operationId: 'getTestRuns',
+          summary: 'Fetch test runs, pass/fail metrics, and tester findings for analytics',
+          description: 'Retrieves historical test execution runs, pass rates, failed scenario observations, and execution logs from QA Studio. Use this data to analyze QA trends, plot pass/fail charts with Python Code Interpreter, and provide executive defect summaries.',
+          parameters: [
+            {
+              name: 'feature',
+              in: 'query',
+              required: false,
+              schema: {
+                type: 'string'
+              },
+              description: 'Optional feature name (e.g. "Buy Food") or feature UUID to filter runs.'
+            },
+            {
+              name: 'projectId',
+              in: 'query',
+              required: false,
+              schema: {
+                type: 'string'
+              },
+              description: 'Optional project UUID to filter runs.'
+            },
+            {
+              name: 'limit',
+              in: 'query',
+              required: false,
+              schema: {
+                type: 'integer',
+                default: 20
+              },
+              description: 'Maximum number of recent test runs to return (default 20).'
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'List of test runs with metrics and scenario execution results.',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      total: { type: 'integer' },
+                      runs: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string' },
+                            name: { type: 'string' },
+                            status: { type: 'string' },
+                            total_scenarios: { type: 'integer' },
+                            passed_count: { type: 'integer' },
+                            failed_count: { type: 'integer' },
+                            blocked_count: { type: 'integer' },
+                            untested_count: { type: 'integer' },
+                            pass_rate: { type: 'number' },
+                            created_at: { type: 'string' },
+                            completed_at: { type: 'string' },
+                            metadata: {
+                              type: 'object',
+                              properties: {
+                                featureNames: { type: 'array', items: { type: 'string' } },
+                                platform: { type: 'string' },
+                                environment: { type: 'string' },
+                                scenario_results: { type: 'object' }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   };
