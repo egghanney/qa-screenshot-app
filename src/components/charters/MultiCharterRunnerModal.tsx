@@ -118,6 +118,7 @@ export function MultiCharterRunnerModal({
   // Database-backed Test Runs (qa_test_runs table in PostgreSQL)
   const [dbTestRuns, setDbTestRuns] = useState<QATestRun[]>([]);
   const [activeDbRunId, setActiveDbRunId] = useState<string | null>(null);
+  const [activeRunChartersSnapshot, setActiveRunChartersSnapshot] = useState<QACharter[] | null>(null);
   const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 
   // Initialize selected project
@@ -182,6 +183,66 @@ export function MultiCharterRunnerModal({
 
   // Fetch charters whenever scope is loaded or when entering setup
   const loadChartersForScope = useCallback(async () => {
+    // 1. If resuming a run with frozen charters snapshot, load directly from snapshot
+    if (activeRunChartersSnapshot && activeRunChartersSnapshot.length > 0) {
+      setIsLoadingCharters(true);
+      try {
+        const featMap = new Map(allFeatures.map(f => [f.id, f]));
+        const snapshot = activeRunSnapshot;
+
+        const enrichedCharters: QACharter[] = activeRunChartersSnapshot.map(c => ({
+          ...c,
+          scenarios: (c.scenarios || []).map(s => {
+            if (snapshot !== null) {
+              const snap = snapshot[s.id] || (s.prompt_id ? snapshot[s.prompt_id] : undefined);
+              return {
+                ...s,
+                status: snap?.status || s.status || ('Untested' as const),
+                observations: snap?.observations !== undefined ? snap.observations : (s.observations || ''),
+                media_url: snap?.media_url !== undefined ? snap.media_url : (s.media_url || '')
+              };
+            }
+            return s;
+          })
+        }));
+
+        setLoadedCharters(enrichedCharters);
+
+        setSelectedCharterId(current => {
+          if (current && enrichedCharters.some(c => c.id === current)) {
+            return current;
+          }
+          const pendingCharter = enrichedCharters.find(c => c.scenarios?.some(s => s.status === 'Untested'));
+          return pendingCharter ? pendingCharter.id : (enrichedCharters[0]?.id || '');
+        });
+
+        const flattened: RunnableScenario[] = [];
+        enrichedCharters.forEach(c => {
+          const feat = c.feature_id ? featMap.get(c.feature_id) : undefined;
+          const featName = feat?.name || 'Feature';
+          (c.scenarios || []).forEach(s => {
+            flattened.push({
+              ...s,
+              featureName: featName,
+              charterCode: c.charter_code,
+              charterTitle: c.title,
+              charterMission: c.mission,
+              userPersona: c.user_persona,
+              startingCondition: c.starting_condition,
+              expectedOutcome: c.expected_outcome
+            });
+          });
+        });
+
+        setRunnableScenarios(flattened);
+      } catch (err) {
+        console.error('Error loading charters from snapshot:', err);
+      } finally {
+        setIsLoadingCharters(false);
+      }
+      return;
+    }
+
     if (selectedFeatureIds.size === 0) {
       setLoadedCharters([]);
       setRunnableScenarios([]);
@@ -227,7 +288,7 @@ export function MultiCharterRunnerModal({
         ...c,
         scenarios: (scenariosByCharter[c.id] || []).map(s => {
           if (snapshot !== null) {
-            const snap = snapshot[s.id];
+            const snap = snapshot[s.id] || (s.prompt_id ? snapshot[s.prompt_id] : undefined);
             return {
               ...s,
               status: snap?.status || ('Untested' as const),
@@ -275,7 +336,7 @@ export function MultiCharterRunnerModal({
     } finally {
       setIsLoadingCharters(false);
     }
-  }, [selectedFeatureIds, allFeatures, activeRunSnapshot]);
+  }, [selectedFeatureIds, allFeatures, activeRunSnapshot, activeRunChartersSnapshot]);
 
   // Resume an existing test run from DB without creating a duplicate run
   const handleResumeRun = useCallback((run: QATestRun) => {
@@ -289,6 +350,13 @@ export function MultiCharterRunnerModal({
     setSelectedProjectId(run.project_id);
     setSelectedFeatureIds(new Set(run.feature_ids || []));
     setActiveRunSnapshot(run.metadata?.scenario_results || {});
+
+    // Restore frozen charters snapshot if present in run metadata
+    const snapshotCharters = (run.metadata?.charters_snapshot && Array.isArray(run.metadata.charters_snapshot) && run.metadata.charters_snapshot.length > 0)
+      ? (run.metadata.charters_snapshot as QACharter[])
+      : null;
+    setActiveRunChartersSnapshot(snapshotCharters);
+
     setPhase('running');
     setViewMode('charter');
     setRunFilter('pending');
@@ -475,7 +543,8 @@ export function MultiCharterRunnerModal({
             featureNames: featNames,
             platform: activeProject?.platform,
             environment: runEnvironmentInput.trim() || undefined,
-            scenario_results: {}
+            scenario_results: {},
+            charters_snapshot: loadedCharters
           }
         })
       });
@@ -485,6 +554,7 @@ export function MultiCharterRunnerModal({
         setActiveDbRunId(data.run.id);
         setActiveRunName(data.run.name);
         setActiveRunSnapshot({});
+        setActiveRunChartersSnapshot(loadedCharters);
         setDbTestRuns(prev => [data.run, ...prev]);
 
         // Reset all in-memory scenarios to Untested for this fresh execution run
@@ -626,16 +696,20 @@ export function MultiCharterRunnerModal({
     });
 
     try {
-      // 1. Save scenario in PostgreSQL (qa_charter_scenarios)
-      await fetch('/api/charters', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'scenario',
-          scenario_id: scenarioId,
-          ...updates
-        })
-      });
+      // 1. Best-effort update in live PostgreSQL (qa_charter_scenarios)
+      try {
+        await fetch('/api/charters', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'scenario',
+            scenario_id: scenarioId,
+            ...updates
+          })
+        });
+      } catch (charterErr) {
+        console.warn('Could not update live qa_charter_scenarios (scenario is from a historical snapshot):', charterErr);
+      }
 
       // 2. Sync run progress & scenario snapshot to PostgreSQL (qa_test_runs)
       if (activeDbRunId) {
@@ -787,14 +861,15 @@ export function MultiCharterRunnerModal({
 
   // Exit Studio handler with instant in-memory hand-off of updated charters
   const handleExitStudio = useCallback(() => {
-    if (onChartersUpdated && loadedCharters.length > 0) {
+    // Only update active parent charters if this was NOT a historical snapshot run
+    if (!activeRunChartersSnapshot && onChartersUpdated && loadedCharters.length > 0) {
       onChartersUpdated(loadedCharters);
     }
     if (onRefreshData) {
       onRefreshData();
     }
     onClose();
-  }, [onChartersUpdated, loadedCharters, onRefreshData, onClose]);
+  }, [activeRunChartersSnapshot, onChartersUpdated, loadedCharters, onRefreshData, onClose]);
 
   if (!isOpen) return null;
 
@@ -999,6 +1074,7 @@ export function MultiCharterRunnerModal({
                         onClick={() => {
                           setActiveDbRunId(null);
                           setActiveRunSnapshot(null);
+                          setActiveRunChartersSnapshot(null);
                           setActiveRunName('');
                           setIsUserEditedTitle(false);
                         }}

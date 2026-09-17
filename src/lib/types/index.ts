@@ -442,6 +442,7 @@ export interface QATestRun {
       media_url?: string;
       executed_at?: string;
     }>;
+    charters_snapshot?: QACharter[];
     [key: string]: any;
   };
   started_at: string;
