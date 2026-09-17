@@ -14,10 +14,6 @@ export async function GET(req: NextRequest) {
     },
     servers: [
       {
-        url: origin,
-        description: 'Current QA Studio instance'
-      },
-      {
         url: 'https://qa-screenshot-app.vercel.app',
         description: 'Production QA Studio'
       }
@@ -299,7 +295,7 @@ export async function GET(req: NextRequest) {
         post: {
           operationId: 'recordHistoricalRisk',
           summary: 'Record an external defect or unhandled risk into Storyboard Pillar #8',
-          description: 'Records an unhandled edge case, customer-reported bug, or external defect directly into Storyboard Pillar #8 (Historical Knowledge & Risks) in QA Studio. CRITICAL HUMAN-IN-THE-LOOP GUARDRAIL: You MUST ONLY invoke this action after presenting a structured defect proposal to the user and receiving explicit affirmative confirmation (e.g., "Yes, record it"). Never call this action silently or automatically without user consent.',
+          description: 'Records a defect or risk into Pillar #8 in QA Studio. CRITICAL: Invoke ONLY after presenting a structured defect draft and receiving explicit user confirmation (e.g., "Yes, record it"). Never call automatically without user consent.',
           requestBody: {
             required: true,
             content: {
