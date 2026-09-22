@@ -29,6 +29,14 @@ export function parseUserActionStringToActions(userActionStr?: string | null): S
 
   const trimmed = userActionStr.trim();
 
+  // If the user_action is a legacy generic placeholder with no explicit actions or syntax tags, treat as empty
+  if (/^user interactions? on\s+/i.test(trimmed) && !trimmed.includes('[') && !trimmed.includes('•')) {
+    return [];
+  }
+  if (/^user actions? on\s+step\s+\d+$/i.test(trimmed)) {
+    return [];
+  }
+
   // 1. JSON Array check
   if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
     try {

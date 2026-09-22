@@ -55,11 +55,26 @@ interface ScreenDeckViewProps {
 }
 
 export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, onRefresh, onAnalyzeScreen }: ScreenDeckViewProps) {
+  const [localScreens, setLocalScreens] = useState<ScreenItem[]>(screens);
   const [selectedScreen, setSelectedScreen] = useState<ScreenItem | null>(screens[0] || null);
+  const [previewScreen, setPreviewScreen] = useState<ScreenItem | null>(null);
   const [expandedInfoId, setExpandedInfoId] = useState<string | null>(screens[0]?.id || null);
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [nameVal, setNameVal] = useState('');
   const [isAutoNaming, setIsAutoNaming] = useState(false);
+
+  React.useEffect(() => {
+    setLocalScreens(screens);
+  }, [screens]);
+
+  React.useEffect(() => {
+    if (previewScreen) {
+      const updated = localScreens.find(s => s.id === previewScreen.id);
+      if (updated) setPreviewScreen(updated);
+    }
+  }, [localScreens]);
+
+  const activeScreens = localScreens;
 
   // Redaction Modal State
   const [redactingScreen, setRedactingScreen] = useState<ScreenItem | null>(null);
@@ -218,6 +233,16 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
         : updated.nestLevel === 1
         ? `Sub-step (${updated.stepBadge})`
         : null;
+
+      // Optimistic local update so card and preview immediately update
+      setLocalScreens(prev => prev.map(s => s.id === updated.id ? {
+        ...s,
+        name: updated.name,
+        user_action: serializedUserAction,
+        expected_behavior: updated.expectedResult || null,
+        notes: updatedNotes,
+        actions: updated.actions
+      } : s));
 
       const { error } = await supabase
         .from('qa_screens')
@@ -575,7 +600,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-neon" />
           <span className="text-xs font-semibold text-dark-chassis tracking-tight">
-            SCREEN JOURNEY DECK <span className="text-txt-muted font-normal">({screens.length} screens sequenced)</span>
+            SCREEN JOURNEY DECK <span className="text-txt-muted font-normal">({activeScreens.length} screens sequenced)</span>
           </span>
         </div>
 
@@ -603,7 +628,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
 
           <button
             onClick={handleAutoNameAll}
-            disabled={isAutoNaming || screens.length === 0 || isUploadingCaptures}
+            disabled={isAutoNaming || activeScreens.length === 0 || isUploadingCaptures}
             className="px-3.5 py-1.5 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-xs font-bold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             title="Automatically analyze and rename all screens with clean semantic AI titles"
           >
@@ -616,7 +641,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
             <button
               type="button"
               onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-              disabled={isExportingStoryboard || screens.length === 0}
+              disabled={isExportingStoryboard || activeScreens.length === 0}
               className="px-3.5 py-1.5 rounded-pill bg-dark-chassis hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
               title="Download full screen sequence as a high-res Storyboard Grid image"
             >
@@ -662,7 +687,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
                 >
                   <div className="text-xs font-bold text-white group-hover:text-neon flex items-center justify-between">
                     <span>Download 1 Master Image</span>
-                    <span className="text-[10px] font-mono text-txt-muted">All {screens.length}</span>
+                    <span className="text-[10px] font-mono text-txt-muted">All {activeScreens.length}</span>
                   </div>
                   <p className="text-[10px] text-txt-muted mt-0.5 leading-tight">
                     Continuous multi-row composite image of full flow (1 file)
@@ -696,12 +721,12 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
           <div className="hidden lg:flex items-center gap-2">
             <span className="text-xs text-txt-muted">Sequence:</span>
             <div className="flex items-center gap-1 overflow-x-auto max-w-xs xl:max-w-md py-0.5 text-[11px] font-mono">
-              {screens.map((s, idx) => (
+              {activeScreens.map((s, idx) => (
                 <React.Fragment key={s.id}>
                   <span className="px-2 py-0.5 rounded bg-clinical-warm text-dark-chassis border border-clinical-border font-semibold">
                     #{s.screen_number}
                   </span>
-                  {idx < screens.length - 1 && <span className="text-txt-muted">→</span>}
+                  {idx < activeScreens.length - 1 && <span className="text-txt-muted">→</span>}
                 </React.Fragment>
               ))}
             </div>
@@ -719,7 +744,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
 
       {/* Main Screen Cards Grid */}
       <div className="flex-1 overflow-y-auto space-y-4">
-        {screens.length === 0 ? (
+        {activeScreens.length === 0 ? (
           <div className="bg-clinical-white rounded-2xl border border-clinical-border p-12 text-center max-w-md mx-auto space-y-3 mt-12 shadow-subtle">
             <Layers className="w-8 h-8 text-txt-muted mx-auto opacity-40" />
             <h4 className="text-sm font-bold text-dark-chassis">No Screenshots Uploaded Yet</h4>
@@ -729,7 +754,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {screens.map((scr, idx) => {
+            {activeScreens.map((scr, idx) => {
               const isExpanded = expandedInfoId === scr.id;
             return (
               <div 
@@ -752,8 +777,16 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
                     </span>
                   </div>
 
-                  {/* Move Up/Down Controls */}
+                  {/* Move Up/Down & Preview Controls */}
                   <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPreviewScreen(scr); }}
+                      className="p-1 rounded hover:bg-clinical-warm text-dark-chassis transition cursor-pointer"
+                      title="Enlarge preview & inspect actions"
+                    >
+                      <Eye className="w-3 h-3 text-txt-muted hover:text-dark-chassis" />
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); moveScreen(idx, 'up'); }}
                       disabled={idx === 0}
@@ -764,7 +797,7 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); moveScreen(idx, 'down'); }}
-                      disabled={idx === screens.length - 1}
+                      disabled={idx === activeScreens.length - 1}
                       className="p-1 rounded hover:bg-clinical-warm disabled:opacity-20 text-dark-chassis"
                       title="Move Right/Down"
                     >
@@ -775,7 +808,11 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
 
                 {/* Screenshot Image Preview Container */}
                 <div className="p-3 pb-1">
-                  <div className="aspect-[9/16] bg-clinical-warm rounded-xl overflow-hidden relative border border-clinical-border group">
+                  <div 
+                    onClick={(e) => { e.stopPropagation(); setPreviewScreen(scr); }}
+                    className="aspect-[9/16] bg-clinical-warm rounded-xl overflow-hidden relative border border-clinical-border group cursor-pointer"
+                    title="Click to enlarge and inspect actions"
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
                       src={scr.image_url} 
@@ -792,6 +829,13 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
 
                     {/* Overlay Action Pills */}
                     <div className="absolute inset-0 bg-dark-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 gap-1.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setPreviewScreen(scr); }}
+                        className="w-full py-1 px-2 rounded-pill bg-dark-chassis hover:bg-black text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow cursor-pointer"
+                      >
+                        <Eye className="w-3 h-3 text-neon" />
+                        Preview Screen & Actions
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); openActionEditorForScreen(scr); }}
                         className="w-full py-1 px-2 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis text-[10px] font-bold flex items-center justify-center gap-1 shadow cursor-pointer"
@@ -1244,6 +1288,181 @@ export function ScreenDeckView({ screens, featureId, feature, knowledgeItems, on
           </div>
         </div>
       )}
+
+      {/* Rich Screen Preview Lightbox */}
+      {previewScreen && (() => {
+        const previewActions = previewScreen.actions && previewScreen.actions.length > 0
+          ? previewScreen.actions
+          : parseUserActionStringToActions(previewScreen.user_action);
+
+        return (
+          <div 
+            onClick={() => setPreviewScreen(null)}
+            className="fixed inset-0 z-70 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in cursor-pointer"
+          >
+            <div 
+              className="bg-dark-chassis border border-dark-secondary rounded-[24px] sm:rounded-[32px] max-w-5xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden shadow-2xl relative cursor-default" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setPreviewScreen(null)}
+                className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-dark-secondary/80 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary flex items-center justify-center cursor-pointer transition shadow-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Left Pane: Image Container */}
+              <div className="flex-1 bg-dark-black flex items-center justify-center p-4 sm:p-6 min-h-[300px] md:min-h-[500px] max-h-[50vh] md:max-h-[90vh] overflow-hidden border-b md:border-b-0 md:border-r border-dark-secondary">
+                <img
+                  src={previewScreen.image_url}
+                  alt={previewScreen.name || 'Enlarged preview'}
+                  className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                />
+              </div>
+
+              {/* Right Pane: Screen Intelligence & Actions */}
+              <div className="w-full md:w-96 flex flex-col bg-dark-chassis p-5 sm:p-6 space-y-4 max-h-[45vh] md:max-h-[90vh] overflow-y-auto">
+                {/* Screen Header Badge & Title */}
+                <div className="space-y-1.5 pr-6">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-neon text-dark-chassis font-mono text-xs font-bold">
+                      #{previewScreen.screen_number}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${stateColors[previewScreen.state] || stateColors.normal}`}>
+                      {previewScreen.state}
+                    </span>
+                    {previewScreen.pii_flagged && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-status-critical text-white">
+                        REDACTED
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
+                    {previewScreen.name || 'Untitled Screen'}
+                  </h3>
+                </div>
+
+                {/* Actions Section */}
+                <div className="space-y-2 flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                      <Layers className="w-3.5 h-3.5 text-neon" />
+                      <span>User Actions & Interactions</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-neon font-bold">
+                      {previewActions.length} Defined
+                    </span>
+                  </div>
+
+                  {previewActions.length === 0 ? (
+                    <div className="p-3.5 rounded-xl bg-dark-secondary/40 border border-dashed border-dark-tertiary text-center space-y-2">
+                      <p className="text-xs text-txt-muted">No interactions configured for this screen.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = previewScreen;
+                          setPreviewScreen(null);
+                          openActionEditorForScreen(target);
+                        }}
+                        className="px-3 py-1 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Add Actions</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                      {previewActions.map((act, idx) => (
+                        <div 
+                          key={act.id || idx}
+                          className="p-2 rounded-xl bg-dark-secondary/50 border border-dark-tertiary flex items-start gap-2 text-xs"
+                        >
+                          {act.role === 'optional' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 uppercase">
+                              OPT
+                            </span>
+                          ) : act.role === 'exit' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0 uppercase">
+                              EXIT ⤶
+                            </span>
+                          ) : act.role === 'link' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 shrink-0 uppercase">
+                              LINK ↗
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-neon text-dark-chassis shrink-0">
+                              #{idx + 1}
+                            </span>
+                          )}
+
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {act.section && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-dark-chassis text-txt-secondary border border-dark-tertiary">
+                                  {act.section}
+                                </span>
+                              )}
+                              <span className="text-[9px] font-mono uppercase text-txt-muted">
+                                [{act.type || 'tap'}]
+                              </span>
+                            </div>
+                            <p className="text-white text-xs leading-snug">
+                              {act.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Expected Outcome */}
+                {previewScreen.expected_behavior && (
+                  <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 block">
+                      Expected Outcome / Next State
+                    </span>
+                    <p className="text-xs text-sky-100 leading-snug">
+                      {previewScreen.expected_behavior}
+                    </p>
+                  </div>
+                )}
+
+                {/* Footer Actions */}
+                <div className="pt-2 border-t border-dark-secondary flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = previewScreen;
+                      setPreviewScreen(null);
+                      openActionEditorForScreen(target);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-neon hover:bg-neon-bright text-dark-chassis font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit Actions & Steps</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = previewScreen;
+                      setPreviewScreen(null);
+                      onAnalyzeScreen(target);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-dark-secondary hover:bg-dark-tertiary text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-dark-tertiary cursor-pointer transition"
+                    title="Trigger AI analysis for this screen"
+                  >
+                    <BrainCircuit className="w-3.5 h-3.5 text-neon" />
+                    <span className="hidden sm:inline">AI Analyze</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

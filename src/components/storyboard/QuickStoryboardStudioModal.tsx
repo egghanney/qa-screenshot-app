@@ -33,7 +33,8 @@ import {
   Compass,
   Cpu,
   FileText,
-  Bot
+  Bot,
+  RotateCcw
 } from 'lucide-react';
 import { StoryboardScreen, Project, StoryboardExecutiveContext, StoryboardPillarKey, KnowledgeCategory } from '@/lib/types';
 import { 
@@ -41,11 +42,23 @@ import {
   exportStoryboardMasterImage, 
   exportStoryboardInSetsOf10 
 } from '@/lib/storyboard/storyboardGridExporter';
+import { serializeActionsToUserActionString } from '@/lib/storyboard/actionSerializer';
 import { ScreenActionEditorDrawer } from '@/components/storyboard/ScreenActionEditorDrawer';
 import { LiveScreenCaptureModal } from '@/components/capture/LiveScreenCaptureModal';
 import { ChatGPTExportModal } from '@/components/storyboard/ChatGPTExportModal';
 import { SnappedScreen } from '@/lib/capture/useScreenCapture';
 import { supabase } from '@/lib/supabase/client';
+
+const INITIAL_EXECUTIVE_CONTEXT: StoryboardExecutiveContext = {
+  featuresAndServices: '',
+  userTypes: '',
+  journeysAndNavigation: '',
+  interactionReference: '',
+  businessRules: '',
+  systemFailureStates: '',
+  communicationsDependencies: '',
+  historicalKnowledgeRisk: ''
+};
 
 interface QuickStoryboardStudioModalProps {
   isOpen: boolean;
@@ -64,6 +77,7 @@ export function QuickStoryboardStudioModal({
   const [screens, setScreens] = useState<StoryboardScreen[]>([]);
   const [selectedScreenForEdit, setSelectedScreenForEdit] = useState<StoryboardScreen | null>(null);
   const [previewScreen, setPreviewScreen] = useState<StoryboardScreen | null>(null);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
   // Drag and drop rearrange state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -78,16 +92,7 @@ export function QuickStoryboardStudioModal({
 
   // 8-Pillar Executive Flow Context State
   const [isExecutiveCardOpen, setIsExecutiveCardOpen] = useState(false);
-  const [executiveContext, setExecutiveContext] = useState<StoryboardExecutiveContext>({
-    featuresAndServices: '',
-    userTypes: '',
-    journeysAndNavigation: '',
-    interactionReference: '',
-    businessRules: '',
-    systemFailureStates: '',
-    communicationsDependencies: '',
-    historicalKnowledgeRisk: ''
-  });
+  const [executiveContext, setExecutiveContext] = useState<StoryboardExecutiveContext>(INITIAL_EXECUTIVE_CONTEXT);
 
   // Live Screen Capture Integration State
   const [isLiveCaptureOpen, setIsLiveCaptureOpen] = useState(false);
@@ -114,12 +119,23 @@ export function QuickStoryboardStudioModal({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      let restored = false;
       const savedTitle = localStorage.getItem('qa_storyboard_title');
-      if (savedTitle) setFlowTitle(savedTitle);
+      if (savedTitle && savedTitle.trim() && savedTitle !== 'New User Flow') {
+        setFlowTitle(savedTitle);
+        restored = true;
+      }
 
       const savedCtx = localStorage.getItem('qa_storyboard_context');
       if (savedCtx) {
-        setExecutiveContext(JSON.parse(savedCtx));
+        const parsed = JSON.parse(savedCtx);
+        setExecutiveContext(parsed);
+        const count = Object.values(parsed).filter(v => typeof v === 'string' && v.trim().length > 0).length;
+        if (count > 0) restored = true;
+      }
+
+      if (restored) {
+        setHasRestoredDraft(true);
       }
     } catch (e) {}
   }, []);
@@ -141,6 +157,23 @@ export function QuickStoryboardStudioModal({
       } catch (e) {}
       return updated;
     });
+  };
+
+  // Reset entire studio to blank state
+  const handleResetStudio = () => {
+    if (confirm('Start a fresh storyboard? This will wipe all uploaded screens, flow title, and the 8 executive flow specifications.')) {
+      screens.forEach(s => {
+        if (s.previewUrl) URL.revokeObjectURL(s.previewUrl);
+      });
+      setScreens([]);
+      setFlowTitle('New User Flow');
+      setExecutiveContext(INITIAL_EXECUTIVE_CONTEXT);
+      setHasRestoredDraft(false);
+      try {
+        localStorage.removeItem('qa_storyboard_title');
+        localStorage.removeItem('qa_storyboard_context');
+      } catch (e) {}
+    }
   };
 
   if (!isOpen) return null;
@@ -303,7 +336,7 @@ export function QuickStoryboardStudioModal({
   // Clear all screens
   const handleClearAll = () => {
     if (screens.length === 0) return;
-    if (confirm('Clear all screens in this storyboard?')) {
+    if (confirm('Clear all screens in this storyboard? (Flow title and executive specifications will remain. To reset everything, use Start Fresh.)')) {
       screens.forEach(s => {
         if (s.previewUrl) URL.revokeObjectURL(s.previewUrl);
       });
@@ -415,18 +448,8 @@ export function QuickStoryboardStudioModal({
 
         // Format actions text
         const actionStr = item.actions.length > 0
-          ? item.actions.map((a, idx) => {
-              const sectionTag = a.section ? `[${a.section}] ` : '';
-              const prefix = a.role === 'optional'
-                ? '• [Optional]'
-                : a.role === 'exit'
-                ? '⤶ [Exit]'
-                : a.role === 'link'
-                ? '↗ [Link]'
-                : `${idx + 1}.`;
-              return `${prefix} ${sectionTag}[${a.type || 'tap'}] ${a.description}`;
-            }).join(' • ')
-          : `User interactions on ${item.name}`;
+          ? serializeActionsToUserActionString(item.actions)
+          : null;
 
         await supabase.from('qa_screens').insert({
           feature_id: featureId,
@@ -476,6 +499,19 @@ export function QuickStoryboardStudioModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feature_id: featureId })
       });
+
+      // 5. Clean up draft storage and in-memory state for future storyboards
+      screens.forEach(s => {
+        if (s.previewUrl) URL.revokeObjectURL(s.previewUrl);
+      });
+      setScreens([]);
+      setFlowTitle('New User Flow');
+      setExecutiveContext(INITIAL_EXECUTIVE_CONTEXT);
+      setHasRestoredDraft(false);
+      try {
+        localStorage.removeItem('qa_storyboard_title');
+        localStorage.removeItem('qa_storyboard_context');
+      } catch (e) {}
 
       setIsSaveModalOpen(false);
       onClose();
@@ -675,7 +711,20 @@ export function QuickStoryboardStudioModal({
               </div>
             )}
 
-            {/* Clear Button */}
+            {/* Start Fresh / Reset Button */}
+            {(computedScreens.length > 0 || definedPillarsCount > 0 || flowTitle !== 'New User Flow') && (
+              <button
+                type="button"
+                onClick={handleResetStudio}
+                className="px-2.5 py-1.5 rounded-pill bg-dark-secondary hover:bg-rose-500/20 text-txt-muted hover:text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition border border-dark-tertiary cursor-pointer"
+                title="Start fresh: clear all screens, title & executive specifications"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Start Fresh</span>
+              </button>
+            )}
+
+            {/* Clear Screens Button */}
             {computedScreens.length > 0 && (
               <button
                 type="button"
@@ -696,6 +745,33 @@ export function QuickStoryboardStudioModal({
             </button>
           </div>
         </header>
+
+        {/* Restored Draft Banner */}
+        {hasRestoredDraft && (
+          <div className="px-4 sm:px-6 py-2 bg-dark-secondary/70 border-b border-dark-tertiary/60 flex items-center justify-between text-xs text-txt-muted animate-in fade-in shrink-0">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-neon shrink-0" />
+              <span>Working draft restored from local session ({definedPillarsCount}/8 specifications defined)</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleResetStudio}
+                className="text-[11px] font-bold text-rose-400 hover:text-rose-300 underline cursor-pointer"
+              >
+                Clear & Start Fresh
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setHasRestoredDraft(false)}
+                className="text-[11px] text-txt-muted hover:text-white cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Studio Main Workspace */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-dark-black/40">
@@ -1093,34 +1169,101 @@ export function QuickStoryboardStudioModal({
                             </button>
                           </div>
 
-                          {/* Action Steps Count Snippet */}
-                          {screen.actions && screen.actions.length > 0 ? (
-                            <div className="text-[10px] text-neon flex items-center gap-1 flex-wrap">
-                              <Layers className="w-2.5 h-2.5 shrink-0" />
-                              <span>
-                                {screen.actions.filter(a => !a.role || a.role === 'sequential').length > 0
-                                  ? `${screen.actions.filter(a => !a.role || a.role === 'sequential').length} step${screen.actions.filter(a => !a.role || a.role === 'sequential').length === 1 ? '' : 's'}`
-                                  : `${screen.actions.length} action${screen.actions.length === 1 ? '' : 's'}`}
-                              </span>
-                              {screen.actions.some(a => a.role === 'optional') && (
-                                <span className="text-amber-300">
-                                  • {screen.actions.filter(a => a.role === 'optional').length} opt
-                                </span>
-                              )}
-                              {screen.actions.some(a => a.role === 'exit' || a.role === 'link') && (
-                                <span className="text-rose-300">
-                                  • {screen.actions.filter(a => a.role === 'exit' || a.role === 'link').length} exit
-                                </span>
-                              )}
-                              {new Set(screen.actions.map(a => a.section?.trim()).filter(Boolean)).size > 0 && (
-                                <span className="text-sky-300">
-                                  • {new Set(screen.actions.map(a => a.section?.trim()).filter(Boolean)).size} sec
-                                </span>
-                              )}
+                          {/* Structured Actions & Interactions Snippet */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-white tracking-tight">
+                                <Layers className="w-3 h-3 text-neon" />
+                                <span>ACTIONS</span>
+                                {screen.actions && screen.actions.length > 0 && (
+                                  <span className="px-1.5 py-0.2 rounded-full bg-dark-chassis text-neon font-mono text-[9px] border border-dark-tertiary font-semibold">
+                                    {screen.actions.filter(a => !a.role || a.role === 'sequential').length > 0
+                                      ? `${screen.actions.filter(a => !a.role || a.role === 'sequential').length} step${screen.actions.filter(a => !a.role || a.role === 'sequential').length === 1 ? '' : 's'}`
+                                      : `${screen.actions.length} action${screen.actions.length === 1 ? '' : 's'}`}
+                                  </span>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedScreenForEdit(screen);
+                                }}
+                                className="text-[10px] text-neon hover:text-neon-bright font-bold flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-dark-secondary transition cursor-pointer"
+                                title="Open Action Editor Side Drawer"
+                              >
+                                <Edit3 className="w-2.5 h-2.5" />
+                                <span>Edit</span>
+                              </button>
                             </div>
-                          ) : (
-                            <span className="text-[10px] text-txt-muted block">No actions added</span>
-                          )}
+
+                            {(!screen.actions || screen.actions.length === 0) ? (
+                              <div 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedScreenForEdit(screen);
+                                }}
+                                className="p-2 rounded-lg bg-dark-chassis/60 border border-dashed border-dark-tertiary text-[10px] text-txt-muted hover:border-neon/60 hover:text-neon cursor-pointer transition flex items-center justify-center gap-1"
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>Add interaction steps...</span>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                {screen.actions.slice(0, 3).map((act, actIdx) => (
+                                  <div 
+                                    key={act.id || actIdx}
+                                    className="flex items-start gap-1.5 text-[10px] p-1.5 rounded-md bg-dark-chassis/90 border border-dark-tertiary"
+                                  >
+                                    {/* Role Badge */}
+                                    {act.role === 'optional' ? (
+                                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 uppercase">
+                                        OPT
+                                      </span>
+                                    ) : act.role === 'exit' ? (
+                                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0 uppercase">
+                                        EXIT ⤶
+                                      </span>
+                                    ) : act.role === 'link' ? (
+                                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 shrink-0 uppercase">
+                                        LINK ↗
+                                      </span>
+                                    ) : (
+                                      <span className="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-neon text-dark-chassis shrink-0">
+                                        #{actIdx + 1}
+                                      </span>
+                                    )}
+
+                                    {/* Section Tag */}
+                                    {act.section && (
+                                      <span className="px-1 py-0.2 rounded text-[8px] font-medium bg-dark-secondary text-txt-muted border border-dark-tertiary shrink-0 truncate max-w-[70px]">
+                                        {act.section}
+                                      </span>
+                                    )}
+
+                                    {/* Description */}
+                                    <span className="text-white truncate flex-1 font-medium leading-tight">
+                                      {act.description}
+                                    </span>
+                                  </div>
+                                ))}
+
+                                {screen.actions.length > 3 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedScreenForEdit(screen);
+                                    }}
+                                    className="text-[9px] font-semibold text-neon hover:underline block text-left pt-0.5 cursor-pointer"
+                                  >
+                                    + {screen.actions.length - 3} more action{screen.actions.length - 3 === 1 ? '' : 's'}...
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* 3-Tier Hierarchy Selector or Fixed Entry Tag */}
@@ -1205,25 +1348,153 @@ export function QuickStoryboardStudioModal({
           }}
         />
 
-        {/* Lightbox Preview Modal */}
+        {/* Rich Screen Preview Lightbox */}
         {previewScreen && (
           <div 
             onClick={() => setPreviewScreen(null)}
-            className="fixed inset-0 z-70 bg-black/90 flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+            className="fixed inset-0 z-70 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in cursor-pointer"
           >
-            <div className="max-w-4xl max-h-[85vh] relative" onClick={(e) => e.stopPropagation()}>
-              <img
-                src={previewScreen.previewUrl}
-                alt="Enlarged preview"
-                className="max-w-full max-h-[85vh] object-contain rounded-2xl border border-dark-secondary shadow-2xl"
-              />
+            <div 
+              className="bg-dark-chassis border border-dark-secondary rounded-[24px] sm:rounded-[32px] max-w-5xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden shadow-2xl relative cursor-default" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
               <button
                 type="button"
                 onClick={() => setPreviewScreen(null)}
-                className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-dark-chassis text-white hover:text-neon border border-dark-tertiary flex items-center justify-center cursor-pointer shadow-lg"
+                className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-dark-secondary/80 hover:bg-dark-secondary text-txt-muted hover:text-white border border-dark-tertiary flex items-center justify-center cursor-pointer transition shadow-md"
               >
                 <X className="w-4 h-4" />
               </button>
+
+              {/* Left Pane: Image Container */}
+              <div className="flex-1 bg-dark-black flex items-center justify-center p-4 sm:p-6 min-h-[300px] md:min-h-[500px] max-h-[50vh] md:max-h-[90vh] overflow-hidden border-b md:border-b-0 md:border-r border-dark-secondary">
+                <img
+                  src={previewScreen.previewUrl}
+                  alt={previewScreen.name || 'Enlarged preview'}
+                  className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                />
+              </div>
+
+              {/* Right Pane: Screen Intelligence & Actions */}
+              <div className="w-full md:w-96 flex flex-col bg-dark-chassis p-5 sm:p-6 space-y-4 max-h-[45vh] md:max-h-[90vh] overflow-y-auto">
+                {/* Screen Header Badge & Title */}
+                <div className="space-y-1.5 pr-6">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-neon text-dark-chassis font-mono text-xs font-bold">
+                      {previewScreen.stepBadge || 'Step'}
+                    </span>
+                    <span className="text-[11px] font-mono text-txt-muted uppercase">
+                      {previewScreen.nestLevel === 2 ? 'Sub-of-Sub Screen' : previewScreen.nestLevel === 1 || previewScreen.isSubScreen ? 'Sub-Screen' : 'Primary Step'}
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
+                    {previewScreen.name || 'Untitled Screen'}
+                  </h3>
+                </div>
+
+                {/* Actions Section */}
+                <div className="space-y-2 flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                      <Layers className="w-3.5 h-3.5 text-neon" />
+                      <span>User Actions & Interactions</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-neon font-bold">
+                      {previewScreen.actions?.length || 0} Defined
+                    </span>
+                  </div>
+
+                  {(!previewScreen.actions || previewScreen.actions.length === 0) ? (
+                    <div className="p-3.5 rounded-xl bg-dark-secondary/40 border border-dashed border-dark-tertiary text-center space-y-2">
+                      <p className="text-xs text-txt-muted">No interactions configured for this screen.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = previewScreen;
+                          setPreviewScreen(null);
+                          setSelectedScreenForEdit(target);
+                        }}
+                        className="px-3 py-1 rounded-pill bg-neon hover:bg-neon-bright text-dark-chassis font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Add Actions</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                      {previewScreen.actions.map((act, idx) => (
+                        <div 
+                          key={act.id || idx}
+                          className="p-2 rounded-xl bg-dark-secondary/50 border border-dark-tertiary flex items-start gap-2 text-xs"
+                        >
+                          {act.role === 'optional' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 uppercase">
+                              OPT
+                            </span>
+                          ) : act.role === 'exit' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0 uppercase">
+                              EXIT ⤶
+                            </span>
+                          ) : act.role === 'link' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 shrink-0 uppercase">
+                              LINK ↗
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-neon text-dark-chassis shrink-0">
+                              #{idx + 1}
+                            </span>
+                          )}
+
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {act.section && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-dark-chassis text-txt-secondary border border-dark-tertiary">
+                                  {act.section}
+                                </span>
+                              )}
+                              <span className="text-[9px] font-mono uppercase text-txt-muted">
+                                [{act.type || 'tap'}]
+                              </span>
+                            </div>
+                            <p className="text-white text-xs leading-snug">
+                              {act.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Expected Outcome */}
+                {previewScreen.expectedResult && (
+                  <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 block">
+                      Expected Outcome / Next State
+                    </span>
+                    <p className="text-xs text-sky-100 leading-snug">
+                      {previewScreen.expectedResult}
+                    </p>
+                  </div>
+                )}
+
+                {/* Footer Edit Action */}
+                <div className="pt-2 border-t border-dark-secondary">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = previewScreen;
+                      setPreviewScreen(null);
+                      setSelectedScreenForEdit(target);
+                    }}
+                    className="w-full py-2 rounded-xl bg-dark-secondary hover:bg-dark-tertiary text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-dark-tertiary cursor-pointer transition"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-neon" />
+                    <span>Edit Screen Actions & Hierarchy</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
